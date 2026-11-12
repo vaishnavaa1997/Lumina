@@ -1,0 +1,38 @@
+How to Turn Lumina into a GitHub Repository
+Turning your Lumina folder into a GitHub repository gives you two massive superpowers:
+Version Control & Instant Backup: Every script, storyboard, and animation batch is versioned and backed up in the cloud.
+Zero-Paste AI Context: Instead of pasting 3,000 lines of engine.js into future chats, your repository holds the full engine and you only ever need a short API Cheat-Sheet in your system prompt.
+Step 1: Create a .gitignore File in C:\Users\vaish\Videos\Video_Studio\Lumina\
+You do not want Git trying to upload 500MB .mp4 or .wav files or node_modules to GitHub.
+Open Notepad, paste the lines below, and save it as .gitignore (select Save as type: All Files (*.*)) inside C:\Users\vaish\Videos\Video_Studio\Lumina\:
+Gitignore
+# Ignore heavy rendered video & audio files
+projects/**/build/
+*.mp4
+*.wav
+*.mov
+*.mkv
+
+# Ignore Node.js dependencies & OS temp files
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+(Note: All your lightweight .html files—storyboard.html, shots_01_05.html, bgm_master.html—will be saved to GitHub because they are tiny text files!)
+Step 2: Initialize Git and Push to GitHub
+Go to https://github.com/new and create a new repository named lumina-studio (keep Add a README unchecked).
+Open Command Prompt (or PowerShell / Git Bash) inside C:\Users\vaish\Videos\Video_Studio\Lumina and run these 6 commands:
+Bash
+git init
+git add .
+git commit -m "Initial commit: Lumina 2.5D Storybook Studio + Modules 1-11"
+git branch -M main
+git remote add origin https://github.com/YOUR_GITHUB_USERNAME/lumina-studio.git
+git push -u origin main
+Step 3: Your Daily Workflow Going Forward
+Whenever you finish a new video project or update an engine file, just run:
+Bash
+git add .
+git commit -m "Added new video project"
+git push
+Let me know once you have saved engine/lumina_physics.js and added the 14-line loader to the bottom of engine.js—or if you'd like me to generate a lean MASTER_PROMPT.md Cheat-Sheet that includes the new FX.richScene, UI.hardwareTeardown, UI.strategicMap, UI.chartBar3D, and PHY.* calls for your future video prompts!

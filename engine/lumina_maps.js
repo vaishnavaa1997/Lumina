@@ -1,11 +1,13 @@
 // ============================================================================
-// MODULE: LUMINA_MAPS (engine/lumina_maps.js) — High-Precision [lon, lat]
-// Vector Cartography, Indian States, Southeast Asia, World Continents,
-// Historical Empires, Major Rivers, 2.5D Extruded Coastal Cliff Relief,
-// Royal Parchment Maps, Animated Naval/Army Route Vessels, 2.5D Monument
-// Diorama Pins & Orthographic 3D Globe-to-Map Morphing.
-// Logical Stage: 1920x1080 (16:9 Widescreen). Deterministic fn(t).
-// Requires MODULE 1: LUMINA_CORE (window.DK / window.H / window.FX).
+// MODULE: LUMINA_MAPS (engine/lumina_maps.js) — 16:9 Widescreen (1920x1080)
+// 100% UNIVERSAL, LOCATION-AGNOSTIC SATELLITE, TERRAIN & GEOJSON ENGINE
+// - ZERO hardcoded city/state limitations: works for ANY location on Earth.
+// - Accepts ANY [lon, lat], [minLon, minLat, maxLon, maxLat] bbox, custom
+//   GeoJSON/polygon rings, or ANY place name string on Earth (auto-resolved
+//   via OpenStreetMap Nominatim GeoJSON + Natural Earth World GeoJSON).
+// - Real Web Mercator Slippy Tiles (z = 1..19): Satellite, Analyst Briefing,
+//   Night Satellite, Shaded Terrain Relief (zero modern labels), & Street/Canals.
+// - Calibrated for 16:9 Widescreen Safe Stage (1920x1080, cx: 960, cy: 540).
 // ============================================================================
 (function () {
   'use strict';
@@ -14,7 +16,12 @@
   const H = (window.H = window.H || DK);
   const FX = (window.FX = window.FX || DK.fx || {});
   const UI = (window.UI = window.UI || DK.ui || {});
-  const E = DK.E || { W: 1920, H: 1080 };
+  const E = DK.E || {
+    W: 1920,
+    H: 1080,
+    SAFE: { x0: 140, x1: 1780, y0: 90, y1: 990, cx: 960, cy: 540, groundY: 840 },
+  };
+  const SAFE = E.SAFE || { x0: 140, x1: 1780, y0: 90, y1: 990, cx: 960, cy: 540, groundY: 840 };
 
   const {
     clamp,
@@ -22,7 +29,6 @@
     prog,
     ease,
     rng,
-    noise,
     alpha,
     mix,
     shade,
@@ -33,7 +39,6 @@
     poly,
     seg,
     linGrad,
-    radGrad,
     sphereGrad,
     cylinderGrad,
     contactShadow,
@@ -44,513 +49,254 @@
   } = DK;
 
   const DEG2RAD = Math.PI / 180;
+  const DEFAULT_VIEWPORT_169 = [110, 86, 1700, 908];
+  const DEFAULT_FRAME_169 = [64, 48, 1792, 984];
+  const WORLD_BBOX = [-168.0, -56.0, 178.0, 74.0];
 
-  // ---------- 1. Regional Bounding Boxes [minLon, minLat, maxLon, maxLat] ----------
-  const REGION_BBOX = {
-    tamil_nadu: [75.2, 7.4, 81.8, 14.2],
-    south_india: [72.5, 5.5, 85.5, 20.5],
-    india: [66.5, 5.5, 98.5, 36.5],
-    india_southeast_asia: [71.0, -9.5, 118.0, 26.5],
-    southeast_asia: [92.0, -10.5, 126.0, 23.5],
-    east_asia: [98.0, 18.0, 147.0, 48.0],
-    middle_east: [26.0, 12.0, 72.0, 43.0],
-    europe_mediterranean: [-11.0, 29.0, 42.0, 60.0],
-    eurasia: [-12.0, -8.0, 148.0, 66.0],
-    north_america: [-132.0, 15.0, -62.0, 58.0],
-    world: [-168.0, -56.0, 178.0, 74.0],
+  // ---------- 1. Universal Keyless Tile Providers (Zoom 1 to 19 Anywhere on Earth) ----------
+  const TILE_PROVIDERS = {
+    satellite: (z, x, y) =>
+      `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`,
+    satelliteBriefing: (z, x, y) =>
+      `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`,
+    satelliteNight: (z, x, y) =>
+      `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`,
+    terrainHistorical: (z, x, y) =>
+      `https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/${z}/${y}/${x}`,
+    parchment: (z, x, y) =>
+      `https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/${z}/${y}/${x}`,
+    relief: (z, x, y) =>
+      `https://server.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/tile/${z}/${y}/${x}`,
+    tactical: (z, x, y) =>
+      `https://a.basemaps.cartocdn.com/dark_nolabels/${z}/${x}/${y}.png`,
+    darkStreet: (z, x, y) =>
+      `https://a.basemaps.cartocdn.com/dark_nolabels/${z}/${x}/${y}.png`,
+    streetCanals: (z, x, y) =>
+      `https://a.basemaps.cartocdn.com/rastertiles/voyager_nolabels/${z}/${x}/${y}.png`,
   };
 
-  // ---------- 2. Real [lon, lat] Vector Polygon Database (GEO_DB) ----------
-  const GEO_DB = {
-    // --- A. INDIAN STATES & SUBCONTINENT NEIGHBORS ---
-    tamil_nadu: {
-      name: 'TAMIL NADU',
-      group: 'india_state',
-      color: '#D98A4C',
-      rings: [
-        [
-          [80.28, 13.42], [80.27, 13.08], [80.18, 12.62], [79.85, 11.94],
-          [79.85, 11.45], [79.84, 10.76], [79.84, 10.28], [79.32, 10.22],
-          [78.88, 9.55], [79.32, 9.28], [78.82, 9.15], [78.13, 8.78],
-          [77.75, 8.38], [77.54, 8.08], [77.22, 8.32], [77.12, 8.95],
-          [77.38, 9.48], [77.18, 9.92], [76.95, 10.35], [76.72, 10.85],
-          [76.42, 11.45], [76.25, 11.68], [76.95, 11.95], [77.58, 12.22],
-          [77.68, 12.68], [78.18, 12.88], [78.68, 12.92], [79.18, 13.05],
-          [79.72, 13.28], [80.28, 13.42],
-        ],
-      ],
-    },
-    kerala: {
-      name: 'KERALA',
-      group: 'india_state',
-      color: '#68A864',
-      rings: [
-        [
-          [74.88, 12.78], [75.38, 12.48], [75.88, 11.92], [76.25, 11.68],
-          [76.42, 11.45], [76.72, 10.85], [76.95, 10.35], [77.18, 9.92],
-          [77.38, 9.48], [77.12, 8.95], [77.22, 8.32], [76.88, 8.42],
-          [76.55, 8.88], [76.32, 9.48], [76.24, 9.96], [76.02, 10.65],
-          [75.78, 11.25], [75.32, 11.88], [74.88, 12.78],
-        ],
-      ],
-    },
-    karnataka: {
-      name: 'KARNATAKA',
-      group: 'india_state',
-      color: '#C89B58',
-      rings: [
-        [
-          [74.12, 14.82], [74.45, 15.88], [74.38, 16.65], [75.55, 16.95],
-          [76.45, 17.85], [77.48, 18.42], [77.68, 17.55], [77.38, 16.42],
-          [77.15, 15.22], [77.62, 14.48], [78.28, 13.85], [78.18, 12.88],
-          [77.68, 12.68], [77.58, 12.22], [76.95, 11.95], [76.25, 11.68],
-          [75.88, 11.92], [75.38, 12.48], [74.88, 12.78], [74.62, 13.48],
-          [74.38, 14.22], [74.12, 14.82],
-        ],
-      ],
-    },
-    andhra_pradesh: {
-      name: 'ANDHRA PRADESH',
-      group: 'india_state',
-      color: '#D4A85C',
-      rings: [
-        [
-          [80.28, 13.42], [79.72, 13.28], [79.18, 13.05], [78.68, 12.92],
-          [78.18, 12.88], [78.28, 13.85], [77.62, 14.48], [77.15, 15.22],
-          [77.38, 16.42], [78.42, 16.15], [79.58, 16.58], [80.42, 16.92],
-          [81.18, 17.65], [82.65, 18.45], [84.18, 18.98], [84.72, 19.12],
-          [83.92, 18.18], [83.32, 17.68], [82.28, 16.92], [81.65, 16.32],
-          [80.85, 15.75], [80.15, 15.12], [80.08, 14.25], [80.28, 13.42],
-        ],
-      ],
-    },
-    telangana: {
-      name: 'TELANGANA',
-      group: 'india_state',
-      color: '#BC8C54',
-      rings: [
-        [
-          [77.48, 18.42], [78.12, 19.28], [79.48, 19.65], [80.42, 18.78],
-          [81.18, 17.65], [80.42, 16.92], [79.58, 16.58], [78.42, 16.15],
-          [77.38, 16.42], [77.68, 17.55], [77.48, 18.42],
-        ],
-      ],
-    },
-    maharashtra: {
-      name: 'MAHARASHTRA',
-      group: 'india_state',
-      color: '#C48452',
-      rings: [
-        [
-          [72.68, 20.12], [73.68, 20.92], [74.78, 21.65], [76.42, 21.38],
-          [78.25, 21.52], [80.28, 21.25], [80.52, 19.85], [80.42, 18.78],
-          [79.48, 19.65], [78.12, 19.28], [77.48, 18.42], [76.45, 17.85],
-          [75.55, 16.95], [74.38, 16.65], [73.78, 15.85], [73.32, 16.95],
-          [72.95, 18.25], [72.82, 18.95], [72.68, 20.12],
-        ],
-      ],
-    },
-    odisha: {
-      name: 'ODISHA',
-      group: 'india_state',
-      color: '#B8985E',
-      rings: [
-        [
-          [84.72, 19.12], [84.18, 18.98], [82.65, 18.45], [81.48, 18.22],
-          [82.38, 20.15], [83.52, 21.48], [84.88, 22.35], [86.52, 22.18],
-          [87.45, 21.62], [86.95, 20.75], [85.85, 19.82], [84.72, 19.12],
-        ],
-      ],
-    },
-    gujarat: {
-      name: 'GUJARAT',
-      group: 'india_state',
-      color: '#D8A664',
-      rings: [
-        [
-          [68.45, 23.62], [69.85, 24.42], [71.68, 24.55], [73.48, 24.18],
-          [74.32, 22.85], [73.68, 20.92], [72.85, 20.38], [72.62, 21.65],
-          [72.18, 21.75], [70.85, 20.78], [69.05, 22.25], [70.18, 22.88],
-          [68.45, 23.62],
-        ],
-      ],
-    },
-    sri_lanka: {
-      name: 'SRI LANKA (Eelam)',
-      group: 'country',
-      color: '#78A868',
-      rings: [
-        [
-          [79.98, 9.78], [80.32, 9.45], [80.85, 8.95], [81.25, 8.55],
-          [81.82, 7.45], [81.75, 6.45], [80.62, 5.95], [79.95, 6.42],
-          [79.82, 7.25], [79.75, 8.28], [79.92, 9.05], [79.98, 9.78],
-        ],
-      ],
-    },
+  // Runtime Caches (Populated Dynamically for Any Place on Earth)
+  const TILE_CACHE = new Map();
+  const PLACE_CACHE = new Map(); // normalizedName -> { name, center: [lon, lat], bbox: [minLon, minLat, maxLon, maxLat], rings: [...] }
+  const PENDING_PLACE_PROMISES = new Map();
+  let WORLD_FEATURES = [];
+  let WORLD_LOADED = false;
 
-    // --- B. FULL INDIA SUBCONTINENT OUTLINE (For Macro Maps) ---
-    india_mainland: {
-      name: 'INDIA',
-      group: 'country',
-      color: '#C9965C',
-      rings: [
-        [
-          [68.45, 23.62], [70.18, 22.88], [69.05, 22.25], [70.85, 20.78],
-          [72.62, 21.65], [72.82, 18.95], [73.32, 16.95], [74.12, 14.82],
-          [74.88, 12.78], [75.78, 11.25], [76.32, 9.48], [77.54, 8.08],
-          [78.13, 8.78], [79.32, 9.28], [78.88, 9.55], [79.84, 10.28],
-          [79.85, 11.94], [80.27, 13.08], [80.08, 14.25], [80.85, 15.75],
-          [82.28, 16.92], [83.92, 18.18], [85.85, 19.82], [87.45, 21.62],
-          [88.85, 21.75], [88.95, 24.45], [88.15, 26.65], [89.85, 26.25],
-          [92.15, 26.85], [95.85, 28.15], [97.35, 27.95], [96.25, 26.15],
-          [94.25, 24.25], [92.85, 22.85], [91.45, 23.85], [88.95, 24.45],
-          [88.15, 26.65], [85.25, 26.85], [81.15, 28.45], [78.95, 31.25],
-          [78.45, 34.85], [76.25, 35.65], [74.15, 34.45], [74.65, 31.85],
-          [73.25, 29.85], [70.45, 27.25], [71.15, 24.65], [68.45, 23.62],
-        ],
-      ],
-    },
+  const WORLD_GEOJSON_URL =
+    'https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson';
 
-    // --- C. SOUTHEAST ASIA & MARITIME CHOLA EXPEDITION REGIONS ---
-    myanmar_thai_malay: {
-      name: 'MALAY PENINSULA (Kadaram)',
-      group: 'country',
-      color: '#6E9E68',
-      rings: [
-        [
-          [92.45, 20.85], [94.35, 16.15], [96.45, 16.65], [97.85, 15.15],
-          [98.45, 11.85], [99.15, 9.25], [100.15, 6.45], [101.25, 3.65],
-          [103.85, 1.32], [104.25, 2.65], [103.35, 4.85], [102.15, 6.25],
-          [100.25, 8.45], [99.45, 11.45], [100.55, 13.55], [102.65, 12.35],
-          [104.65, 10.35], [106.85, 8.65], [109.25, 11.85], [108.15, 16.05],
-          [105.85, 18.85], [107.15, 21.45], [102.25, 22.45], [97.85, 24.45],
-          [92.45, 20.85],
-        ],
-      ],
-    },
-    sumatra: {
-      name: 'SUMATRA (Srivijaya)',
-      group: 'country',
-      color: '#5C9862',
-      rings: [
-        [
-          [95.32, 5.55], [97.65, 4.95], [99.85, 3.15], [102.25, 1.45],
-          [104.45, -0.85], [105.95, -2.95], [105.75, -5.85], [103.85, -5.35],
-          [101.65, -3.15], [99.35, -0.65], [97.25, 1.85], [95.32, 5.55],
-        ],
-      ],
-    },
-    java: {
-      name: 'JAVA',
-      group: 'country',
-      color: '#689E5E',
-      rings: [
-        [
-          [105.35, -6.15], [108.45, -6.35], [111.35, -6.75], [114.45, -7.75],
-          [114.25, -8.65], [110.85, -8.25], [107.45, -7.55], [105.35, -6.75],
-          [105.35, -6.15],
-        ],
-      ],
-    },
-    borneo: {
-      name: 'BORNEO',
-      group: 'country',
-      color: '#5E925C',
-      rings: [
-        [
-          [109.25, 1.85], [111.65, 3.25], [115.25, 5.45], [117.65, 6.85],
-          [118.85, 4.65], [117.65, 1.15], [116.25, -2.25], [114.35, -3.55],
-          [111.65, -3.15], [109.45, -0.65], [109.25, 1.85],
-        ],
-      ],
-    },
-    andaman_nicobar: {
-      name: 'ANDAMAN & NICOBAR',
-      group: 'island',
-      color: '#78A868',
-      rings: [
-        [[92.65, 13.45], [93.05, 13.25], [92.95, 11.65], [92.55, 11.75], [92.65, 13.45]],
-        [[93.65, 7.95], [93.95, 7.65], [93.85, 6.75], [93.55, 6.95], [93.65, 7.95]],
-      ],
-    },
-
-    // --- D. WORLD CONTINENTS & MAJOR HISTORICAL REGIONS ---
-    eurasia_macro: {
-      name: 'EURASIA',
-      group: 'continent',
-      color: '#B89B6A',
-      rings: [
-        [
-          [-9.2, 38.7], [-5.5, 36.0], [3.2, 42.4], [12.5, 41.9], [15.6, 38.2],
-          [18.5, 40.5], [23.7, 37.9], [26.2, 40.0], [35.5, 33.9], [34.8, 31.2],
-          [48.5, 30.0], [56.2, 26.5], [61.5, 25.2], [68.4, 23.6], [72.8, 18.9],
-          [77.5, 8.1], [80.3, 13.1], [88.8, 21.8], [94.3, 16.2], [100.2, 6.5],
-          [103.8, 1.3], [106.8, 8.7], [109.2, 11.9], [108.1, 21.5], [114.2, 22.3],
-          [121.5, 31.2], [126.8, 37.5], [129.1, 35.1], [135.2, 43.5], [142.5, 52.8],
-          [160.5, 59.5], [172.0, 64.5], [135.0, 71.2], [85.0, 72.5], [42.0, 68.2],
-          [28.0, 70.8], [10.5, 63.4], [5.2, 60.4], [8.5, 54.5], [1.8, 51.0],
-          [-4.5, 48.4], [-1.8, 43.4], [-9.2, 38.7],
-        ],
-      ],
-    },
-    uk_ireland: {
-      name: 'BRITAIN',
-      group: 'country',
-      color: '#8EA472',
-      rings: [
-        [[-5.2, 50.1], [1.4, 51.2], [-1.8, 55.6], [-5.1, 58.5], [-4.8, 54.8], [-5.2, 50.1]],
-      ],
-    },
-    japan_archipelago: {
-      name: 'JAPAN',
-      group: 'country',
-      color: '#A88268',
-      rings: [
-        [[130.5, 31.5], [134.5, 33.8], [139.8, 35.7], [141.2, 41.2], [139.5, 39.8], [135.5, 35.6], [130.5, 31.5]],
-        [[140.5, 41.8], [145.2, 43.4], [141.8, 45.4], [140.5, 41.8]],
-      ],
-    },
-    africa_macro: {
-      name: 'AFRICA',
-      group: 'continent',
-      color: '#C89E62',
-      rings: [
-        [
-          [-5.8, 35.8], [10.2, 36.8], [32.5, 31.2], [43.2, 11.8], [51.2, 11.9],
-          [40.5, -2.5], [39.5, -10.5], [35.2, -23.5], [25.8, -33.9], [18.4, -34.4],
-          [14.5, -22.6], [12.2, -6.1], [9.4, 3.8], [3.4, 6.4], [-7.8, 4.5],
-          [-17.4, 14.7], [-13.2, 27.8], [-5.8, 35.8],
-        ],
-      ],
-    },
-    north_america_macro: {
-      name: 'NORTH AMERICA',
-      group: 'continent',
-      color: '#98A872',
-      rings: [
-        [
-          [-165.0, 64.5], [-135.0, 58.2], [-124.2, 48.4], [-122.4, 37.8],
-          [-117.2, 32.7], [-105.2, 20.6], [-89.6, 21.2], [-80.2, 25.8],
-          [-75.5, 35.2], [-74.0, 40.7], [-66.0, 44.6], [-55.5, 52.2],
-          [-78.5, 62.4], [-115.0, 68.5], [-165.0, 64.5],
-        ],
-      ],
-    },
-    south_america_macro: {
-      name: 'SOUTH AMERICA',
-      group: 'continent',
-      color: '#78A464',
-      rings: [
-        [
-          [-77.5, 8.5], [-62.2, 10.5], [-50.2, 1.5], [-34.8, -7.2],
-          [-43.2, -22.9], [-53.5, -33.8], [-68.5, -54.8], [-74.5, -45.2],
-          [-71.5, -33.0], [-70.2, -18.5], [-81.2, -4.8], [-77.5, 8.5],
-        ],
-      ],
-    },
-    australia_macro: {
-      name: 'AUSTRALIA',
-      group: 'continent',
-      color: '#C88A58',
-      rings: [
-        [
-          [114.2, -22.2], [130.8, -12.5], [142.5, -10.8], [153.2, -27.5],
-          [149.8, -37.5], [138.6, -34.9], [115.8, -34.2], [114.2, -22.2],
-        ],
-      ],
-    },
-  };
-
-  // ---------- 3. Historical Empire & Territory Polygons (EMPIRES_DB) ----------
-  const EMPIRES_DB = {
-    chola: {
-      name: 'CHOLA EMPIRE',
-      color: 'rgba(247, 185, 40, 0.46)',
-      border: '#FFD54F',
-      rings: [
-        [
-          [80.28, 13.42], [80.08, 14.25], [81.65, 16.32], [84.72, 19.12],
-          [87.45, 21.62], [85.2, 20.8], [79.5, 16.2], [76.95, 11.95],
-          [77.12, 8.95], [77.54, 8.08], [79.32, 9.28], [79.84, 10.76],
-          [80.28, 13.42],
-        ],
-        // Northern Sri Lanka & Maritime foothold
-        [
-          [79.98, 9.78], [81.25, 8.55], [81.75, 6.85], [79.82, 7.25], [79.98, 9.78],
-        ],
-      ],
-    },
-    chola_maritime: {
-      name: 'SRIVIJAYA / KADARAM (Chola Vassal)',
-      color: 'rgba(255, 133, 27, 0.42)',
-      border: '#FF851B',
-      rings: [
-        [
-          [99.8, 7.2], [103.85, 1.32], [104.25, 2.65], [102.15, 6.25], [99.8, 7.2],
-        ],
-        [
-          [95.32, 5.55], [102.25, 1.45], [105.75, -4.85], [101.65, -3.15], [95.32, 5.55],
-        ],
-      ],
-    },
-    pandya: {
-      name: 'PANDYA KINGDOM',
-      color: 'rgba(229, 57, 53, 0.45)',
-      border: '#FF6B6B',
-      rings: [
-        [
-          [79.32, 10.22], [78.88, 9.55], [79.32, 9.28], [78.13, 8.78],
-          [77.54, 8.08], [77.22, 8.32], [77.18, 9.92], [77.95, 10.38],
-          [79.32, 10.22],
-        ],
-      ],
-    },
-    chera: {
-      name: 'CHERA KINGDOM',
-      color: 'rgba(56, 200, 120, 0.45)',
-      border: '#38C878',
-      rings: [
-        [
-          [75.38, 12.48], [76.42, 11.45], [77.38, 10.95], [77.18, 9.92],
-          [76.88, 8.42], [76.24, 9.96], [75.32, 11.88], [75.38, 12.48],
-        ],
-      ],
-    },
-    pallava: {
-      name: 'PALLAVA KINGDOM',
-      color: 'rgba(142, 84, 233, 0.44)',
-      border: '#B888FF',
-      rings: [
-        [
-          [80.28, 13.42], [80.15, 15.12], [79.2, 15.2], [78.18, 12.88],
-          [79.15, 11.75], [79.85, 11.94], [80.28, 13.42],
-        ],
-      ],
-    },
-    roman_empire: {
-      name: 'ROMAN EMPIRE',
-      color: 'rgba(201, 42, 42, 0.44)',
-      border: '#FF5E5E',
-      rings: [
-        [
-          [-9.0, 38.7], [-1.8, 43.4], [8.5, 49.5], [16.5, 48.2], [28.8, 44.2],
-          [36.2, 36.8], [35.5, 31.2], [29.9, 31.2], [10.2, 36.8], [-5.8, 35.8],
-          [-9.0, 38.7],
-        ],
-      ],
-    },
-  };
-
-  // ---------- 4. Major Historical & Geographical Rivers (RIVERS_DB) ----------
-  const RIVERS_DB = {
-    kaveri: {
-      name: 'Kaveri River',
-      pts: [[75.52, 12.38], [76.65, 12.42], [77.72, 11.35], [78.68, 10.82], [79.13, 10.78], [79.85, 11.14]],
-    },
-    vaigai: {
-      name: 'Vaigai River',
-      pts: [[77.38, 9.98], [77.82, 10.12], [78.12, 9.92], [78.48, 9.65], [78.98, 9.32]],
-    },
-    thamirabarani: {
-      name: 'Thamirabarani',
-      pts: [[77.25, 8.68], [77.58, 8.72], [77.78, 8.65], [78.12, 8.63]],
-    },
-    godavari: {
-      name: 'Godavari River',
-      pts: [[73.55, 19.95], [76.25, 19.12], [78.85, 18.85], [80.85, 17.65], [81.78, 16.98], [82.28, 16.72]],
-    },
-    krishna: {
-      name: 'Krishna River',
-      pts: [[73.65, 17.92], [75.85, 16.35], [77.95, 16.18], [79.65, 16.55], [80.62, 16.52], [81.12, 15.95]],
-    },
-    ganga: {
-      name: 'Ganga River',
-      pts: [[78.95, 30.98], [78.15, 29.55], [80.35, 26.45], [83.02, 25.32], [85.15, 25.62], [88.25, 24.18], [89.15, 22.15]],
-    },
-    indus: {
-      name: 'Indus River',
-      pts: [[77.55, 34.15], [74.65, 35.25], [71.85, 32.85], [70.25, 29.35], [68.35, 25.45], [67.45, 24.12]],
-    },
-    nile: {
-      name: 'Nile River',
-      pts: [[32.55, 15.58], [32.95, 19.55], [32.88, 24.08], [31.24, 30.04], [31.15, 31.45]],
-    },
-  };
-
-  // ---------- 5. Named Historical & Modern Cities Lookup (CITIES_DB) ----------
-  const CITIES_DB = {
-    POOMPUHAR: [79.85, 11.14],
-    KAVERIPATTINAM: [79.85, 11.14],
-    NAGAPATTINAM: [79.84, 10.76],
-    THANJAVUR: [79.13, 10.78],
-    URAIYUR: [78.68, 10.82],
-    GANGAIKONDA_CHOLAPURAM: [79.45, 11.21],
-    MADURAI: [78.12, 9.92],
-    KEELADI: [78.20, 9.85],
-    KORKAI: [78.08, 8.63],
-    ADICHANALLUR: [77.88, 8.62],
-    KANCHIPURAM: [79.70, 12.83],
-    MAMALLAPURAM: [80.19, 12.62],
-    CHENNAI: [80.27, 13.08],
-    MUZIRIS: [76.21, 10.21],
-    KODUMANAL: [77.52, 11.18],
-    KARUR: [78.08, 10.96],
-    KANYAKUMARI: [77.55, 8.08],
-    RAMESWARAM: [79.31, 9.29],
-    ANURADHAPURA: [80.40, 8.31],
-    POLONNARUWA: [81.00, 7.94],
-    BENGALURU: [77.59, 12.97],
-    HYDERABAD: [78.48, 17.38],
-    MUMBAI: [72.87, 19.07],
-    DELHI: [77.21, 28.61],
-    KOLKATA: [88.36, 22.57],
-    PATALIPUTRA: [85.14, 25.60],
-    KADARAM: [100.42, 5.72],
-    MALAYSIA: [101.68, 3.14],
-    TEMASEK: [103.85, 1.29],
-    SINGAPORE: [103.85, 1.29],
-    SRIVIJAYA: [104.75, -2.99],
-    PALEMBANG: [104.75, -2.99],
-    ANGKOR: [103.86, 13.41],
-    ROME: [12.49, 41.89],
-    ALEXANDRIA: [29.92, 31.20],
-    BERENIKE: [35.47, 23.91],
-    LONDON: [-0.12, 51.50],
-    PARIS: [2.35, 48.85],
-    BEIJING: [116.40, 39.90],
-    TOKYO: [139.69, 35.68],
-    NEW_YORK: [-74.00, 40.71],
-    SAN_FRANCISCO: [-122.42, 37.77],
-  };
-
-  // ---------- 6. Projection Math: Equirectangular/Mercator & 3D Orthographic Globe ----------
-  function getRegionBBox(region = 'india_southeast_asia', customBBox = null) {
-    if (Array.isArray(customBBox) && customBBox.length === 4) return customBBox;
-    const key = String(region || 'india_southeast_asia').toLowerCase();
-    return REGION_BBOX[key] || REGION_BBOX.india_southeast_asia;
+  // ---------- 2. Dynamic GeoJSON & OpenStreetMap Nominatim Resolver ----------
+  function normKey(str) {
+    return String(str || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
   }
 
-  function lonLatToXY(lon, lat, bbox, rect = [110, 88, 1700, 904]) {
+  function parseGeoJSONGeometryToRings(geom) {
+    if (!geom) return [];
+    if (geom.type === 'Polygon') {
+      return geom.coordinates.map((r) => r.map(([ln, lt]) => [ln, lt]));
+    }
+    if (geom.type === 'MultiPolygon') {
+      const rings = [];
+      geom.coordinates.forEach((polyCoords) => {
+        if (polyCoords && polyCoords[0]) {
+          rings.push(polyCoords[0].map(([ln, lt]) => [ln, lt]));
+        }
+      });
+      return rings;
+    }
+    if (geom.type === 'LineString') {
+      return [geom.coordinates.map(([ln, lt]) => [ln, lt])];
+    }
+    return [];
+  }
+
+  function computeBBoxFromRings(rings) {
+    let minLon = 180, minLat = 90, maxLon = -180, maxLat = -90;
+    rings.forEach((r) =>
+      r.forEach(([ln, lt]) => {
+        if (ln < minLon) minLon = ln;
+        if (ln > maxLon) maxLon = ln;
+        if (lt < minLat) minLat = lt;
+        if (lt > maxLat) maxLat = lt;
+      })
+    );
+    if (minLon > maxLon) return WORLD_BBOX;
+    const padLon = Math.max(0.02, (maxLon - minLon) * 0.15);
+    const padLat = Math.max(0.02, (maxLat - minLat) * 0.15);
+    return [minLon - padLon, minLat - padLat, maxLon + padLon, maxLat + padLat];
+  }
+
+  async function loadWorldBaseGeoJSON() {
+    if (WORLD_LOADED) return true;
+    try {
+      const res = await fetch(WORLD_GEOJSON_URL, { mode: 'cors' });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (data && Array.isArray(data.features)) {
+        const palette = ['#C9965C', '#78A868', '#D4A85C', '#8EA472', '#B8985E', '#6E9E68', '#C48452'];
+        WORLD_FEATURES = [];
+        data.features.forEach((feat, i) => {
+          const name = (feat.properties && (feat.properties.name || feat.properties.NAME)) || `REGION_${i}`;
+          const iso = (feat.id || (feat.properties && feat.properties.iso_a3) || '').toLowerCase();
+          const rings = parseGeoJSONGeometryToRings(feat.geometry);
+          if (rings.length > 0) {
+            const bbox = computeBBoxFromRings(rings);
+            const center = [(bbox[0] + bbox[2]) * 0.5, (bbox[1] + bbox[3]) * 0.5];
+            const entry = {
+              name: name.toUpperCase(),
+              color: palette[i % palette.length],
+              rings,
+              bbox,
+              center,
+            };
+            WORLD_FEATURES.push(entry);
+            PLACE_CACHE.set(normKey(name), entry);
+            if (iso) PLACE_CACHE.set(normKey(iso), entry);
+          }
+        });
+        WORLD_LOADED = true;
+      }
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  if (typeof window !== 'undefined' && typeof fetch === 'function') {
+    loadWorldBaseGeoJSON();
+  }
+
+  // Resolve ANY place name on Earth (City, Street, Canal, State, Island, Country, Monument) via Nominatim
+  async function resolvePlaceByName(queryStr) {
+    if (!queryStr || typeof queryStr !== 'string') return null;
+    const key = normKey(queryStr);
+    if (!key || key === 'world') return null;
+    if (PLACE_CACHE.has(key)) return PLACE_CACHE.get(key);
+    if (PENDING_PLACE_PROMISES.has(key)) return PENDING_PLACE_PROMISES.get(key);
+
+    const p = (async () => {
+      try {
+        const cleanQuery = String(queryStr).replace(/_/g, ' ').trim();
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+          cleanQuery
+        )}&format=geojson&polygon_geojson=1&limit=1`;
+        const res = await fetch(url, { mode: 'cors' });
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data && Array.isArray(data.features) && data.features[0]) {
+          const feat = data.features[0];
+          const rings = parseGeoJSONGeometryToRings(feat.geometry);
+          let bbox = Array.isArray(feat.bbox) && feat.bbox.length === 4 ? feat.bbox.map(Number) : null;
+          if (!bbox && rings.length > 0) bbox = computeBBoxFromRings(rings);
+          let center = [0, 20];
+          if (bbox) {
+            center = [(bbox[0] + bbox[2]) * 0.5, (bbox[1] + bbox[3]) * 0.5];
+          } else if (feat.geometry && feat.geometry.type === 'Point') {
+            center = feat.geometry.coordinates.map(Number);
+            bbox = [center[0] - 0.08, center[1] - 0.08, center[0] + 0.08, center[1] + 0.08];
+          }
+          const entry = {
+            name: String(queryStr).toUpperCase(),
+            color: '#D4A85C',
+            rings,
+            bbox: bbox || WORLD_BBOX,
+            center,
+          };
+          PLACE_CACHE.set(key, entry);
+          return entry;
+        }
+      } catch (e) {}
+      return null;
+    })();
+
+    PENDING_PLACE_PROMISES.set(key, p);
+    return p;
+  }
+
+  // ---------- 3. Universal Coordinate & Projection Math ----------
+  function resolveLonLat(input) {
+    if (!input) return [0, 20];
+    if (Array.isArray(input) && input.length >= 2) {
+      return [Number(input[0]) || 0, Number(input[1]) || 0];
+    }
+    if (typeof input === 'object') {
+      if (Array.isArray(input.lonLat) && input.lonLat.length >= 2) {
+        return [Number(input.lonLat[0]) || 0, Number(input.lonLat[1]) || 0];
+      }
+      if (input.lon !== undefined && input.lat !== undefined) {
+        return [Number(input.lon) || 0, Number(input.lat) || 0];
+      }
+      if (input.lng !== undefined && input.lat !== undefined) {
+        return [Number(input.lng) || 0, Number(input.lat) || 0];
+      }
+      if (input.place || input.city || input.name || input.id) {
+        return resolveLonLat(input.place || input.city || input.name || input.id);
+      }
+      if (input.x !== undefined && input.y !== undefined) {
+        return [Number(input.x) || 0, Number(input.y) || 0];
+      }
+    }
+    if (typeof input === 'string') {
+      const cached = PLACE_CACHE.get(normKey(input));
+      if (cached && cached.center) return cached.center;
+      resolvePlaceByName(input);
+    }
+    return [0, 20];
+  }
+
+  function resolveBBox(o = {}) {
+    if (Array.isArray(o.bbox) && o.bbox.length === 4) return o.bbox;
+    if (typeof o.region === 'string' && normKey(o.region) !== 'world') {
+      const cached = PLACE_CACHE.get(normKey(o.region));
+      if (cached && cached.bbox) return cached.bbox;
+      resolvePlaceByName(o.region);
+    }
+    if (o.center || o.centerLonLat) {
+      const [cLon, cLat] = resolveLonLat(o.center || o.centerLonLat);
+      const spanLon = o.spanLon || (o.span ? o.span * 1.45 : 16);
+      const spanLat = o.spanLat || o.span || 9;
+      return [cLon - spanLon, cLat - spanLat, cLon + spanLon, cLat + spanLat];
+    }
+    // Auto-derive bounding box if pins or routes are provided without explicit bbox/region
+    const sampleLL = [];
+    if (Array.isArray(o.pins)) {
+      o.pins.forEach((p) => {
+        const ll = resolveLonLat(p);
+        if (Math.abs(ll[0]) <= 180 && Math.abs(ll[1]) <= 90 && (ll[0] !== 0 || ll[1] !== 20)) sampleLL.push(ll);
+      });
+    }
+    if (Array.isArray(o.routes)) {
+      o.routes.forEach((r) => {
+        const f = resolveLonLat(r.from !== undefined ? r.from : r.fromLonLat);
+        const t = resolveLonLat(r.to !== undefined ? r.to : r.toLonLat);
+        if (Math.abs(f[0]) <= 180 && Math.abs(f[1]) <= 90) sampleLL.push(f);
+        if (Math.abs(t[0]) <= 180 && Math.abs(t[1]) <= 90) sampleLL.push(t);
+      });
+    }
+    if (sampleLL.length >= 1) {
+      return computeBBoxFromRings([sampleLL]);
+    }
+    return WORLD_BBOX;
+  }
+
+  function lonLatToXY(lon, lat, bbox = WORLD_BBOX, rect = DEFAULT_VIEWPORT_169) {
     const [minLon, minLat, maxLon, maxLat] = bbox;
     const [rx, ry, rw, rh] = rect;
     const midLatRad = ((minLat + maxLat) * 0.5) * DEG2RAD;
-    const cosMid = Math.max(0.35, Math.cos(midLatRad));
-    const lonSpan = Math.max(0.1, (maxLon - minLon) * cosMid);
-    const latSpan = Math.max(0.1, maxLat - minLat);
+    const cosMid = Math.max(0.25, Math.cos(midLatRad));
+    const lonSpan = Math.max(0.001, (maxLon - minLon) * cosMid);
+    const latSpan = Math.max(0.001, maxLat - minLat);
 
-    // Maintain true geographic aspect ratio inside the 16:9 viewport frame
     const scale = Math.min(rw / lonSpan, rh / latSpan);
     const mapW = lonSpan * scale;
     const mapH = latSpan * scale;
     const ox = rx + (rw - mapW) * 0.5;
     const oy = ry + (rh - mapH) * 0.5;
 
-    const x = ox + (lon - minLon) * cosMid * scale;
-    const y = oy + (maxLat - lat) * scale;
-    return [x, y];
+    return [ox + (lon - minLon) * cosMid * scale, oy + (maxLat - lat) * scale];
   }
 
-  function lonLatToGlobe(lon, lat, centerLon = 79.0, centerLat = 13.0, radius = 380, cx = 960, cy = 540) {
+  function lonLatToGlobe(lon, lat, centerLon = 0, centerLat = 20, radius = 390, cx = 960, cy = 540) {
     const lam = lon * DEG2RAD;
     const phi = lat * DEG2RAD;
     const lam0 = centerLon * DEG2RAD;
@@ -562,84 +308,267 @@
     const cosPhi0 = Math.cos(phi0);
     const sinPhi0 = Math.sin(phi0);
 
-    // Cosine of angular distance from front center of sphere (visible when cosC > -0.1)
     const cosC = sinPhi0 * sinPhi + cosPhi0 * cosPhi * Math.cos(dLam);
     const x = cx + radius * cosPhi * Math.sin(dLam);
     const y = cy - radius * (cosPhi0 * sinPhi - sinPhi0 * cosPhi * Math.cos(dLam));
     return { x, y, z: cosC, visible: cosC > -0.08 };
   }
 
-  // Smart Coordinate Resolver: Accepts City Name ('THANJAVUR'), [lon, lat], or legacy stage [x, y]!
-  function resolveMapPoint(pt, bbox, rect) {
-    if (!pt) return [960, 540];
-    if (typeof pt === 'string') {
-      const clean = pt.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
-      const ll = CITIES_DB[clean] || [79.13, 10.78];
-      return lonLatToXY(ll[0], ll[1], bbox, rect);
+  // ---------- 4. Web Mercator Slippy Tile Engine (16:9 Widescreen) ----------
+  function lonToTileX(lon, z) {
+    return ((lon + 180) / 360) * Math.pow(2, z);
+  }
+
+  function latToTileY(lat, z) {
+    const cLat = clamp(lat, -85.0511, 85.0511) * DEG2RAD;
+    return ((1 - Math.log(Math.tan(cLat) + 1 / Math.cos(cLat)) / Math.PI) / 2) * Math.pow(2, z);
+  }
+
+  function lonLatToSlippyScreen(lon, lat, centerLon, centerLat, zoom, cx = 960, cy = 540) {
+    const scale = 256 * Math.pow(2, zoom);
+    const worldX = ((lon + 180) / 360) * scale;
+    const cLat = clamp(lat, -85.0511, 85.0511) * DEG2RAD;
+    const worldY = ((1 - Math.log(Math.tan(cLat) + 1 / Math.cos(cLat)) / Math.PI) / 2) * scale;
+
+    const centerWorldX = ((centerLon + 180) / 360) * scale;
+    const ccLat = clamp(centerLat, -85.0511, 85.0511) * DEG2RAD;
+    const centerWorldY = ((1 - Math.log(Math.tan(ccLat) + 1 / Math.cos(ccLat)) / Math.PI) / 2) * scale;
+
+    return [cx + (worldX - centerWorldX), cy + (worldY - centerWorldY)];
+  }
+
+  function autoCenterZoomFromBBox(bbox, viewW = 1792, viewH = 984) {
+    const [minLon, minLat, maxLon, maxLat] = bbox;
+    const centerLon = (minLon + maxLon) * 0.5;
+    const centerLat = (minLat + maxLat) * 0.5;
+    const lonSpan = Math.max(0.005, maxLon - minLon);
+    const latSpan = Math.max(0.005, maxLat - minLat);
+    const zLon = Math.log2((viewW * 360) / (256 * lonSpan));
+    const zLat = Math.log2((viewH * 170) / (256 * latSpan));
+    const zoom = clamp(Math.min(zLon, zLat) - 0.15, 2.0, 18.0);
+    return { centerLon, centerLat, zoom };
+  }
+
+  function resolveMapPoint(pt, bbox, rect = DEFAULT_VIEWPORT_169, slippyState = null) {
+    if (Array.isArray(pt) && (Math.abs(pt[0]) > 180 || Math.abs(pt[1]) > 90)) {
+      return [pt[0], pt[1]];
     }
-    if (Array.isArray(pt) && pt.length >= 2) {
-      const [a, b] = pt;
-      // If values are > 180 or y > 90, treat as legacy stage [x, y] pixel coordinates!
-      if (Math.abs(a) > 180 || Math.abs(b) > 90) {
-        return [a, b];
+    const [lon, lat] = resolveLonLat(pt);
+    if (slippyState) {
+      return lonLatToSlippyScreen(
+        lon,
+        lat,
+        slippyState.centerLon,
+        slippyState.centerLat,
+        slippyState.zoom,
+        slippyState.cx,
+        slippyState.cy
+      );
+    }
+    return lonLatToXY(lon, lat, bbox, rect);
+  }
+
+  function getOrLoadTile(providerKey, zInt, xInt, yInt) {
+    const maxTile = Math.pow(2, zInt);
+    if (yInt < 0 || yInt >= maxTile) return null;
+    const wrappedX = ((xInt % maxTile) + maxTile) % maxTile;
+    const urlFn = TILE_PROVIDERS[providerKey] || TILE_PROVIDERS.satellite;
+    const url = urlFn(zInt, wrappedX, yInt);
+
+    if (TILE_CACHE.has(url)) return TILE_CACHE.get(url);
+
+    const entry = { img: null, loaded: false, promise: null };
+    if (typeof Image !== 'undefined') {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      entry.img = img;
+      entry.promise = new Promise((resolve) => {
+        img.onload = () => {
+          entry.loaded = true;
+          resolve(true);
+        };
+        img.onerror = () => {
+          entry.loaded = false;
+          resolve(false);
+        };
+      });
+      img.src = url;
+    }
+    TILE_CACHE.set(url, entry);
+    return entry;
+  }
+
+  function drawSlippyTileLayer(g, centerLon, centerLat, zoom, providerKey, cx = 960, cy = 540, clipRect = DEFAULT_FRAME_169) {
+    const zInt = clamp(Math.round(zoom), 2, 18);
+    const fracScale = Math.pow(2, zoom - zInt);
+    const tileSize = 256 * fracScale;
+
+    const centerTileX = lonToTileX(centerLon, zInt);
+    const centerTileY = latToTileY(centerLat, zInt);
+
+    const [rx, ry, rw, rh] = clipRect;
+    const colsHalf = Math.ceil(rw / tileSize / 2) + 2;
+    const rowsHalf = Math.ceil(rh / tileSize / 2) + 2;
+
+    const baseTX = Math.floor(centerTileX);
+    const baseTY = Math.floor(centerTileY);
+
+    let drawnCount = 0;
+    for (let dx = -colsHalf; dx <= colsHalf; dx++) {
+      for (let dy = -rowsHalf; dy <= rowsHalf; dy++) {
+        const tx = baseTX + dx;
+        const ty = baseTY + dy;
+        const screenX = cx + (tx - centerTileX) * tileSize;
+        const screenY = cy + (ty - centerTileY) * tileSize;
+
+        if (
+          screenX + tileSize < rx ||
+          screenX > rx + rw ||
+          screenY + tileSize < ry ||
+          screenY > ry + rh
+        ) {
+          continue;
+        }
+
+        const tileEntry = getOrLoadTile(providerKey, zInt, tx, ty);
+        if (tileEntry && tileEntry.loaded && tileEntry.img) {
+          g.drawImage(
+            tileEntry.img,
+            Math.floor(screenX),
+            Math.floor(screenY),
+            Math.ceil(tileSize) + 1,
+            Math.ceil(tileSize) + 1
+          );
+          drawnCount++;
+        } else {
+          const parentZ = Math.max(2, zInt - 1);
+          const pEntry = getOrLoadTile(providerKey, parentZ, Math.floor(tx / 2), Math.floor(ty / 2));
+          if (pEntry && pEntry.loaded && pEntry.img) {
+            const subX = ((tx % 2) + 2) % 2;
+            const subY = ((ty % 2) + 2) % 2;
+            g.drawImage(
+              pEntry.img,
+              subX * 128,
+              subY * 128,
+              128,
+              128,
+              Math.floor(screenX),
+              Math.floor(screenY),
+              Math.ceil(tileSize) + 1,
+              Math.ceil(tileSize) + 1
+            );
+            drawnCount++;
+          }
+        }
       }
-      return lonLatToXY(a, b, bbox, rect);
     }
-    if (typeof pt === 'object' && pt.lon !== undefined && pt.lat !== undefined) {
-      return lonLatToXY(pt.lon, pt.lat, bbox, rect);
-    }
-    if (typeof pt === 'object' && pt.x !== undefined && pt.y !== undefined) {
-      return resolveMapPoint([pt.x, pt.y], bbox, rect);
-    }
-    return [960, 540];
+    return drawnCount;
   }
 
-  // Select which polygons from GEO_DB to render for a given region
-  function selectPolygonsForRegion(region) {
-    const r = String(region || 'india_southeast_asia').toLowerCase();
-    if (r === 'tamil_nadu' || r === 'south_india') {
-      return ['kerala', 'karnataka', 'andhra_pradesh', 'telangana', 'sri_lanka', 'tamil_nadu'];
+  // ---------- 5. "Satellite Briefing" Analyst HUD, Extruded Polygons & Icons ----------
+  function drawSatelliteBriefingHUD(g, lt, centerLon, centerLat, zoom, o = {}) {
+    const [fx, fy, fw, fh] = o.frame || DEFAULT_FRAME_169;
+    const cx = o.cx || 960;
+    const cy = o.cy || 540;
+    const accent = o.hudColor || '#F8FAFC';
+    const subAccent = '#5CE1FF';
+
+    g.save();
+    g.strokeStyle = alpha(accent, 0.72);
+    g.lineWidth = 1.8;
+    g.strokeRect(fx, fy, fw, fh);
+
+    const tickL = 26;
+    [
+      [fx, fy, 1, 1],
+      [fx + fw, fy, -1, 1],
+      [fx, fy + fh, 1, -1],
+      [fx + fw, fy + fh, -1, -1],
+    ].forEach(([x, y, sx, sy]) => {
+      g.strokeStyle = subAccent;
+      g.lineWidth = 3.5;
+      g.beginPath();
+      g.moveTo(x, y + sy * tickL);
+      g.lineTo(x, y);
+      g.lineTo(x + sx * tickL, y);
+      g.stroke();
+    });
+
+    if (o.reticle !== false) {
+      ring(g, cx, cy, 54, 1.5, alpha(accent, 0.5));
+      ring(g, cx, cy, 128, 1.1, alpha(accent, 0.25));
+      seg(g, [[cx - 84, cy], [cx - 18, cy]], 1.6, alpha(accent, 0.75));
+      seg(g, [[cx + 18, cy], [cx + 84, cy]], 1.6, alpha(accent, 0.75));
+      seg(g, [[cx, cy - 84], [cx, cy - 18]], 1.6, alpha(accent, 0.75));
+      seg(g, [[cx, cy + 18], [cx, cy + 84]], 1.6, alpha(accent, 0.75));
     }
-    if (r === 'india') {
-      return [
-        'india_mainland', 'gujarat', 'maharashtra', 'telangana', 'odisha',
-        'karnataka', 'andhra_pradesh', 'kerala', 'tamil_nadu', 'sri_lanka', 'andaman_nicobar',
-      ];
+
+    const latStr = `${Math.abs(centerLat).toFixed(3)}° ${centerLat >= 0 ? 'N' : 'S'}`;
+    const lonStr = `${Math.abs(centerLon).toFixed(3)}° ${centerLon >= 0 ? 'E' : 'W'}`;
+    const metersPerPx = (156543.03392 * Math.cos(centerLat * DEG2RAD)) / Math.pow(2, zoom);
+    const barKm = (metersPerPx * 180) / 1000;
+    const scaleLabel =
+      barKm >= 10 ? `${Math.round(barKm)} KM` : barKm >= 1 ? `${barKm.toFixed(1)} KM` : `${Math.round(barKm * 1000)} M`;
+
+    rr(g, fx + 20, fy + fh - 58, fw - 40, 42, 8);
+    g.fillStyle = 'rgba(8, 12, 20, 0.80)';
+    g.fill();
+
+    text(g, `SAT-OPTICAL // ${latStr} · ${lonStr} · ZOOM Z${zoom.toFixed(1)}`, fx + 38, fy + fh - 36, {
+      align: 'left',
+      size: 17,
+      font: FONTS.mono,
+      weight: 700,
+      color: accent,
+    });
+
+    const bx1 = fx + fw - 42;
+    const bx0 = bx1 - 160;
+    const by = fy + fh - 32;
+    seg(g, [[bx0, by - 6], [bx0, by], [bx1, by], [bx1, by - 6]], 2.2, subAccent);
+    text(g, scaleLabel, (bx0 + bx1) * 0.5, by - 14, {
+      size: 15,
+      font: FONTS.mono,
+      weight: 700,
+      color: subAccent,
+    });
+
+    if (o.reading) {
+      rr(g, fx + 24, fy + 22, 340, 58, 8);
+      g.fillStyle = 'rgba(8, 12, 20, 0.86)';
+      g.fill();
+      g.strokeStyle = subAccent;
+      g.lineWidth = 2;
+      g.stroke();
+      text(g, String(o.reading), fx + 40, fy + 52, {
+        align: 'left',
+        size: 23,
+        font: FONTS.mono,
+        weight: 700,
+        color: '#FFFFFF',
+      });
     }
-    if (r === 'india_southeast_asia' || r === 'southeast_asia') {
-      return [
-        'india_mainland', 'maharashtra', 'odisha', 'karnataka', 'andhra_pradesh',
-        'kerala', 'tamil_nadu', 'sri_lanka', 'andaman_nicobar',
-        'myanmar_thai_malay', 'sumatra', 'java', 'borneo',
-      ];
-    }
-    return [
-      'eurasia_macro', 'africa_macro', 'north_america_macro', 'south_america_macro',
-      'australia_macro', 'uk_ireland', 'japan_archipelago', 'india_mainland',
-      'sri_lanka', 'myanmar_thai_malay', 'sumatra', 'java', 'borneo',
-    ];
+    g.restore();
   }
 
-  // ---------- 7. 2.5D Extruded Polygon & Coastal Relief Renderer ----------
   function drawExtrudedRing(g, screenPts, o = {}) {
     if (!screenPts || screenPts.length < 3) return;
     const {
       fill = '#D6A868',
       cliffColor = '#6E4C2C',
-      coastGlow = 'rgba(130, 225, 255, 0.35)',
+      coastGlow = 'rgba(130, 225, 255, 0.32)',
       borderColor = 'rgba(55, 35, 18, 0.55)',
       borderW = 2.2,
-      extrudeY = 12,
-      extrudeX = 4,
+      extrudeY = 11,
+      extrudeX = 3.5,
     } = o;
 
-    // 1. Shallow Coastal Shelf Halo
     if (coastGlow) {
       g.save();
       g.lineJoin = 'round';
       g.lineCap = 'round';
       g.strokeStyle = coastGlow;
-      g.lineWidth = 18;
+      g.lineWidth = 16;
       g.beginPath();
       g.moveTo(screenPts[0][0], screenPts[0][1]);
       for (let i = 1; i < screenPts.length; i++) g.lineTo(screenPts[i][0], screenPts[i][1]);
@@ -648,7 +577,6 @@
       g.restore();
     }
 
-    // 2. 2.5D Vertical Cliff Extrusion Stack
     if (extrudeY > 0) {
       const steps = 4;
       for (let s = steps; s >= 1; s--) {
@@ -666,7 +594,6 @@
       }
     }
 
-    // 3. Top Bevelled Landmass Surface
     g.beginPath();
     g.moveTo(screenPts[0][0], screenPts[0][1]);
     for (let i = 1; i < screenPts.length; i++) g.lineTo(screenPts[i][0], screenPts[i][1]);
@@ -682,14 +609,23 @@
     }
   }
 
-  // ---------- 8. Miniature 2.5D Monument Diorama & Route Vessel Icons ----------
-  function drawMapDiorama(g, x, y, kind = 'gopuram', s = 1, col = '#FFD54F') {
+  function centroidOfRing(pts) {
+    if (!pts || !pts.length) return [960, 540];
+    let sx = 0, sy = 0;
+    for (let i = 0; i < pts.length; i++) {
+      sx += pts[i][0];
+      sy += pts[i][1];
+    }
+    return [sx / pts.length, sy / pts.length];
+  }
+
+  function drawMapDiorama(g, x, y, kind = 'pin', s = 1, col = '#FFD54F') {
     g.save();
     g.translate(x, y);
     g.scale(s, s);
     contactShadow(g, 0, 4, 28, 8, 0.38);
 
-    if (kind === 'gopuram' || kind === 'temple') {
+    if (kind === 'gopuram' || kind === 'temple' || kind === 'monument') {
       poly(g, [[-20, 0], [20, 0], [12, -46], [-12, -46]], cylinderGrad(g, -20, -46, 20, 0, '#C85A32', -1), '#7C2E16', 1.8);
       for (let tier = 1; tier <= 3; tier++) {
         const ty = -tier * 11;
@@ -713,7 +649,7 @@
       rr(g, -7, -18, 14, 18, 6);
       g.fillStyle = '#261C16';
       g.fill();
-    } else if (kind === 'port' || kind === 'ship') {
+    } else if (kind === 'port' || kind === 'ship' || kind === 'cholaShip') {
       poly(g, [[-22, 0], [22, 0], [28, -12], [-26, -12]], '#7C4828');
       seg(g, [[0, -12], [0, -44]], 3.5, '#5C341C');
       poly(g, [[-16, -40], [16, -40], [18, -16], [-14, -16]], '#F7B928', '#C92A2A', 2);
@@ -729,7 +665,6 @@
       glow(g, 0, -20, 22, '#FF5E3A', 0.85);
       circle(g, 0, -20, 5, '#FFF3B0');
     } else {
-      // Glowing Beacon Pin
       glow(g, 0, -14, 26, col, 0.85);
       poly(g, [[0, 0], [-11, -18], [11, -18]], col);
       circle(g, 0, -20, 11, sphereGrad(g, 0, -20, 11, col));
@@ -738,11 +673,10 @@
     g.restore();
   }
 
-  function drawRouteVessel(g, x, y, angle, kind = 'ship', col = '#FF851B', t = 0) {
+  function drawRouteVessel(g, x, y, angle, kind = 'arrow', col = '#FF851B', t = 0) {
     g.save();
     g.translate(x, y);
-    if (kind === 'naval' || kind === 'ship') {
-      // Always keep ship upright while facing horizontal direction of travel
+    if (kind === 'naval' || kind === 'ship' || kind === 'cholaShip' || kind === 'romanShip') {
       const flip = Math.cos(angle) < 0 ? -1 : 1;
       g.scale(flip, 1 + Math.sin(t * 5) * 0.04);
       poly(g, [[-18, 4], [18, 4], [24, -5], [-22, -5]], '#7C4828');
@@ -752,7 +686,6 @@
       g.rotate(angle);
       poly(g, [[18, 0], [-12, -12], [-6, 0], [-12, 12]], '#FFFFFF', col, 2);
     } else {
-      // Directional Cavalry / Army Arrowhead
       g.rotate(angle);
       glow(g, 0, 0, 22, col, 0.8);
       poly(g, [[16, 0], [-11, -10], [-6, 0], [-11, 10]], col, '#FFFFFF', 1.8);
@@ -760,172 +693,196 @@
     g.restore();
   }
 
-  // ---------- 9. Master 2.5D Strategic & Historical Map Renderer (UI.strategicMap) ----------
+  function drawCompassRose(g, x, y, r = 52, t = 0) {
+    g.save();
+    g.translate(x, y);
+    circle(g, 0, 0, r, 'rgba(16, 22, 38, 0.82)');
+    ring(g, 0, 0, r, 2.5, '#D99B26');
+    ring(g, 0, 0, r * 0.78, 1.2, 'rgba(255, 213, 79, 0.45)');
+    g.save();
+    g.rotate(Math.sin(t * 0.8) * 0.04);
+    for (let i = 0; i < 4; i++) {
+      g.save();
+      g.rotate((i * Math.PI) / 2);
+      poly(g, [[0, -r * 0.82], [8, 0], [0, -8]], i === 0 ? '#FF5E3A' : '#FFD54F');
+      poly(g, [[0, -r * 0.82], [-8, 0], [0, -8]], i === 0 ? '#C92A2A' : '#B38018');
+      g.restore();
+    }
+    circle(g, 0, 0, 6, '#FFF3B0');
+    g.restore();
+    text(g, 'N', 0, -r - 14, { size: 18, font: FONTS.serif, weight: 900, color: '#FFD54F' });
+    g.restore();
+  }
+
+  // ---------- 6. Master Universal Map Renderer (UI.strategicMap / UI.satelliteBriefing) ----------
   function strategicMap(g, lt = 0, o = {}) {
     const {
-      region = 'india_southeast_asia',
-      bbox: customBBox = null,
-      style = 'parchment', // 'parchment' | 'relief' | 'satelliteNight' | 'blueprint'
+      // style: 'satelliteBriefing' | 'satellite' | 'satelliteNight' | 'terrainHistorical' | 'streetCanals' | 'darkStreet' | 'parchment' | 'relief' | 'tactical'
+      style = 'relief',
       territories = [],
+      highlight = [],
+      highlightStates = [],
       routes = [],
       pins = [],
-      rivers = true,
-      grid = true,
       compass = true,
       title = '',
       subTitle = '',
     } = o;
 
-    const bbox = getRegionBBox(region, customBBox);
-    const viewport = o.viewport || [110, 86, 1700, 908];
-    const isParchment = style === 'parchment';
-    const isNight = style === 'satelliteNight' || style === 'blueprint';
+    const bbox = resolveBBox(o);
+    const viewport = o.viewport || DEFAULT_VIEWPORT_169;
+    const frame = o.frame || DEFAULT_FRAME_169;
+    const [fx, fy, fw, fh] = frame;
+
+    const isParchment = style === 'parchment' || style === 'terrainHistorical';
+    const isNight = style === 'satelliteNight' || style === 'blueprint' || style === 'darkStreet' || style === 'tactical';
+    const useSlippyTiles =
+      o.useTiles !== false &&
+      (TILE_PROVIDERS[style] !== undefined || o.zoom !== undefined || o.center !== undefined);
+
+    const autoCZ = autoCenterZoomFromBBox(bbox, fw, fh);
+    const centerLL = o.center ? resolveLonLat(o.center) : [autoCZ.centerLon, autoCZ.centerLat];
+    const slippyState = useSlippyTiles
+      ? {
+          centerLon: o.centerLon !== undefined ? o.centerLon : centerLL[0],
+          centerLat: o.centerLat !== undefined ? o.centerLat : centerLL[1],
+          zoom: o.zoom !== undefined ? o.zoom : autoCZ.zoom,
+          cx: o.cx || 960,
+          cy: o.cy || 540,
+        }
+      : null;
 
     g.save();
 
-    // 1. Ocean Backdrop & Animated Wave Shimmer
+    // 1. Ocean Backdrop
     const oceanCols = isParchment
-      ? ['#1A4E7A', '#24689C', '#164066']
-      : isNight
+      ? ['#16446C', '#226498', '#133A5E']
+      : isNight || style === 'satelliteBriefing'
       ? ['#050C1E', '#0B1B3D', '#07122B']
-      : ['#104E8B', '#1C6EB8', '#12467A'];
+      : ['#0E4880', '#1C6EB8', '#104070'];
     g.fillStyle = linGrad(g, 0, 0, 0, E.H, oceanCols);
     g.fillRect(0, 0, E.W, E.H);
 
-    // Animated Nautical Wave Ripples
-    const rWave = rng(409);
-    g.strokeStyle = isParchment ? 'rgba(255, 240, 200, 0.12)' : 'rgba(160, 230, 255, 0.14)';
-    g.lineWidth = 2;
-    for (let i = 0; i < 36; i++) {
-      const wx = 80 + rWave() * (E.W - 160) + Math.sin(lt * 1.4 + i) * 14;
-      const wy = 80 + rWave() * (E.H - 160);
-      g.beginPath();
-      g.moveTo(wx - 24, wy);
-      g.quadraticCurveTo(wx - 12, wy - 5, wx, wy);
-      g.quadraticCurveTo(wx + 12, wy + 5, wx + 24, wy);
-      g.stroke();
-    }
-
-    // 2. Latitude / Longitude Graticule Grid
-    if (grid) {
-      g.strokeStyle = isParchment ? 'rgba(255, 235, 190, 0.13)' : 'rgba(130, 195, 255, 0.14)';
-      g.lineWidth = 1.2;
-      g.setLineDash([6, 8]);
-      for (let gx = 160; gx < E.W - 100; gx += 200) {
-        g.beginPath();
-        g.moveTo(gx, 60);
-        g.lineTo(gx, E.H - 60);
-        g.stroke();
-      }
-      for (let gy = 140; gy < E.H - 100; gy += 160) {
-        g.beginPath();
-        g.moveTo(80, gy);
-        g.lineTo(E.W - 80, gy);
-        g.stroke();
-      }
-      g.setLineDash([]);
-    }
-
-    // 3. Render 2.5D Extruded Landmasses & State Polygons
-    const polyKeys = selectPolygonsForRegion(region);
-    polyKeys.forEach((k) => {
-      const item = GEO_DB[k];
-      if (!item) return;
-      const baseLandCol = isParchment
-        ? mix(item.color || '#D6A868', '#E8CE9C', 0.48)
-        : isNight
-        ? '#1C2D4F'
-        : item.color || '#6EA864';
-      const cliffCol = isParchment ? '#5C3E22' : isNight ? '#0A1326' : '#3B5836';
-      const coastGlow = isParchment
-        ? 'rgba(120, 210, 240, 0.28)'
-        : isNight
-        ? 'rgba(80, 200, 255, 0.22)'
-        : 'rgba(110, 225, 255, 0.34)';
-
-      item.rings.forEach((ringLL) => {
-        const screenPts = ringLL.map(([lon, lat]) => lonLatToXY(lon, lat, bbox, viewport));
-        drawExtrudedRing(g, screenPts, {
-          fill: linGrad(g, 0, 120, 0, 960, [shade(baseLandCol, 0.1), baseLandCol, shade(baseLandCol, -0.12)]),
-          cliffColor: cliffCol,
-          coastGlow,
-          borderColor: isParchment ? 'rgba(92, 60, 28, 0.65)' : 'rgba(255, 255, 255, 0.28)',
-          borderW: item.group === 'india_state' ? 2.4 : 2.0,
-          extrudeY: 11,
-          extrudeX: 3,
-        });
-      });
-    });
-
-    // 4. Render Major Rivers
-    if (rivers) {
+    // 2. Real Slippy Tile Layer (Satellite / Shaded Terrain / Street & Canals)
+    let tilesDrawn = 0;
+    if (slippyState) {
       g.save();
-      g.lineCap = 'round';
-      g.lineJoin = 'round';
-      Object.keys(RIVERS_DB).forEach((rk) => {
-        const rv = RIVERS_DB[rk];
-        const pts = rv.pts;
-        // Check if river falls inside current bbox
-        const [lon0, lat0] = pts[0];
-        if (lon0 < bbox[0] - 2 || lon0 > bbox[2] + 2 || lat0 < bbox[1] - 2 || lat0 > bbox[3] + 2) return;
-        const sPts = pts.map(([ln, lt2]) => lonLatToXY(ln, lt2, bbox, viewport));
-        seg(g, sPts, 4.5, isParchment ? 'rgba(30, 110, 180, 0.75)' : 'rgba(88, 205, 255, 0.85)');
-        seg(g, sPts, 1.8, 'rgba(215, 248, 255, 0.85)');
+      rr(g, fx, fy, fw, fh, 18);
+      g.clip();
+
+      if (style === 'satelliteBriefing') {
+        g.filter = 'grayscale(76%) contrast(122%) brightness(86%)';
+      } else if (style === 'satelliteNight') {
+        g.filter = 'saturate(55%) contrast(125%) brightness(62%) hue-rotate(190deg)';
+      } else if (style === 'terrainHistorical' || style === 'parchment') {
+        g.filter = 'sepia(55%) contrast(112%) brightness(94%)';
+      }
+
+      const providerKey = TILE_PROVIDERS[style] ? style : isParchment ? 'terrainHistorical' : 'satellite';
+      tilesDrawn = drawSlippyTileLayer(
+        g,
+        slippyState.centerLon,
+        slippyState.centerLat,
+        slippyState.zoom,
+        providerKey,
+        slippyState.cx,
+        slippyState.cy,
+        frame
+      );
+      g.filter = 'none';
+      g.restore();
+    }
+
+    // 3. 2.5D Extruded Vector World Base (when in pure Vector Mode or while tiles load)
+    if (!slippyState || tilesDrawn === 0) {
+      g.save();
+      rr(g, fx, fy, fw, fh, 18);
+      g.clip();
+      const [minLon, minLat, maxLon, maxLat] = bbox;
+      WORLD_FEATURES.forEach((item) => {
+        const hits = item.rings.some((r) =>
+          r.some(([ln, lt2]) => ln >= minLon - 12 && ln <= maxLon + 12 && lt2 >= minLat - 12 && lt2 <= maxLat + 12)
+        );
+        if (!hits) return;
+        const baseLandCol = isParchment ? mix(item.color, '#E8CE9C', 0.48) : isNight ? '#1C2D4F' : item.color;
+        item.rings.forEach((ringLL) => {
+          const sPts = ringLL.map((pt) => resolveMapPoint(pt, bbox, viewport, slippyState));
+          drawExtrudedRing(g, sPts, {
+            fill: baseLandCol,
+            cliffColor: isParchment ? '#5C3E22' : '#0A1326',
+            borderColor: isParchment ? 'rgba(92, 60, 28, 0.65)' : 'rgba(255, 255, 255, 0.28)',
+            extrudeY: o.extrudeDepth !== undefined ? o.extrudeDepth : 11,
+          });
+        });
       });
       g.restore();
     }
 
-    // 5. Render Historical Empire / Territory Overlays (with Animated Expansion)
-    territories.forEach((ter) => {
-      const tKey = String(ter.id || ter.name || 'chola').toLowerCase();
-      const preset = EMPIRES_DB[tKey] || EMPIRES_DB.chola;
-      const ringsLL = ter.rings || preset.rings || [];
-      const fillCol = ter.color || preset.color || 'rgba(247, 185, 40, 0.45)';
-      const borderCol = ter.border || preset.border || '#FFD54F';
-      const expandU = ter.t0 !== undefined ? ease.out(prog(lt, ter.t0, (ter.t0 || 0) + (ter.dur || 1.2))) : 1;
-      if (expandU <= 0.01) return;
+    // 4. Highlighted Places / Countries / States / Custom Polygons
+    const allHighlights = [...highlight, ...highlightStates, ...territories];
+    allHighlights.forEach((hl, idx) => {
+      const placeName = typeof hl === 'string' ? hl : hl.place || hl.country || hl.state || hl.id || hl.name;
+      const cached = placeName ? PLACE_CACHE.get(normKey(placeName)) : null;
+      if (placeName && !cached) resolvePlaceByName(placeName);
+
+      const ringsLL = (typeof hl === 'object' && hl.rings) || (cached && cached.rings) || [];
+      if (!ringsLL.length) return;
+
+      const t0 = typeof hl === 'object' && hl.t0 !== undefined ? hl.t0 : 0.1 + idx * 0.12;
+      const dur = typeof hl === 'object' && hl.dur !== undefined ? hl.dur : 0.9;
+      const u = ease.out(prog(lt, t0, t0 + dur));
+      if (u <= 0.01) return;
+
+      const fillCol =
+        (typeof hl === 'object' && hl.color) ||
+        (style === 'satelliteBriefing' ? 'rgba(92, 225, 255, 0.24)' : 'rgba(255, 138, 61, 0.46)');
+      const borderCol =
+        (typeof hl === 'object' && hl.border) ||
+        (style === 'satelliteBriefing' ? '#FFFFFF' : '#FFD54F');
 
       g.save();
-      g.globalAlpha *= expandU;
+      rr(g, fx, fy, fw, fh, 18);
+      g.clip();
+      g.globalAlpha *= u;
+
       ringsLL.forEach((rLL) => {
-        const sPts = rLL.map((pt) => resolveMapPoint(pt, bbox, viewport));
+        const sPts = rLL.map((pt) => resolveMapPoint(pt, bbox, viewport, slippyState));
         poly(g, sPts, fillCol, borderCol, 3.5);
       });
 
-      // Also highlight maritime vassal territory if 'chola' is selected on a Southeast Asia map
-      if (tKey === 'chola' && (region === 'india_southeast_asia' || region === 'southeast_asia')) {
-        EMPIRES_DB.chola_maritime.rings.forEach((rLL) => {
-          const sPts = rLL.map((pt) => resolveMapPoint(pt, bbox, viewport));
-          poly(g, sPts, EMPIRES_DB.chola_maritime.color, EMPIRES_DB.chola_maritime.border, 2.8);
-        });
-      }
-
-      if (ter.label) {
-        const centerPt = ter.labelPos
-          ? resolveMapPoint(ter.labelPos, bbox, viewport)
-          : resolveMapPoint(ringsLL[0] ? ringsLL[0][0] : [79.1, 11.0], bbox, viewport);
-        text(g, ter.label, centerPt[0], centerPt[1] - 24, {
-          size: 26,
-          font: FONTS.serif,
-          weight: 900,
-          color: '#FFF8E7',
-          stroke: 5,
-          strokeColor: 'rgba(20, 12, 6, 0.85)',
-          spacing: 2.5,
-        });
+      const labelText = typeof hl === 'object' ? hl.label : null;
+      if (labelText && ringsLL[0]) {
+        const sPts0 = ringsLL[0].map((pt) => resolveMapPoint(pt, bbox, viewport, slippyState));
+        const [cx, cy] = centroidOfRing(sPts0);
+        text(
+          g,
+          labelText,
+          clamp(cx, SAFE.x0 + 100, SAFE.x1 - 100),
+          clamp(cy, SAFE.y0 + 70, SAFE.y1 - 70),
+          {
+            size: 24,
+            font: FONTS.ui,
+            weight: 900,
+            color: '#FFFFFF',
+            stroke: 5,
+            strokeColor: 'rgba(12, 18, 32, 0.88)',
+          }
+        );
       }
       g.restore();
     });
 
-    // 6. Render Animated Bezier / Great-Circle Route Arrows & Moving Vessels
+    // 5. Animated Routes & Moving Vessels
     routes.forEach((rt, rIdx) => {
       const t0 = rt.t0 !== undefined ? rt.t0 : 0.2;
       const dur = rt.dur !== undefined ? rt.dur : 1.6;
       const u = ease.inOut(prog(lt, t0, t0 + dur));
       if (u <= 0.001) return;
 
-      const p0 = resolveMapPoint(rt.from, bbox, viewport);
-      const p1 = resolveMapPoint(rt.to, bbox, viewport);
+      const fromPt = rt.from !== undefined ? rt.from : rt.fromLonLat;
+      const toPt = rt.to !== undefined ? rt.to : rt.toLonLat;
+      const p0 = resolveMapPoint(fromPt, bbox, viewport, slippyState);
+      const p1 = resolveMapPoint(toPt, bbox, viewport, slippyState);
       const dx = p1[0] - p0[0];
       const dy = p1[1] - p0[1];
       const dist = Math.hypot(dx, dy);
@@ -933,7 +890,7 @@
       const cx = (p0[0] + p1[0]) * 0.5 - (dy / Math.max(1, dist)) * arcLift * 0.35;
       const cy = (p0[1] + p1[1]) * 0.5 + arcLift;
 
-      const col = rt.color || '#FF851B';
+      const col = rt.color || (style === 'satelliteBriefing' ? '#FFFFFF' : '#FF851B');
       const steps = 36;
       const maxStep = Math.max(1, Math.round(steps * u));
       const curvePts = [];
@@ -944,7 +901,6 @@
         curvePts.push([bx, by]);
       }
 
-      // Route Glow & Dashed Trail
       g.save();
       g.strokeStyle = alpha(col, 0.35);
       g.lineWidth = 10;
@@ -961,7 +917,6 @@
       g.setLineDash([]);
       g.restore();
 
-      // Moving Vessel or Arrowhead at Route Tip
       const tip = curvePts[curvePts.length - 1];
       const prev = curvePts[Math.max(0, curvePts.length - 2)];
       const ang = Math.atan2(tip[1] - prev[1], tip[0] - prev[0]);
@@ -969,118 +924,109 @@
       drawRouteVessel(g, tip[0], tip[1], ang, vesselKind, col, lt + rIdx);
     });
 
-    // 7. Render City Pins & 2.5D Monument Dioramas
+    // 6. Pins & 2.5D Diorama Markers
     pins.forEach((pin, idx) => {
       const t0 = pin.t0 !== undefined ? pin.t0 : 0.1 + idx * 0.15;
       const popS = DK.pop(lt, t0, 0.42);
       if (popS <= 0.001) return;
 
-      const pt =
-        pin.lon !== undefined && pin.lat !== undefined
-          ? lonLatToXY(pin.lon, pin.lat, bbox, viewport)
-          : pin.city
-          ? resolveMapPoint(pin.city, bbox, viewport)
-          : resolveMapPoint([pin.x !== undefined ? pin.x : 79.13, pin.y !== undefined ? pin.y : 10.78], bbox, viewport);
-
-      const [px, py] = pt;
+      const pt = resolveMapPoint(pin, bbox, viewport, slippyState);
+      const px = clamp(pt[0], SAFE.x0 + 40, SAFE.x1 - 40);
+      const py = clamp(pt[1], SAFE.y0 + 60, SAFE.y1 - 50);
       const col = pin.color || '#FFD54F';
 
       g.save();
       g.translate(px, py);
       g.scale(popS, popS);
 
-      // Pulsing Sonar Ring
       const pulse = (lt * 1.4 + idx * 0.35) % 1;
       ring(g, 0, 0, 12 + pulse * 34, 2.5, alpha(col, (1 - pulse) * 0.75));
-
-      // Draw 2.5D Monument Diorama or Classic Pin
       drawMapDiorama(g, 0, 0, pin.diorama || pin.icon || 'pin', pin.scale || 0.95, col);
 
-      // Sleek Pill Label Badge
       if (pin.label) {
         const lbl = String(pin.label);
         const lw = measure(g, lbl, 20, FONTS.ui, 800) + 28;
         const lh = 34;
         const ly = pin.labelOffsetY || 26;
-        rr(g, -lw / 2, ly - lh / 2, lw, lh, lh / 2);
+        let lxShift = 0;
+        if (px + lw * 0.5 > SAFE.x1 - 16) lxShift = (SAFE.x1 - 16) - (px + lw * 0.5);
+        if (px - lw * 0.5 < SAFE.x0 + 16) lxShift = (SAFE.x0 + 16) - (px - lw * 0.5);
+
+        rr(g, lxShift - lw / 2, ly - lh / 2, lw, lh, lh / 2);
         g.fillStyle = 'rgba(16, 22, 38, 0.92)';
         g.fill();
         g.strokeStyle = col;
         g.lineWidth = 2;
         g.stroke();
-        text(g, lbl, 0, ly + 1, { size: 19, font: FONTS.ui, weight: 800, color: '#FFFFFF' });
+        text(g, lbl, lxShift, ly + 1, { size: 19, font: FONTS.ui, weight: 800, color: '#FFFFFF' });
       }
       g.restore();
     });
 
-    // 8. Ornate Royal Parchment Border Frame & Compass Rose
-    rr(g, 32, 28, E.W - 64, E.H - 56, 18);
-    g.strokeStyle = isParchment ? '#D99B26' : '#4C78B8';
-    g.lineWidth = 5;
-    g.stroke();
-    rr(g, 42, 38, E.W - 84, E.H - 76, 12);
-    g.strokeStyle = isParchment ? 'rgba(255, 230, 168, 0.38)' : 'rgba(130, 195, 255, 0.28)';
-    g.lineWidth = 1.8;
-    g.stroke();
+    // 7. Frame Overlay: Either Analyst HUD ('satelliteBriefing') or Classic Widescreen Border + Compass
+    if (style === 'satelliteBriefing' && slippyState) {
+      drawSatelliteBriefingHUD(g, lt, slippyState.centerLon, slippyState.centerLat, slippyState.zoom, o);
+    } else {
+      rr(g, fx, fy, fw, fh, 18);
+      g.strokeStyle = isParchment ? '#D99B26' : '#4C78B8';
+      g.lineWidth = 5;
+      g.stroke();
+      rr(g, fx + 10, fy + 10, fw - 20, fh - 20, 12);
+      g.strokeStyle = isParchment ? 'rgba(255, 230, 168, 0.38)' : 'rgba(130, 195, 255, 0.28)';
+      g.lineWidth = 1.8;
+      g.stroke();
 
-    if (compass) {
-      drawCompassRose(g, E.W - 135, 135, 52, lt);
+      if (compass) {
+        drawCompassRose(g, o.compassX || E.W - 150, o.compassY || 140, 52, lt);
+      }
     }
 
-    if (title) {
+    if (title && UI.pillBadge) {
       UI.pillBadge(g, lt, {
-        x: 260,
-        y: 88,
+        x: o.titleX || 320,
+        y: o.titleY || 105,
         text: title,
         subText: subTitle,
-        border: '#FFD54F',
+        border: style === 'satelliteBriefing' ? '#5CE1FF' : '#FFD54F',
       });
     }
 
     g.restore();
   }
 
-  function drawCompassRose(g, x, y, r = 52, t = 0) {
-    g.save();
-    g.translate(x, y);
-    circle(g, 0, 0, r, 'rgba(16, 22, 38, 0.78)');
-    ring(g, 0, 0, r, 2.5, '#D99B26');
-    ring(g, 0, 0, r * 0.78, 1.2, 'rgba(255, 213, 79, 0.45)');
-
-    g.save();
-    g.rotate(Math.sin(t * 0.8) * 0.04);
-    for (let i = 0; i < 4; i++) {
-      g.save();
-      g.rotate((i * Math.PI) / 2);
-      poly(g, [[0, -r * 0.82], [8, 0], [0, -8]], i === 0 ? '#FF5E3A' : '#FFD54F');
-      poly(g, [[0, -r * 0.82], [-8, 0], [0, -8]], i === 0 ? '#C92A2A' : '#B38018');
-      g.restore();
-    }
-    circle(g, 0, 0, 6, '#FFF3B0');
-    g.restore();
-
-    text(g, 'N', 0, -r - 14, { size: 18, font: FONTS.serif, weight: 900, color: '#FFD54F' });
-    g.restore();
+  function satelliteBriefing(g, lt = 0, o = {}) {
+    strategicMap(g, lt, Object.assign({}, o, { style: 'satelliteBriefing', useTiles: true }));
   }
 
-  // ---------- 10. Orthographic 3D Globe & Seamless Globe-to-Map Morph ----------
+  // ---------- 7. Orthographic 3D Globe & Seamless Globe-to-Map Morph (16:9 Widescreen) ----------
   function globeToMap(g, lt = 0, o = {}) {
     const {
-      morph = 0, // 0.0 = Rotating 3D Globe in Space, 1.0 = Flat 2.5D Regional Map
-      centerLon = 79.2,
-      centerLat = 12.5,
-      globeRadius = 390,
-      region = 'india_southeast_asia',
+      morph = 0,
       pins = [],
       routes = [],
+      territories = [],
+      highlight = [],
+      highlightIds = [],
+      title = '',
+      subTitle = '',
     } = o;
 
+    const centerSource = o.center || o.centerLonLat;
+    const centerLL = centerSource
+      ? resolveLonLat(centerSource)
+      : [o.centerLon ?? o.rotLon ?? 78.9, o.centerLat ?? o.rotLat ?? 20.5];
+    const centerLon = centerLL[0];
+    const centerLat = centerLL[1];
+    const zoomFactor = o.zoom || 1.0;
+    const globeRadius = (o.globeRadius ?? o.r ?? 390) * zoomFactor;
+    const globeCX = o.x ?? o.cx ?? 960;
+    const globeCY = o.y ?? o.cy ?? 540;
+
     const m = clamp(morph, 0, 1);
-    const bbox = getRegionBBox(region, o.bbox);
-    const viewport = [110, 86, 1700, 908];
+    const bbox = resolveBBox(o);
+    const viewport = o.viewport || DEFAULT_VIEWPORT_169;
 
     g.save();
-    // Space-to-Ocean Background Crossfade
     g.fillStyle = linGrad(g, 0, 0, 0, E.H, [
       mix('#040714', '#164878', m),
       mix('#0A132C', '#22669B', m),
@@ -1095,24 +1041,19 @@
       g.restore();
     }
 
-    // 3D Sphere Ocean Disc & Atmospheric Halo (fades as morph approaches 1.0)
     if (m < 0.98) {
-      const rGlobe = lerp(globeRadius, 1200, ease.in(m));
-      glow(g, 960, 540, rGlobe * 1.25, '#5CE1FF', (1 - m) * 0.45);
-      circle(g, 960, 540, rGlobe, sphereGrad(g, 960, 540, rGlobe, '#165296', [-0.5, -0.6], 0.22));
-      ring(g, 960, 540, rGlobe, 3.5, alpha('#8CE8FF', 1 - m));
+      const rGlobe = lerp(globeRadius, 1280, ease.in(m));
+      glow(g, globeCX, globeCY, rGlobe * 1.25, '#5CE1FF', (1 - m) * 0.45);
+      circle(g, globeCX, globeCY, rGlobe, sphereGrad(g, globeCX, globeCY, rGlobe, '#165296', [-0.5, -0.6], 0.22));
+      ring(g, globeCX, globeCY, rGlobe, 3.5, alpha('#8CE8FF', 1 - m));
     }
 
-    // Project every polygon vertex by interpolating between 3D Globe and 2D Map!
-    const polyKeys = selectPolygonsForRegion('world');
-    polyKeys.forEach((k) => {
-      const item = GEO_DB[k];
-      if (!item) return;
+    WORLD_FEATURES.forEach((item) => {
       item.rings.forEach((ringLL) => {
         const pts = [];
         let anyVisible = false;
         ringLL.forEach(([lon, lat]) => {
-          const gPt = lonLatToGlobe(lon, lat, centerLon, centerLat, globeRadius, 960, 540);
+          const gPt = lonLatToGlobe(lon, lat, centerLon, centerLat, globeRadius, globeCX, globeCY);
           const mPt = lonLatToXY(lon, lat, bbox, viewport);
           if (gPt.visible || m > 0.35) anyVisible = true;
           pts.push([lerp(gPt.x, mPt[0], m), lerp(gPt.y, mPt[1], m)]);
@@ -1121,9 +1062,9 @@
           drawExtrudedRing(g, pts, {
             fill: item.color || '#78A868',
             cliffColor: '#3B5836',
-            coastGlow: 'rgba(120, 225, 255, 0.25)',
-            borderColor: 'rgba(255, 255, 255, 0.35)',
-            borderW: 2,
+            coastGlow: 'rgba(120, 225, 255, 0.22)',
+            borderColor: 'rgba(255, 255, 255, 0.32)',
+            borderW: 1.8,
             extrudeY: lerp(4, 11, m),
             extrudeX: lerp(1, 3, m),
           });
@@ -1131,24 +1072,76 @@
       });
     });
 
-    // Render Pins Morphing from Globe to Map
-    pins.forEach((pin, idx) => {
-      const ll =
-        pin.lon !== undefined && pin.lat !== undefined
-          ? [pin.lon, pin.lat]
-          : pin.city && CITIES_DB[pin.city.toUpperCase()]
-          ? CITIES_DB[pin.city.toUpperCase()]
-          : [79.13, 10.78];
-      const gPt = lonLatToGlobe(ll[0], ll[1], centerLon, centerLat, globeRadius, 960, 540);
-      const mPt = lonLatToXY(ll[0], ll[1], bbox, viewport);
-      if (!gPt.visible && m < 0.25) return;
-      const px = lerp(gPt.x, mPt[0], m);
-      const py = lerp(gPt.y, mPt[1], m);
-      drawMapDiorama(g, px, py, pin.diorama || 'pin', 0.95, pin.color || '#FFD54F');
-      if (pin.label) {
-        UI.pillBadge(g, lt, { x: px, y: py + 28, text: pin.label, scale: 0.78 });
+    [...territories, ...highlight, ...highlightIds].forEach((ter) => {
+      const placeName = typeof ter === 'string' ? ter : ter.place || ter.country || ter.id || ter.name;
+      const cached = placeName ? PLACE_CACHE.get(normKey(placeName)) : null;
+      if (placeName && !cached) resolvePlaceByName(placeName);
+      const ringsLL = (typeof ter === 'object' && ter.rings) || (cached && cached.rings) || [];
+      ringsLL.forEach((rLL) => {
+        const pts = [];
+        let anyVis = false;
+        rLL.forEach((pt) => {
+          const [lon, lat] = resolveLonLat(pt);
+          const gPt = lonLatToGlobe(lon, lat, centerLon, centerLat, globeRadius, globeCX, globeCY);
+          const mPt = lonLatToXY(lon, lat, bbox, viewport);
+          if (gPt.visible || m > 0.3) anyVis = true;
+          pts.push([lerp(gPt.x, mPt[0], m), lerp(gPt.y, mPt[1], m)]);
+        });
+        if (anyVis && pts.length >= 3) {
+          poly(g, pts, (typeof ter === 'object' && ter.color) || 'rgba(255, 138, 61, 0.48)', (typeof ter === 'object' && ter.border) || '#FFD54F', 3);
+        }
+      });
+    });
+
+    routes.forEach((rt, rIdx) => {
+      const t0 = rt.t0 !== undefined ? rt.t0 : 0.2;
+      const dur = rt.dur !== undefined ? rt.dur : 1.5;
+      const u = ease.inOut(prog(lt, t0, t0 + dur));
+      if (u <= 0.001) return;
+
+      const ll0 = resolveLonLat(rt.from !== undefined ? rt.from : rt.fromLonLat);
+      const ll1 = resolveLonLat(rt.to !== undefined ? rt.to : rt.toLonLat);
+      const col = rt.color || '#FF851B';
+      const steps = 32;
+      const maxStep = Math.max(1, Math.round(steps * u));
+      const curvePts = [];
+
+      for (let i = 0; i <= maxStep; i++) {
+        const s = i / steps;
+        const lon = lerp(ll0[0], ll1[0], s);
+        const lat = lerp(ll0[1], ll1[1], s);
+        const arcBoost = Math.sin(s * Math.PI) * 22;
+        const gPt = lonLatToGlobe(lon, lat, centerLon, centerLat, globeRadius + arcBoost * (1 - m), globeCX, globeCY);
+        const mPt = lonLatToXY(lon, lat, bbox, viewport);
+        curvePts.push([lerp(gPt.x, mPt[0], m), lerp(gPt.y - arcBoost * m, mPt[1] - arcBoost * m, m)]);
+      }
+
+      if (curvePts.length >= 2) {
+        seg(g, curvePts, 4.2, col);
+        const tip = curvePts[curvePts.length - 1];
+        const prev = curvePts[Math.max(0, curvePts.length - 2)];
+        const ang = Math.atan2(tip[1] - prev[1], tip[0] - prev[0]);
+        const vesselKind = rt.vessel || (rt.naval ? 'ship' : 'arrow');
+        drawRouteVessel(g, tip[0], tip[1], ang, vesselKind, col, lt + rIdx);
       }
     });
+
+    pins.forEach((pin) => {
+      const [lon, lat] = resolveLonLat(pin);
+      const gPt = lonLatToGlobe(lon, lat, centerLon, centerLat, globeRadius, globeCX, globeCY);
+      const mPt = lonLatToXY(lon, lat, bbox, viewport);
+      if (!gPt.visible && m < 0.25) return;
+      const px = clamp(lerp(gPt.x, mPt[0], m), SAFE.x0 + 40, SAFE.x1 - 40);
+      const py = clamp(lerp(gPt.y, mPt[1], m), SAFE.y0 + 50, SAFE.y1 - 50);
+      drawMapDiorama(g, px, py, pin.diorama || pin.icon || 'pin', 0.95, pin.color || '#FFD54F');
+      if (pin.label && UI.pillBadge) {
+        UI.pillBadge(g, lt, { x: px, y: py + 28, text: pin.label, scale: 0.80 });
+      }
+    });
+
+    if (title && UI.pillBadge) {
+      UI.pillBadge(g, lt, { x: 320, y: 105, text: title, subText: subTitle, border: '#5CE1FF' });
+    }
 
     g.restore();
   }
@@ -1157,25 +1150,75 @@
     globeToMap(g, lt, Object.assign({}, o, { morph: 0 }));
   }
 
-  // ---------- 11. Export to Global Namespaces (window.MAP, window.UI, window.DK) ----------
+  // ---------- 8. Deterministic Preloader (Resolves All Place Names & Tiles Before Frame 1) ----------
+  async function preloadAll(shots = []) {
+    await loadWorldBaseGeoJSON();
+
+    // Pass 1: Trigger dry-run to discover any string place names, then await Nominatim lookups
+    if (typeof document !== 'undefined' && Array.isArray(shots) && shots.length > 0) {
+      const off = document.createElement('canvas');
+      off.width = E.W;
+      off.height = E.H;
+      const offCtx = off.getContext('2d');
+
+      shots.forEach((s) => {
+        if (s && typeof s.draw === 'function') {
+          try { s.draw(offCtx, 0.1, (s.start || 0) + 0.1, 0.1); } catch (e) {}
+        }
+      });
+
+      // Wait for all queued Nominatim place lookups to resolve
+      if (PENDING_PLACE_PROMISES.size > 0) {
+        await Promise.all(Array.from(PENDING_PLACE_PROMISES.values()));
+      }
+      await new Promise((r) => setTimeout(r, 120));
+
+      // Pass 2: Now that place bboxes/coordinates are cached, sample frames to queue all Slippy Tiles
+      shots.forEach((s) => {
+        if (!s || typeof s.draw !== 'function') return;
+        [0.05, 0.35, 0.65, 0.95].forEach((u) => {
+          const lt = (s.duration || 3) * u;
+          const gt = (s.start || 0) + lt;
+          try { s.draw(offCtx, lt, gt, u); } catch (e) {}
+        });
+      });
+    }
+
+    const pendingTiles = [];
+    TILE_CACHE.forEach((entry) => {
+      if (entry && entry.promise && !entry.loaded) pendingTiles.push(entry.promise);
+    });
+    if (pendingTiles.length > 0) {
+      await Promise.all(pendingTiles);
+    }
+    return true;
+  }
+
+  // ---------- 9. Export to Global Namespaces ----------
   const MAP = (window.MAP = {
-    REGION_BBOX,
-    GEO_DB,
-    EMPIRES_DB,
-    RIVERS_DB,
-    CITIES_DB,
+    DEFAULT_VIEWPORT_169,
+    DEFAULT_FRAME_169,
     lonLatToXY,
     lonLatToGlobe,
+    lonLatToSlippyScreen,
+    resolveLonLat,
     resolveMapPoint,
+    resolvePlaceByName,
     drawMapDiorama,
+    drawCompassRose,
     strategicMap,
+    satelliteBriefing,
     drawMap: strategicMap,
     globeToMap,
     globe3D,
+    geoGlobe: globe3D,
+    preloadAll,
   });
 
   UI.strategicMap = DK.strategicMap = H.strategicMap = strategicMap;
+  UI.satelliteBriefing = DK.satelliteBriefing = H.satelliteBriefing = satelliteBriefing;
   UI.globeToMap = DK.globeToMap = H.globeToMap = globeToMap;
   UI.globe3D = DK.globe3D = H.globe3D = globe3D;
+  UI.geoGlobe = DK.geoGlobe = H.geoGlobe = globe3D;
   DK.mapEngine = MAP;
 })();

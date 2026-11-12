@@ -1,0 +1,7 @@
+Your Daily Workflow Going Forward
+Whenever you finish a new video project or update an engine file, just run:
+Bash
+git add .
+git commit -m "Added new video project"
+git push
+Let me know once you have saved engine/lumina_physics.js and added the 14-line loader to the bottom of engine.js—or if you'd like me to generate a lean MASTER_PROMPT.md Cheat-Sheet that includes the new FX.richScene, UI.hardwareTeardown, UI.strategicMap, UI.chartBar3D, and PHY.* calls for your future video prompts!
