@@ -1,0 +1,2669 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8" /><title>Lumina 2.5D / 3D-Parallax (16:9) — Studio Player (Shots 91–100 · SFX + Ambient Batch)</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Space+Mono:wght@700&display=swap" rel="stylesheet"><style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #05070d; color: #e2e8f0; font-family: 'Nunito', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+#stage-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; position: relative; overflow: hidden; }
+canvas { max-width: 100%; max-height: 100%; aspect-ratio: 16 / 9; box-shadow: 0 16px 48px rgba(0,0,0,0.75); background: #070b16; }
+#controls { height: 58px; background: #101522; border-top: 1px solid #222b42; display: flex; align-items: center; gap: 12px; padding: 0 18px; font-size: 13px; }
+button, select, label.btn { background: #1c2539; color: #f8fafc; border: 1px solid #334155; border-radius: 6px; padding: 6px 12px; font-family: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+button:hover, select:hover, label.btn:hover { background: #283552; border-color: #ff8a3d; }
+#scrub { flex: 1; accent-color: #ff8a3d; cursor: pointer; }
+#readout { font-family: 'Space Mono', monospace; font-size: 12px; color: #ffb074; min-width: 230px; }
+</style></head><body><div id="stage-wrap"><canvas id="stage" width="1920" height="1080"></canvas></div><div id="controls"><button id="playBtn">Play</button><input id="scrub" type="range" min="0" max="1" step="0.001" value="0" /><div id="readout">00.0s / 00.0s · Shot 91</div><select id="shotSelect"><option value="all">All Shots in Batch (91–100)</option></select><select id="mixSelect"><option value="sfxOnly" selected>SFX + Ambient Only (No BGM)</option><option value="mute">Mute</option></select><label class="btn">Load vo.wav <input id="voInput" type="file" accept="audio/*" style="display:none" /></label><button id="wavBtn">Export Batch SFX (.wav)</button></div>
+
+<script src="../../engine.js"></script>
+<script>
+// ============================================================================
+// LOCKED MASTER CONSISTENCY BIBLE & GLOBAL THEME DICTIONARY (STEP 9)
+// ============================================================================
+const THEME = {
+  PROJECT: {
+    title: '4,200 Years of Tamil Nadu History (2170 BCE – Present)',
+    width: 1920,
+    height: 1080,
+    fps: 60,
+    totalDuration: 497.8,
+    totalShots: 125,
+  },
+
+  CHARS: {
+    CHAR_VIEWER_PROTAG: {
+      tier: 1,
+      era: 'modern',
+      skin: '#D69A72',
+      hairStyle: 'curlyCloud',
+      hairColor: '#261C1A',
+      wardrobe: 'sweater',
+      topColor: '#FF851B',
+      bottomColor: '#28808C',
+      headwear: 'none',
+      prop: 'phone',
+      allowModern: true,
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_ARCHAEOLOGIST: {
+      tier: 1,
+      era: 'modern',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#261C1A',
+      wardrobe: 'shirtTie',
+      topColor: '#C98A2C',
+      bottomColor: '#2D3748',
+      headwear: 'none',
+      prop: 'hammer',
+      allowModern: true,
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_IRON_SMITH: {
+      tier: 1,
+      era: '2170_BCE_Mayiladumparai',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'prehistoric',
+      topColor: '#8C5832',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      beard: true,
+      mustache: true,
+      prop: 'hammer',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'grimace',
+    },
+    CHAR_IRON_HELPER: {
+      tier: 2,
+      era: '2170_BCE_Mayiladumparai',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'prehistoric',
+      topColor: '#785238',
+      bottomColor: '#E8E4DC',
+      headwear: 'none',
+      prop: 'none',
+      defaultAction: 'push',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'neutral',
+    },
+    CHAR_TAMIL_FARMER: {
+      tier: 1,
+      era: 'ancientTamil',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#F4EFE6',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      prop: 'walkingStick',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+    },
+    CHAR_SANGAM_POET: {
+      tier: 1,
+      era: '600_BCE_Sangam',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#F4EFE6',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      prop: 'palmLeaf',
+      defaultAction: 'write',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_KEELADI_WEAVER: {
+      tier: 2,
+      era: '580_BCE_Keeladi',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#D96B27',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'tilak',
+      prop: 'palmLeaf',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+    },
+    CHAR_KEELADI_BUILDER: {
+      tier: 1,
+      era: '580_BCE_Keeladi',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#C98A2C',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      prop: 'hammer',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'smile',
+    },
+    CHAR_TAMIL_MERCHANT: {
+      tier: 1,
+      era: 'Sangam_to_Chola',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#28808C',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'coinBag',
+      defaultAction: 'trade',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_ROMAN_MERCHANT: {
+      tier: 2,
+      era: 'Indo_Roman_Trade',
+      skin: '#F2B892',
+      hairStyle: 'shortCrop',
+      hairColor: '#4A2E20',
+      wardrobe: 'roman',
+      topColor: '#E53935',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      prop: 'coinBag',
+      defaultAction: 'trade',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_CHERA_KING: {
+      tier: 1,
+      era: 'Sangam_Moovendhar',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#38C878',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'flag',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_CHOLA_KING: {
+      tier: 1,
+      era: 'Sangam_to_Medieval_Chola',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_PANDYA_KING: {
+      tier: 1,
+      era: 'Sangam_to_Medieval_Pandya',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#E53935',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'vel',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_THIRUVALLUVAR: {
+      tier: 1,
+      era: 'Sangam_Literature',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#788092',
+      wardrobe: 'ancientTamil',
+      topColor: '#F4EFE6',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      beard: true,
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'palmLeaf',
+      defaultAction: 'write',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+    },
+    CHAR_ILANGO_ADIGAL: {
+      tier: 1,
+      era: 'Sangam_Literature',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#FF7722',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      prop: 'scroll',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_KALABHRA_GENERAL: {
+      tier: 1,
+      era: '300_CE_Kalabhra',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'medieval',
+      topColor: '#363D4A',
+      bottomColor: '#1F242E',
+      headwear: 'none',
+      beard: true,
+      mustache: true,
+      prop: 'sword',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+    },
+    CHAR_BUDDHIST_MONK: {
+      tier: 2,
+      era: '400_CE_Monastic',
+      skin: '#C88C68',
+      hairStyle: 'baldTufts',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#FF7722',
+      bottomColor: '#FF7722',
+      headwear: 'none',
+      prop: 'palmLeaf',
+      defaultAction: 'meditate',
+      eyeMode: 'closed',
+      brows: 'neutral',
+      mouth: 'smile',
+    },
+    CHAR_PALLAVA_KING: {
+      tier: 1,
+      era: '600_CE_Pallava',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_MAHENDRAVARMAN: {
+      tier: 1,
+      era: '600_CE_Pallava',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'scroll',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_NARASIMHAVARMAN: {
+      tier: 1,
+      era: '630_CE_Pallava',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#E53935',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_PALLAVA_SCULPTOR: {
+      tier: 1,
+      era: 'Pallava_and_Chola_Architecture',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#F4EFE6',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      prop: 'hammer',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'smile',
+    },
+    CHAR_CHINESE_ENVOY: {
+      tier: 2,
+      era: 'Tang_China_720_CE',
+      skin: '#E8A478',
+      hairStyle: 'topknot',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientChina',
+      topColor: '#9E2A2B',
+      bottomColor: '#1E2436',
+      headwear: 'scholarCap',
+      mustache: true,
+      prop: 'scroll',
+      defaultAction: 'trade',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+    },
+    CHAR_BODHIDHARMA: {
+      tier: 1,
+      era: '6th_Century_Pallava_Shaolin',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#D96B27',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      beard: true,
+      mustache: true,
+      prop: 'walkingStick',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'neutral',
+    },
+    CHAR_VIJAYALAYA_CHOLA: {
+      tier: 1,
+      era: '850_CE_Imperial_Chola',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      beard: true,
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'flag',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_RAJARAJA_CHOLA: {
+      tier: 1,
+      era: '985_CE_Imperial_Chola',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      beard: true,
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'scroll',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_RAJENDRA_CHOLA: {
+      tier: 1,
+      era: '1014_CE_Imperial_Chola',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#E53935',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_MARCO_POLO: {
+      tier: 2,
+      era: '1292_CE_Pandya_Court',
+      skin: '#F2B892',
+      hairStyle: 'shortCrop',
+      hairColor: '#4A2E20',
+      wardrobe: 'medieval',
+      topColor: '#28808C',
+      bottomColor: '#3E2723',
+      headwear: 'flatCap',
+      beard: true,
+      prop: 'scroll',
+      defaultAction: 'write',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'o',
+    },
+    CHAR_MALIK_KAFUR: {
+      tier: 1,
+      era: '1311_CE_Delhi_Sultanate',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'medieval',
+      topColor: '#2B120E',
+      bottomColor: '#1C0C0A',
+      headwear: 'turban',
+      mustache: true,
+      prop: 'sword',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+    },
+    CHAR_VIJAYANAGARA_GENERAL: {
+      tier: 1,
+      era: '1370_1565_CE_Vijayanagara',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#FF7722',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'tilak',
+      prop: 'sword',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_NAYAK_KING: {
+      tier: 2,
+      era: '1529_CE_Nayak',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'tilak',
+      prop: 'scroll',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_THIRUMALAI_NAYAK: {
+      tier: 1,
+      era: '1623_CE_Madurai_Nayak',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'tilak',
+      prop: 'sword',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_RAGHUNATHA_NAYAK: {
+      tier: 1,
+      era: '1600_CE_Thanjavur_Nayak',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#28808C',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'tilak',
+      prop: 'palmLeaf',
+      defaultAction: 'write',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_PALAYAKKARAR: {
+      tier: 1,
+      era: '1529_1801_CE_Polygar',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#E53935',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'neutral',
+    },
+    CHAR_BRITISH_OFFICER: {
+      tier: 1,
+      era: '1639_1947_British_Colonial',
+      skin: '#F2B892',
+      hairStyle: 'shortCrop',
+      hairColor: '#4A2E20',
+      wardrobe: 'victorian',
+      topColor: '#9E2A2B',
+      bottomColor: '#1F242E',
+      headwear: 'topHat',
+      prop: 'telescope',
+      defaultAction: 'walk',
+      eyeMode: 'halfLidded',
+      brows: 'asymmetric',
+      mouth: 'smile',
+    },
+    CHAR_PULI_THEVAN: {
+      tier: 1,
+      era: '1755_CE_Polygar_War',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#D96B27',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+    },
+    CHAR_VELU_NACHIYAR: {
+      tier: 1,
+      era: '1780_CE_Sivaganga',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#E53935',
+      bottomColor: '#F7B928',
+      headwear: 'crown',
+      foreheadMark: 'tilak',
+      prop: 'sword',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+    },
+    CHAR_KATTABOMMAN: {
+      tier: 1,
+      era: '1799_CE_Panchalankurichi',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+    },
+    CHAR_MARUTHU_BROTHER: {
+      tier: 1,
+      era: '1801_CE_Sivaganga',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#E53935',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'vel',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+    },
+    CHAR_DHEERAN_CHINNAMALAI: {
+      tier: 1,
+      era: '1805_CE_Kongu',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#38C878',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+    },
+    CHAR_TAMIL_MOTHER: {
+      tier: 2,
+      era: '1876_Great_Famine',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#8C5832',
+      bottomColor: '#E8E4DC',
+      headwear: 'none',
+      foreheadMark: 'bindi',
+      prop: 'baby',
+      defaultAction: 'holdBaby',
+      eyeMode: 'warm',
+      brows: 'sad',
+      mouth: 'frown',
+    },
+    CHAR_FREEDOM_FIGHTER: {
+      tier: 1,
+      era: '1900_1947_Freedom_Struggle',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'indianIndependence',
+      topColor: '#F4F6FA',
+      bottomColor: '#F4EFE6',
+      headwear: 'gandhiCap',
+      mustache: true,
+      prop: 'flag',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_BHARATHIYAR: {
+      tier: 1,
+      era: '1900_1921_Freedom_Struggle',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'indianIndependence',
+      topColor: '#1E2436',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'tilak',
+      prop: 'scroll',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_VOC: {
+      tier: 1,
+      era: '1906_Swadeshi_Movement',
+      skin: '#7A4E38',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'indianIndependence',
+      topColor: '#F4F6FA',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'flag',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_SATYAMURTI: {
+      tier: 1,
+      era: '1930s_Freedom_Struggle',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#261C1A',
+      wardrobe: 'indianIndependence',
+      topColor: '#F4F6FA',
+      bottomColor: '#F4EFE6',
+      headwear: 'gandhiCap',
+      foreheadMark: 'vibhuti',
+      prop: 'scroll',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_PERIYAR: {
+      tier: 1,
+      era: '1925_Self_Respect_Movement',
+      skin: '#C88C68',
+      hairStyle: 'baldTufts',
+      hairColor: '#CBD5E1',
+      wardrobe: 'indianIndependence',
+      topColor: '#1A1615',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      beard: true,
+      mustache: true,
+      glasses: true,
+      allowModern: true,
+      prop: 'walkingStick',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_JUSTICE_LEADER: {
+      tier: 2,
+      era: '1916_Justice_Party',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#261C1A',
+      wardrobe: '1900s',
+      topColor: '#2B3040',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      prop: 'scroll',
+      defaultAction: 'trade',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_TAMIL_WOMAN_GRAD: {
+      tier: 1,
+      era: 'Social_Justice_Reform',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'indianIndependence',
+      topColor: '#28808C',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'bindi',
+      prop: 'scroll',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_KAMARAJAR: {
+      tier: 1,
+      era: '1954_1963_Kamarajar_Era',
+      skin: '#7A4E38',
+      hairStyle: 'shortCrop',
+      hairColor: '#261C1A',
+      wardrobe: 'indianIndependence',
+      topColor: '#F4F6FA',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      mustache: true,
+      prop: 'none',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_SCHOOL_STUDENT: {
+      tier: 2,
+      era: 'Modern_Tamil_Nadu',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'shirtTie',
+      topColor: '#F4F6FA',
+      bottomColor: '#1E2749',
+      headwear: 'none',
+      allowModern: true,
+      prop: 'palmLeaf',
+      defaultAction: 'walk',
+      eyeMode: 'happyArch',
+      brows: 'raised',
+      mouth: 'laugh',
+    },
+    CHAR_MODERN_ENGINEER: {
+      tier: 1,
+      era: 'Modern_Chennai',
+      skin: '#D69A72',
+      hairStyle: 'shortCrop',
+      hairColor: '#261C1A',
+      wardrobe: 'shirtTie',
+      topColor: '#2E6BE6',
+      bottomColor: '#1E293B',
+      headwear: 'none',
+      allowModern: true,
+      prop: 'wrench',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_TAMIL_DOCTOR: {
+      tier: 1,
+      era: 'Modern_Chennai',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'scientist',
+      topColor: '#F4F6FA',
+      bottomColor: '#28808C',
+      headwear: 'none',
+      glasses: true,
+      foreheadMark: 'bindi',
+      allowModern: true,
+      prop: 'beaker',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+  },
+
+  ANIMALS: {
+    ANIMAL_ROYAL_ELEPHANT: {
+      kind: 'elephant',
+      royal: true,
+      color: '#7C8494',
+      caparisonColor: '#C92A2A',
+      trimColor: '#FFD54F',
+      defaultAction: 'walk',
+    },
+    ANIMAL_BULL: {
+      kind: 'bull',
+      color: '#D9C8B2',
+      hornColor: '#4A3F35',
+      defaultAction: 'walk',
+    },
+    ANIMAL_WAR_HORSE: {
+      kind: 'horse',
+      color: '#8C5230',
+      defaultAction: 'run',
+    },
+    ANIMAL_SPARROW: {
+      kind: 'sparrow',
+      color: '#A67B5B',
+      wingColor: '#785238',
+      expr: 'singing',
+    },
+  },
+
+  ENVS: {
+    ENV_SPLIT_IRON_MODERN: { mood: 'primordialLava', altMood: 'urbanMorning', archStyle: 'prehistoric', altArchStyle: 'modern', lightDir: [-0.55, -0.80] },
+    ENV_MUSEUM_TIMELINE: { mood: 'parchmentGold', archStyle: 'ancientTamil', lightDir: [-0.65, -0.75] },
+    ENV_ROYAL_AVENUE: { mood: 'ancientTemple', archStyle: 'ancientTamil', lightDir: [-0.65, -0.75] },
+    ENV_MONSOON_TO_DAWN: { mood: 'monsoonLush', altMood: 'sunriseFlight', archStyle: 'ancientTamil', lightDir: [-0.60, -0.78] },
+    ENV_MAYILADUMPARAI_FORGE: { mood: 'primordialLava', archStyle: 'prehistoric', lightDir: [-0.50, -0.80] },
+    ENV_EXCAVATION_TRENCH: { mood: 'parchmentGold', archStyle: 'natural', lightDir: [-0.65, -0.75] },
+    ENV_KEELADI_STREET: { mood: 'ancientTemple', archStyle: 'ancientTamil', wallColor: '#A84832', lightDir: [-0.65, -0.75] },
+    ENV_SANGAM_MANDAPAM: { mood: 'parchmentGold', archStyle: 'ancientTamil', lightDir: [-0.65, -0.75] },
+    ENV_ANCIENT_HARBOR: { mood: 'stratosphereDay', archStyle: 'ancientTamil', lightDir: [-0.65, -0.75] },
+    ENV_DARK_INTERREGNUM: { mood: 'blackoutNight', altMood: 'primordialLava', archStyle: 'medieval', lightDir: [-0.45, -0.88] },
+    ENV_MAMALLAPURAM_COAST: { mood: 'stratosphereDay', altMood: 'ancientTemple', archStyle: 'ancientTamil', lightDir: [-0.65, -0.75] },
+    ENV_EAST_ASIAN_SILK_ROAD: { mood: 'edoMist', archStyle: 'eastAsian', lightDir: [-0.60, -0.75] },
+    ENV_THANJAVUR_BIG_TEMPLE: { mood: 'ancientTemple', altMood: 'golden', archStyle: 'ancientTamil', lightDir: [-0.65, -0.75] },
+    ENV_COLONIAL_MADRAS: { mood: 'victorianFog', archStyle: 'classical', lightDir: [-0.55, -0.82] },
+    ENV_FREEDOM_AND_REFORM: { mood: 'day', altMood: 'golden', archStyle: 'classical', lightDir: [-0.60, -0.80] },
+    ENV_MODERN_CHENNAI: { mood: 'urbanMorning', altMood: 'cyberFuture', archStyle: 'modern', lightDir: [-0.65, -0.75] },
+    ENV_KANYAKUMARI_COSMIC: { mood: 'stratosphereNight', archStyle: 'ancientTamil', lightDir: [0.00, -0.95] },
+    ENV_CREATOR_STUDIO: { mood: 'interiorWarm', altMood: 'parchmentGold', archStyle: 'modern', lightDir: [-0.60, -0.75] },
+    ENV_XRAY_BLUEPRINT: { mood: 'xrayBlue', archStyle: 'none', lightDir: [-0.50, -0.85] },
+  },
+
+  INFO: {
+    INFO_DIVIDE_AND_RULE: { type: 'economicsScale', leftLabel: 'FACTION A', rightLabel: 'FACTION B', label: 'DIVIDE AND RULE (பிரித்தாளும் சூழ்ச்சி)' },
+    INFO_DIAL_FAMINE_1876: { type: 'eraChapterDial', hourText: 'ERA 7 · 1876–1878 CE', titleText: 'GREAT FAMINE', subText: 'தாது வருட பஞ்சம் (Madras Presidency)', progress: 0.78, isNight: true },
+  },
+
+  SHOTS: {
+    90: { start: 344.8, end: 347.1, duration: 2.3, env_id: 'ENV_XRAY_BLUEPRINT', info_id: 'INFO_DIVIDE_AND_RULE', transOut: { type: 'WHIP_PAN_LEFT' } },
+    91: { start: 347.1, end: 351.9, duration: 4.8, env_id: 'ENV_DARK_INTERREGNUM', transOut: { type: 'CAMERA_DOLLY_IN', target: [1140, 540] } },
+    92: { start: 351.9, end: 358.2, duration: 6.3, env_id: 'ENV_DARK_INTERREGNUM', transOut: { type: 'WHIP_PAN_RIGHT' } },
+    93: { start: 358.2, end: 365.8, duration: 7.6, env_id: 'ENV_DARK_INTERREGNUM', transOut: { type: 'HARD_CUT' }, citation: 'South Indian Rebellion / Polygar Wars (1799–1801 CE)' },
+    94: { start: 365.8, end: 368.5, duration: 2.7, env_id: 'ENV_XRAY_BLUEPRINT', info_id: 'INFO_DIVIDE_AND_RULE', transOut: { type: 'HARD_CUT' } },
+    95: { start: 368.5, end: 374.4, duration: 5.9, env_id: 'ENV_XRAY_BLUEPRINT', info_id: 'INFO_DIVIDE_AND_RULE', transOut: { type: 'FADE_DIP', color: '#090D22' }, citation: 'Carnatic Treaty of 31 July 1801 (Madras Presidency)' },
+    96: { start: 374.4, end: 377.2, duration: 2.8, env_id: 'ENV_COLONIAL_MADRAS', transOut: { type: 'WHIP_PAN_RIGHT' } },
+    97: { start: 377.2, end: 381.1, duration: 3.9, env_id: 'ENV_COLONIAL_MADRAS', info_id: 'INFO_DIVIDE_AND_RULE', transOut: { type: 'HARD_CUT' } },
+    98: { start: 381.1, end: 384.8, duration: 3.7, env_id: 'ENV_COLONIAL_MADRAS', transOut: { type: 'DEPTH_RACK_FOCUS' } },
+    99: { start: 384.8, end: 387.5, duration: 2.7, env_id: 'ENV_XRAY_BLUEPRINT', info_id: 'INFO_DIAL_FAMINE_1876', transOut: { type: 'HARD_CUT' } },
+    100: { start: 387.5, end: 392.2, duration: 4.7, env_id: 'ENV_XRAY_BLUEPRINT', info_id: 'INFO_DIAL_FAMINE_1876', transOut: { type: 'FADE_DIP', color: '#070B16' }, citation: 'Famine Commission Report of 1880 (British Parliament)' },
+  },
+};
+window.THEME = THEME;
+
+// ============================================================================
+// BESPOKE HELPER DRAWERS FOR SHOTS 91–100 (FORTS, CANNONS, MAPS, SHIPS, DROUGHT)
+// ============================================================================
+function drawFortRamparts(g, y = 840, gt = 0, o = {}) {
+  const { wallCol = '#6A3F2B', darkCol = '#3E2216', torches = true } = o;
+  g.save();
+  // Massive stone fort wall & battlements behind heroes
+  DK.rr(g, -200, y - 340, 2320, 340, 8);
+  g.fillStyle = DK.linGrad(g, 0, y - 340, 0, y, [wallCol, darkCol]);
+  g.fill();
+
+  // Crenellations (Merlons)
+  for (let mx = -180; mx < 2100; mx += 110) {
+    DK.rr(g, mx, y - 392, 68, 56, 6);
+    g.fillStyle = wallCol;
+    g.fill();
+    DK.rr(g, mx + 6, y - 384, 56, 18, 4);
+    g.fillStyle = DK.shade(wallCol, 0.14);
+    g.fill();
+  }
+
+  // Stone block courses
+  g.strokeStyle = 'rgba(20, 10, 6, 0.35)';
+  g.lineWidth = 2;
+  for (let row = 0; row < 5; row++) {
+    const ry = y - 65 * (row + 1);
+    g.beginPath();
+    g.moveTo(-200, ry);
+    g.lineTo(2120, ry);
+    g.stroke();
+  }
+
+  // Blazing wall torches
+  if (torches) {
+    [260, 640, 960, 1280, 1660].forEach((tx, idx) => {
+      const ty = y - 250;
+      DK.seg(g, [[tx, ty + 45], [tx, ty]], 7, '#3E2723');
+      const flick = 1 + Math.sin(gt * 11 + idx * 2.1) * 0.14;
+      DK.glow(g, tx, ty - 14, 78 * flick, '#FF851B', 0.85);
+      DK.poly(g, [[tx - 14 * flick, ty], [tx + 14 * flick, ty], [tx, ty - 42 * flick]], '#FFD54F');
+    });
+  }
+  g.restore();
+}
+
+function drawBritishCannonSchematic(g, x, y, s, lt, gt) {
+  g.save();
+  g.translate(x, y);
+  g.scale(s, s);
+
+  // Blueprint Measurement Grid Rings
+  DK.ring(g, 0, -40, 220, 1.5, 'rgba(92, 225, 255, 0.25)');
+  DK.ring(g, 0, -40, 160, 1.5, 'rgba(92, 225, 255, 0.18)');
+
+  // Heavy Timber Gun Carriage & Trail (Facing Left)
+  DK.poly(g, [[-40, -52], [180, 12], [195, 28], [-55, -24]], '#8C5832', '#5CE1FF', 2.5);
+  DK.rr(g, -68, -72, 110, 36, 8);
+  g.fillStyle = '#6E4224';
+  g.fill();
+  g.strokeStyle = '#5CE1FF';
+  g.lineWidth = 2.5;
+  g.stroke();
+
+  // Cast Brass 12-Pounder Cannon Barrel (Angled Slightly Up-Left)
+  g.save();
+  g.translate(-25, -72);
+  g.rotate(0.14);
+  const recoil = lt >= 0.65 && lt < 0.95 ? Math.sin(((lt - 0.65) / 0.3) * Math.PI) * 28 : 0;
+  g.translate(recoil, 0);
+  DK.poly(
+    g,
+    [
+      [-185, -18],
+      [95, -28],
+      [105, 28],
+      [-185, 18],
+    ],
+    DK.cylinderGrad(g, 0, -28, 0, 28, '#D99B26', -1),
+    '#FFE082',
+    2.5
+  );
+  // Cascabel knob & muzzle ring
+  DK.circle(g, 116, 0, 14, '#F5B942');
+  DK.rr(g, -196, -24, 16, 48, 5);
+  g.fillStyle = '#FFD54F';
+  g.fill();
+  g.restore();
+
+  // Spoked Artillery Wheel
+  const wx = -20, wy = -12, wr = 74;
+  DK.circle(g, wx, wy, wr, 'rgba(14, 30, 64, 0.55)');
+  DK.ring(g, wx, wy, wr, 10, '#C98A2C');
+  DK.ring(g, wx, wy, wr + 5, 3, '#5CE1FF');
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2 + gt * 0.2;
+    DK.seg(g, [[wx, wy], [wx + Math.cos(ang) * wr, wy + Math.sin(ang) * wr]], 5, '#B37A24');
+  }
+  DK.circle(g, wx, wy, 16, '#FFD54F');
+
+  // Flintlock Musket Blueprint Above Cannon
+  g.save();
+  g.translate(40, -210);
+  DK.seg(g, [[-190, 0], [110, 0]], 6, '#CBD5E1');
+  DK.poly(g, [[40, 0], [145, 28], [155, 8], [65, -4]], '#8C5832', '#5CE1FF', 2);
+  // Bayonet blade
+  DK.poly(g, [[-190, -3], [-245, -1], [-190, 3]], '#5CE1FF');
+  DK.text(g, 'FLINTLOCK MUSKET & BAYONET (.75 CAL)', 0, -28, { size: 18, font: DK.FONTS.mono, color: '#5CE1FF', weight: 700 });
+  g.restore();
+
+  DK.text(g, '12-POUNDER BRASS SIEGE ARTILLERY', 20, 95, { size: 20, font: DK.FONTS.mono, color: '#FFD54F', weight: 700 });
+  g.restore();
+}
+
+function drawTamilNaduPalayamMap(g, cx, cy, s, annexProg = 0, gt = 0) {
+  g.save();
+  g.translate(cx, cy);
+  g.scale(s, s);
+
+  // Tamil Nadu Silhouette Polygon
+  const tnPts = [
+    [40, -310],
+    [135, -260],
+    [120, -110],
+    [95, 20],
+    [110, 95],
+    [35, 165],
+    [-15, 295],
+    [-65, 325],
+    [-95, 250],
+    [-115, 110],
+    [-165, -20],
+    [-130, -165],
+    [-45, -265],
+  ];
+
+  g.save();
+  DK.poly(g, tnPts, '#16284C', '#5CE1FF', 4);
+  g.clip();
+
+  // 72 Divided Palayam Hexagonal Cells
+  const r = DK.rng(950);
+  for (let gx = -160; gx <= 140; gx += 46) {
+    for (let gy = -300; gy <= 310; gy += 44) {
+      const ox = gx + (Math.abs(gy) % 88 === 0 ? 22 : 0);
+      const oy = gy;
+      const hexPts = [];
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2;
+        hexPts.push([ox + Math.cos(a) * 21, oy + Math.sin(a) * 21]);
+      }
+      const cellCol = r() > 0.5 ? 'rgba(255, 184, 77, 0.22)' : 'rgba(92, 225, 255, 0.16)';
+      DK.poly(g, hexPts, cellCol, 'rgba(255, 213, 120, 0.45)', 1.5);
+    }
+  }
+
+  // Sweeping British Crimson Annexation Overlay (Top to Bottom)
+  if (annexProg > 0) {
+    const sweepY = DK.lerp(-330, 340, annexProg);
+    g.fillStyle = 'rgba(185, 28, 44, 0.78)';
+    g.fillRect(-220, -340, 440, sweepY + 340);
+    DK.seg(g, [[-220, sweepY], [220, sweepY]], 5, '#FF4D6A');
+    DK.glow(g, 0, sweepY, 90, '#FF4D6A', 0.75);
+  }
+  g.restore();
+
+  // Outer Map Border & Label
+  DK.poly(g, tnPts, null, annexProg > 0.5 ? '#FF4D6A' : '#5CE1FF', 4);
+  if (annexProg > 0.35) {
+    DK.rr(g, -210, -35, 420, 64, 12);
+    g.fillStyle = 'rgba(18, 22, 40, 0.92)';
+    g.fill();
+    g.strokeStyle = '#FF4D6A';
+    g.lineWidth = 2.5;
+    g.stroke();
+    DK.text(g, 'MADRAS PRESIDENCY (1801 CE)', 0, -3, { size: 23, font: DK.FONTS.ui, weight: 900, color: '#FFD54F' });
+  }
+  g.restore();
+}
+
+function drawBritishCargoShip(g, x, y, s, gt) {
+  g.save();
+  g.translate(x, y);
+  g.scale(s, s);
+
+  const bob = Math.sin(gt * 1.8) * 5;
+  g.translate(0, bob);
+
+  // Tall masts & sails
+  DK.seg(g, [[-110, -20], [-110, -250]], 7, '#4A3528');
+  DK.seg(g, [[45, -20], [45, -270]], 8, '#4A3528');
+  DK.poly(g, [[-165, -210], [-55, -210], [-45, -95], [-175, -95]], '#E2E8F0');
+  DK.poly(g, [[-20, -230], [110, -230], [120, -100], [-30, -100]], '#CBD5E1');
+
+  // Steam funnel belching dark coal smoke
+  DK.rr(g, -42, -135, 34, 115, 4);
+  g.fillStyle = '#1E2433';
+  g.fill();
+  g.fillStyle = '#9E2A2B';
+  g.fillRect(-42, -110, 34, 18);
+  for (let i = 0; i < 6; i++) {
+    const u = ((gt * 0.45 + i * 0.16) % 1);
+    const sx = -25 + u * 140;
+    const sy = -145 - u * 110 + Math.sin(gt * 3 + i) * 8;
+    DK.circle(g, sx, sy, 18 + u * 34, DK.alpha('#1F242E', (1 - u) * 0.55));
+  }
+
+  // Wooden/Iron Hull
+  DK.poly(g, [[-240, -35], [240, -35], [195, 45], [-195, 45]], '#261C1A', '#C98A2C', 3);
+  DK.seg(g, [[-225, -10], [220, -10]], 5, '#D99B26');
+
+  // Stacked Cargo Crates on Deck ("LONDON")
+  DK.rr(g, -155, -75, 85, 40, 4);
+  g.fillStyle = '#8C5832';
+  g.fill();
+  DK.text(g, 'LONDON', -112, -55, { size: 15, font: DK.FONTS.mono, color: '#FFF3D6', weight: 700 });
+  g.restore();
+}
+
+function drawParchedEarthCracks(g, y = 840) {
+  const r = DK.rng(980);
+  g.save();
+  g.strokeStyle = '#24160E';
+  g.lineWidth = 3;
+  for (let i = 0; i < 18; i++) {
+    const sx = 120 + i * 98 + (r() - 0.5) * 30;
+    const sy = y + 18 + r() * 140;
+    DK.seg(
+      g,
+      [
+        [sx, sy],
+        [sx + 38, sy + 24],
+        [sx + 82, sy + 12],
+        [sx + 115, sy + 38],
+      ],
+      2.8,
+      '#24160E'
+    );
+    DK.seg(g, [[sx + 38, sy + 24], [sx + 22, sy + 56]], 2, '#24160E');
+  }
+  g.restore();
+}
+
+// ============================================================================
+// SHOTS 91 TO 100 — 60FPS 1920x1080 5-PLANE 3D-PARALLAX ANIMATION REGISTRY
+// ============================================================================
+const SHOTS = [
+  // --------------------------------------------------------------------------
+  // SHOT 91: Puli Thevan & Velu Nachiyar Rise in Rebellion (347.1s – 351.9s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 91,
+    title: 'Puli Thevan & Velu Nachiyar Rise in Rebellion',
+    start: 347.1,
+    end: 351.9,
+    duration: 4.8,
+    vo_line: 'ஆனா இவங்களை எதிர்த்து பூலித்தேவன், வேலுநாச்சியார் இந்த மாதிரி வீரர்கள் எல்லாம் குரல் எழுப்பி சண்டையும் போடுறாங்க.',
+    env_id: 'ENV_DARK_INTERREGNUM',
+    chars: 'CHAR_PULI_THEVAN (swordFight), CHAR_VELU_NACHIYAR (swordFight)',
+    on_screen_text: 'PULI THEVAN (1755) · RANI VELU NACHIYAR (1780)',
+    camera_sfx: 'Camera Z dolly 0.98 -> 1.12 · wind bed, marchSteps, swordClash @ 2.40s',
+    transIn: { type: 'WHIP_PAN_LEFT' },
+    transOut: { type: 'CAMERA_DOLLY_IN', target: [1140, 540] },
+    draw(g, lt, gt, u) {
+      const m = DK.mood('ancientTemple');
+      const cam = {
+        x: 0,
+        y: DK.key(lt, [[0, 15], [4.8, -15]]),
+        z: DK.key(lt, [[0, 0.98], [2.4, 1.08], [4.8, 1.12]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.stars(g, gt, { seed: 91, count: 120 });
+          FX.moon(g, 960, 220, 68, '#FFF3D6');
+          FX.clouds(g, { seed: 91, count: 5, y: 180, color: '#D96B27', a: 0.22, t: gt, speed: 12 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 4,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 91, y: 740, amp: 110, color: '#381C1E' });
+          FX.skyline(g, { style: 'ancientTamil', y: 760, seed: 91, color: '#2B1416', lit: 0.45 });
+        },
+        mgBackDepth: 0.75,
+        mgBackBlur: 0,
+        mgBack: (g) => {
+          FX.architecture1P(g, { style: 'ancientTamil', vx: 960, vy: 220, lit: 0.5, wallColor: '#784830' });
+          drawFortRamparts(g, 840, gt, { wallCol: '#6E422C', darkCol: '#3A2014', torches: true });
+          FX.ground(g, 840, m.floor, m.key, 0.26, true);
+        },
+        mgHero: (g) => {
+          // Left: CHAR_PULI_THEVAN charging rightward
+          DK.char(g, {
+            moveX: [320, 740, lt, 4.8],
+            y: 840,
+            s: 1.05,
+            skin: '#7A4E38',
+            hairStyle: 'bun',
+            hairColor: '#1A1615',
+            wardrobe: 'ancientTamil',
+            topColor: '#D96B27',
+            bottomColor: '#F4EFE6',
+            headwear: 'turban',
+            mustache: true,
+            foreheadMark: 'vibhuti',
+            prop: 'sword',
+            pose: { preset: 'swordFight', speed: 1.25 },
+            eyeMode: 'warm',
+            brows: 'furrowed',
+            mouth: 'scream',
+            t: gt,
+            seed: 91,
+          });
+
+          // Right: CHAR_VELU_NACHIYAR advancing leftward with drawn sword
+          DK.char(g, {
+            moveX: [1600, 1140, lt, 4.8],
+            y: 840,
+            s: 1.05,
+            flipX: true,
+            skin: '#C88C68',
+            hairStyle: 'bun',
+            hairColor: '#1A1615',
+            wardrobe: 'ancientTamil',
+            topColor: '#E53935',
+            bottomColor: '#F7B928',
+            headwear: 'crown',
+            foreheadMark: 'tilak',
+            prop: 'sword',
+            pose: { preset: 'swordFight', speed: 1.25 },
+            eyeMode: 'warm',
+            brows: 'furrowed',
+            mouth: 'scream',
+            t: gt,
+            seed: 191,
+          });
+
+          // Mid-Shot Micro-Beat (lt >= 2.40s): Crossed swords golden flash of defiance at (940, 620)
+          if (lt >= 2.35) {
+            const flashK = DK.clamp(1 - (lt - 2.4) * 0.45, 0.35, 1.0);
+            DK.glow(g, 940, 620, 160 * flashK, '#FFD54F', 0.92 * flashK);
+            DK.ring(g, 940, 620, 48 + (lt - 2.35) * 42, 3, DK.alpha('#FFF5D6', flashK * 0.75));
+            for (let i = 0; i < 8; i++) {
+              const ang = (i / 8) * Math.PI * 2 + gt * 1.5;
+              const r0 = 18;
+              const r1 = 68 * flashK;
+              DK.seg(
+                g,
+                [
+                  [940 + Math.cos(ang) * r0, 620 + Math.sin(ang) * r0],
+                  [940 + Math.cos(ang) * r1, 620 + Math.sin(ang) * r1],
+                ],
+                3.2,
+                '#FFFFFF'
+              );
+            }
+          }
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.dust(g, gt, { seed: 91, count: 42, color: '#FFB84D', speed: 24, a: 0.45 });
+          FX.bokehOrbs(g, gt, { seed: 91, count: 14, color: m.practical });
+        },
+      });
+
+      // Dual Pill Badges
+      UI.pillBadge(g, lt, {
+        t0: 0.2,
+        x: 560,
+        y: 160,
+        text: 'PULI THEVAN (பூலித்தேவன் · 1755)',
+        border: '#D96B27',
+      });
+      UI.pillBadge(g, lt, {
+        t0: 0.35,
+        x: 1360,
+        y: 160,
+        text: 'RANI VELU NACHIYAR (வேலுநாச்சியார் · 1780)',
+        border: '#FFD54F',
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.38, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 92: Queen Velu Nachiyar's 8-Year Campaign & Victory (351.9s – 358.2s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 92,
+    title: "Queen Velu Nachiyar's 8-Year Campaign & Victory",
+    start: 351.9,
+    end: 358.2,
+    duration: 6.3,
+    vo_line: 'அதுவும் வேலுநாச்சியார்லாம் அவங்களோட கணவனை பிரிட்டிஷ்காரங்க கொன்னுட்டாங்கன்னு சொல்லிட்டு, எட்டு வருஷம் படைகளை திரட்டி பிரிட்டிஷ்காரங்களை எதிர்த்து சண்டைக்கு போறாங்க.',
+    env_id: 'ENV_DARK_INTERREGNUM',
+    chars: 'CHAR_VELU_NACHIYAR (swordFight), ANIMAL_WAR_HORSE, Udaiyal Women Regiment',
+    on_screen_text: 'RANI VELU NACHIYAR · 1ST QUEEN TO DEFEAT EIC TO RECLAIM KINGDOM (1780)',
+    camera_sfx: 'Tracking pan -120 -> 120 + shake · volcanoLava bed, horseGallop, swordClash, impact @ 3.15s',
+    transIn: { type: 'CAMERA_DOLLY_IN' },
+    transOut: { type: 'WHIP_PAN_RIGHT' },
+    draw(g, lt, gt, u) {
+      const m = DK.mood('primordialLava');
+      const cam = {
+        x: DK.key(lt, [[0, -120], [6.3, 120]], DK.ease.linear),
+        y: DK.shake(lt, 4, 10, 5)[1],
+        z: DK.key(lt, [[0, 1.0], [3.15, 1.10], [6.3, 1.04]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.stars(g, gt, { seed: 92, count: 90 });
+          FX.godRays(g, 1480, 420, { count: 7, angle: -Math.PI * 0.65, spread: 0.7, color: '#FF9438', a: 0.16, t: gt });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 4,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 92, y: 750, amp: 95, color: '#2B100C' });
+          FX.skyline(g, { style: 'ancientTamil', y: 760, seed: 92, color: '#381410', lit: 0.5 });
+        },
+        mgBackDepth: 0.75,
+        mgBackBlur: 0,
+        mgBack: (g) => {
+          drawFortRamparts(g, 840, gt, { wallCol: '#5C2C20', darkCol: '#2E140E', torches: true });
+
+          // Sivaganga Fort Gate & British Ammunition Depot at (1480, 580)
+          g.save();
+          DK.rr(g, 1340, 480, 280, 360, 12);
+          g.fillStyle = '#4A241A';
+          g.fill();
+          DK.rr(g, 1410, 590, 140, 250, 68);
+          g.fillStyle = lt >= 3.15 ? '#FF5E1A' : '#1E100C';
+          g.fill();
+          DK.text(g, 'SIVAGANGA FORT', 1480, 525, { size: 22, font: DK.FONTS.ui, weight: 900, color: '#FFD54F' });
+          g.restore();
+
+          FX.ground(g, 840, m.floor, m.key, 0.28, true);
+
+          // Women's Regiment (Udaiyal / Kuyili Battalion) charging in formation
+          DK.crowd(g, {
+            count: 6,
+            x0: 200,
+            x1: 1050,
+            y: 820,
+            s: 0.86,
+            wardrobe: 'ancientTamil',
+            behavior: 'march',
+            moveOffset: lt * 150,
+            t: gt,
+            seed: 920,
+          });
+        },
+        mgHero: (g) => {
+          // Mid-Shot Micro-Beat (lt >= 3.15s): Kuyili's strike detonates British ammunition depot at (1480, 580)
+          if (lt >= 3.15) {
+            const expT = lt - 3.15;
+            const expU = DK.clamp(expT / 2.2, 0, 1);
+            DK.glow(g, 1480, 580, 260 * (1.2 - expU * 0.3), '#FF5E1A', 0.95);
+            DK.glow(g, 1480, 580, 150, '#FFF3B0', 0.85 * (1 - expU * 0.4));
+            DK.ring(g, 1480, 580, 60 + expU * 340, 5 * (1 - expU), '#FFD54F');
+            const r = DK.rng(921);
+            for (let i = 0; i < 16; i++) {
+              const ang = -Math.PI * 0.95 + r() * Math.PI * 0.9;
+              const dist = expU * (160 + r() * 240);
+              const bx = 1480 + Math.cos(ang) * dist;
+              const by = 580 + Math.sin(ang) * dist + expU * expU * 90;
+              DK.circle(g, bx, by, (1 - expU * 0.5) * (8 + r() * 10), i % 2 === 0 ? '#FFD54F' : '#FF5E1A');
+            }
+          }
+
+          // ANIMAL_WAR_HORSE galloping rightward
+          DK.animal(g, {
+            kind: 'horse',
+            moveX: [260, 1340, lt, 6.3],
+            y: 845,
+            s: 1.08,
+            t: gt,
+          });
+
+          // CHAR_VELU_NACHIYAR storming the Sivaganga fort gates
+          DK.char(g, {
+            moveX: [340, 1220, lt, 6.3],
+            y: 840,
+            s: 1.06,
+            skin: '#C88C68',
+            hairStyle: 'bun',
+            hairColor: '#1A1615',
+            wardrobe: 'ancientTamil',
+            topColor: '#E53935',
+            bottomColor: '#F7B928',
+            headwear: 'crown',
+            foreheadMark: 'tilak',
+            prop: 'sword',
+            pose: { preset: 'swordFight', speed: 1.35 },
+            hairWind: 0.65,
+            eyeMode: 'warm',
+            brows: 'furrowed',
+            mouth: 'scream',
+            t: gt,
+            seed: 92,
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.dust(g, gt, { seed: 92, count: 55, color: '#FF9438', speed: 35, vx: 22, a: 0.5 });
+          FX.bokehOrbs(g, gt, { seed: 92, count: 16, color: '#FF5E1A' });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.25,
+        x: 960,
+        y: 160,
+        text: 'RANI VELU NACHIYAR · 1ST QUEEN TO DEFEAT EIC TO RECLAIM KINGDOM (1780)',
+        border: '#FFD54F',
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.4, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 93: Kattabomman, Maruthu Brothers & Dheeran Chinnamalai (358.2s – 365.8s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 93,
+    title: 'Kattabomman, Maruthu Brothers & Dheeran Chinnamalai',
+    start: 358.2,
+    end: 365.8,
+    duration: 7.6,
+    vo_line: 'அதுமட்டுமில்லாம வீரபாண்டிய கட்டபொம்மன், மருது சகோதரர்கள், தீரன் சின்னமலை அப்படின்னு சொல்லிட்டு எல்லாருமே சண்டைக்கு போக, தமிழ்நாடு முழுக்க ஒரு ரத்த ஆறு ஓடிட்டு இருந்துச்சு.',
+    env_id: 'ENV_DARK_INTERREGNUM',
+    chars: 'CHAR_KATTABOMMAN, CHAR_MARUTHU_BROTHER, CHAR_DHEERAN_CHINNAMALAI (swordFight)',
+    on_screen_text: 'KATTABOMMAN (1799) · MARUTHU BROTHERS (1801) · DHEERAN CHINNAMALAI (1805)',
+    camera_sfx: 'Pan -90 -> 90 + shake · volcanoLava bed, 3x swordClash, cannon impact @ 3.80s',
+    transIn: { type: 'WHIP_PAN_RIGHT' },
+    transOut: { type: 'HARD_CUT' },
+    draw(g, lt, gt, u) {
+      const m = DK.mood('primordialLava');
+      const cam = {
+        x: DK.key(lt, [[0, -90], [7.6, 90]], DK.ease.inOutCubic),
+        y: DK.shake(lt, 6, 13, 7)[1],
+        z: DK.key(lt, [[0, 0.98], [3.8, 1.08], [7.6, 1.02]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.stars(g, gt, { seed: 93, count: 80 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 4,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 93, y: 745, amp: 115, color: '#33100E' });
+          FX.skyline(g, { style: 'ancientTamil', y: 760, seed: 93, color: '#451612', lit: 0.55 });
+        },
+        mgBackDepth: 0.75,
+        mgBackBlur: 0,
+        mgBack: (g) => {
+          // Earthen Fort Bastions of Panchalankurichi, Kalayarkoil & Odanilai
+          drawFortRamparts(g, 840, gt, { wallCol: '#663322', darkCol: '#361810', torches: true });
+          FX.cabinFog(g, gt, { density: 0.32, speed: 75 });
+          FX.ground(g, 840, m.floor, m.key, 0.3, true);
+
+          // Mid-Shot Micro-Beat (lt >= 3.80s): Cannon fire erupts across background
+          if (lt >= 3.80) {
+            const cPulse = 0.65 + 0.35 * Math.sin((lt - 3.8) * 14);
+            DK.glow(g, 480, 560, 210, '#FF5E1A', 0.85 * cPulse);
+            DK.glow(g, 960, 520, 240, '#FFD54F', 0.9 * cPulse);
+            DK.glow(g, 1440, 560, 210, '#FF5E1A', 0.85 * cPulse);
+          }
+        },
+        mgHero: (g) => {
+          // 1. Left: CHAR_KATTABOMMAN
+          DK.char(g, {
+            moveX: [260, 620, lt, 7.6],
+            y: 840,
+            s: 1.05,
+            skin: '#7A4E38',
+            hairStyle: 'bun',
+            hairColor: '#1A1615',
+            wardrobe: 'ancientTamil',
+            topColor: '#F7B928',
+            bottomColor: '#F4EFE6',
+            headwear: 'turban',
+            mustache: true,
+            foreheadMark: 'vibhuti',
+            prop: 'sword',
+            pose: { preset: 'swordFight', speed: 1.3 },
+            eyeMode: 'warm',
+            brows: 'furrowed',
+            mouth: 'scream',
+            t: gt,
+            seed: 931,
+          });
+
+          // 2. Center: CHAR_MARUTHU_BROTHER
+          DK.char(g, {
+            moveX: [680, 1020, lt, 7.6],
+            y: 840,
+            s: 1.05,
+            skin: '#7A4E38',
+            hairStyle: 'bun',
+            hairColor: '#1A1615',
+            wardrobe: 'ancientTamil',
+            topColor: '#E53935',
+            bottomColor: '#F4EFE6',
+            headwear: 'none',
+            mustache: true,
+            foreheadMark: 'vibhuti',
+            prop: 'vel',
+            pose: { preset: 'swordFight', speed: 1.3 },
+            eyeMode: 'warm',
+            brows: 'furrowed',
+            mouth: 'scream',
+            t: gt,
+            seed: 932,
+          });
+
+          // 3. Right: CHAR_DHEERAN_CHINNAMALAI
+          DK.char(g, {
+            moveX: [1180, 1540, lt, 7.6],
+            y: 840,
+            s: 1.05,
+            skin: '#C88C68',
+            hairStyle: 'bun',
+            hairColor: '#1A1615',
+            wardrobe: 'ancientTamil',
+            topColor: '#38C878',
+            bottomColor: '#F4EFE6',
+            headwear: 'turban',
+            mustache: true,
+            foreheadMark: 'vibhuti',
+            prop: 'sword',
+            pose: { preset: 'swordFight', speed: 1.3 },
+            eyeMode: 'warm',
+            brows: 'furrowed',
+            mouth: 'scream',
+            t: gt,
+            seed: 933,
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.dust(g, gt, { seed: 93, count: 60, color: '#FF851B', speed: 32, a: 0.5 });
+          FX.bokehOrbs(g, gt, { seed: 93, count: 16, color: '#FF5E1A' });
+        },
+      });
+
+      // Three Hero Pill Badges & Academic Citation
+      UI.pillBadge(g, lt, { t0: 0.2, x: 480, y: 160, text: 'KATTABOMMAN (1799)', border: '#F7B928' });
+      UI.pillBadge(g, lt, { t0: 0.45, x: 960, y: 160, text: 'MARUTHU BROTHERS (1801)', border: '#E53935' });
+      UI.pillBadge(g, lt, { t0: 0.7, x: 1440, y: 160, text: 'DHEERAN CHINNAMALAI (1805)', border: '#38C878' });
+      UI.citation(g, 'South Indian Rebellion / Polygar Wars (1799–1801 CE)');
+
+      DK.finishFrame(g, gt, { vignette: 0.42, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 94: Advanced British Artillery & Firearms (365.8s – 368.5s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 94,
+    title: 'Advanced British Artillery & Firearms',
+    start: 365.8,
+    end: 368.5,
+    duration: 2.7,
+    vo_line: 'ஆனா பிரிட்டிஷ்காரங்களோட ஆயுதங்கள் எல்லாம் நவீன முறையில advanced-ஆ இருந்ததுனாலயும்,',
+    env_id: 'ENV_XRAY_BLUEPRINT',
+    chars: 'CHAR_BRITISH_OFFICER (march)',
+    on_screen_text: 'INDUSTRIAL ARTILLERY & MUSKETS vs. TRADITIONAL ARMS',
+    camera_sfx: 'Camera Z 1.0 -> 1.08 · room bed, cannon impact @ 0.65s, marchSteps',
+    transIn: { type: 'HARD_CUT' },
+    transOut: { type: 'HARD_CUT' },
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: 0,
+        y: 0,
+        z: DK.key(lt, [[0, 1.0], [2.7, 1.08]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          UI.darkVoidBg(g, gt, { grid: true, gridStep: 72 });
+        },
+        mgBackDepth: 0.85,
+        mgBackBlur: 0,
+        mgBack: (g) => {
+          // Left target earthen fort wall cross-section
+          DK.rr(g, 240, 460, 110, 380, 10);
+          g.fillStyle = '#4A3222';
+          g.fill();
+          g.strokeStyle = '#FFB84D';
+          g.lineWidth = 3;
+          g.stroke();
+          DK.text(g, 'EARTHEN FORT', 295, 430, { size: 18, font: DK.FONTS.mono, color: '#FFB84D', weight: 700 });
+
+          // Isometric schematic of British brass cannon & flintlock musket at (720, 560)
+          drawBritishCannonSchematic(g, 760, 680, 1.05, lt, gt);
+
+          // Glowing ballistic trajectory arc fired at lt >= 0.65s
+          if (lt >= 0.65) {
+            const shotU = DK.clamp((lt - 0.65) / 0.85, 0, 1);
+            DK.glow(g, 535, 580, 95 * (1 - shotU * 0.6), '#FF9438', 0.9);
+            g.save();
+            g.setLineDash([10, 8]);
+            g.strokeStyle = '#FF4D6A';
+            g.lineWidth = 4;
+            g.beginPath();
+            g.moveTo(535, 580);
+            g.quadraticCurveTo(430, 440, 345, 560);
+            g.stroke();
+            g.restore();
+
+            const bx = DK.lerp(535, 345, shotU);
+            const by = DK.lerp(580, 560, shotU) - Math.sin(shotU * Math.PI) * 90;
+            DK.glow(g, bx, by, 38, '#FFD54F', 0.95);
+            DK.circle(g, bx, by, 11, '#FFFFFF');
+
+            if (shotU > 0.85) {
+              DK.glow(g, 345, 560, 130, '#FF5E1A', 0.9);
+            }
+          }
+
+          DK.seg(g, [[160, 840], [1760, 840]], 3, 'rgba(92, 225, 255, 0.35)');
+        },
+        mgHero: (g) => {
+          // CHAR_BRITISH_OFFICER marching leftward beside cannon battery
+          DK.char(g, {
+            moveX: [1480, 1060, lt, 2.7],
+            y: 840,
+            s: 1.0,
+            flipX: true,
+            skin: '#F2B892',
+            hairStyle: 'shortCrop',
+            hairColor: '#4A2E20',
+            wardrobe: 'victorian',
+            topColor: '#9E2A2B',
+            bottomColor: '#1F242E',
+            headwear: 'topHat',
+            prop: 'sword',
+            pose: { preset: 'march' },
+            eyeMode: 'halfLidded',
+            brows: 'furrowed',
+            mouth: 'neutral',
+            t: gt,
+            seed: 94,
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 10,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 94, count: 10, color: '#5CE1FF', a: 0.14 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.15,
+        x: 960,
+        y: 170,
+        text: 'INDUSTRIAL ARTILLERY & MUSKETS vs. TRADITIONAL ARMS',
+        border: '#5CE1FF',
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.35, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 95: Fall of Tamilakam Under Full British Rule (1801 CE) (368.5s – 374.4s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 95,
+    title: 'Fall of Tamilakam Under Full British Rule (1801 CE)',
+    start: 368.5,
+    end: 374.4,
+    duration: 5.9,
+    vo_line: 'தமிழ்நாடு நிறைய பிரிஞ்சு தேவையான ஆளுங்க ஒண்ணா சேர்ந்து சண்டை போடாததுனாலயும், தமிழ்நாடு பிரிட்டிஷ்காரங்களுக்கு கீழ full-ஆ போகுது.',
+    env_id: 'ENV_XRAY_BLUEPRINT',
+    chars: 'CHAR_BRITISH_OFFICER (march), CHAR_PALAYAKKARAR (crouch)',
+    on_screen_text: '1801 CE · CARNATIC TREATY — TOTAL BRITISH CONTROL',
+    camera_sfx: 'Pan -50 -> 50, Z 1.04 -> 0.96 · wind bed, marchSteps, thud @ 2.95s',
+    transIn: { type: 'HARD_CUT' },
+    transOut: { type: 'FADE_DIP', color: '#090D22' },
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, -50], [5.9, 50]], DK.ease.inOutCubic),
+        y: 0,
+        z: DK.key(lt, [[0, 1.04], [5.9, 0.96]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      const annexProg = DK.clamp((lt - 0.5) / 3.8, 0, 1);
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          UI.darkVoidBg(g, gt, { top: '#081024', mid: '#121E3D', bot: '#1A294E', grid: true });
+        },
+        mgBackDepth: 0.80,
+        mgBackBlur: 0,
+        mgBack: (g) => {
+          // 72 Divided Palayams Map dissolving under crimson "MADRAS PRESIDENCY (1801 CE)" overlay
+          drawTamilNaduPalayamMap(g, 960, 530, 0.92, annexProg, gt);
+          DK.seg(g, [[160, 845], [1760, 845]], 3, 'rgba(140, 175, 235, 0.3)');
+        },
+        mgHero: (g) => {
+          // Left: CHAR_BRITISH_OFFICER marching rightward across map planting colonial flag
+          DK.char(g, {
+            moveX: [380, 1120, lt, 5.9],
+            y: 840,
+            s: 1.04,
+            skin: '#F2B892',
+            hairStyle: 'shortCrop',
+            hairColor: '#4A2E20',
+            wardrobe: 'victorian',
+            topColor: '#9E2A2B',
+            bottomColor: '#1F242E',
+            headwear: 'topHat',
+            prop: 'flag',
+            pose: { preset: 'march', speed: 1.0 },
+            eyeMode: 'halfLidded',
+            brows: 'neutral',
+            mouth: 'neutral',
+            t: gt,
+            seed: 95,
+          });
+
+          // Right: CHAR_PALAYAKKARAR disarmed and kneeling in a somber crouch
+          DK.char(g, {
+            x: 1520,
+            y: 850,
+            s: 0.96,
+            flipX: true,
+            skin: '#7A4E38',
+            hairStyle: 'bun',
+            hairColor: '#1A1615',
+            wardrobe: 'ancientTamil',
+            topColor: '#E53935',
+            bottomColor: '#F4EFE6',
+            headwear: 'turban',
+            mustache: true,
+            foreheadMark: 'vibhuti',
+            prop: 'none',
+            pose: { preset: 'crouch' },
+            eyeMode: 'warm',
+            brows: 'sad',
+            mouth: 'frown',
+            t: gt,
+            seed: 195,
+          });
+
+          // Mid-Shot Micro-Beat (lt >= 2.95s): Heavy colonial fog rolls across stage
+          if (lt >= 2.95) {
+            const fogFactor = DK.clamp((lt - 2.95) / 1.5, 0, 1);
+            FX.cabinFog(g, gt, { density: 0.25 * fogFactor, speed: 60 });
+          }
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 95, count: 12, color: '#FF4D6A', a: 0.14 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.25,
+        x: 960,
+        y: 160,
+        text: '1801 CE · CARNATIC TREATY — TOTAL BRITISH CONTROL',
+        border: '#FF4D6A',
+      });
+      UI.citation(g, 'Carnatic Treaty of 31 July 1801 (Madras Presidency)');
+
+      DK.finishFrame(g, gt, { vignette: 0.42, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 96: Colonial Exploitation & Suffering (374.4s – 377.2s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 96,
+    title: 'Colonial Exploitation & Suffering',
+    start: 374.4,
+    end: 377.2,
+    duration: 2.8,
+    vo_line: 'இந்த பிரிட்டிஷ் ஆட்சிக்காலம் தமிழ்நாட்டுக்கு ஒரு நரக வேதனையா இருந்துச்சு.',
+    env_id: 'ENV_COLONIAL_MADRAS',
+    chars: 'CHAR_TAMIL_FARMER (push), CHAR_BRITISH_OFFICER (stand)',
+    on_screen_text: 'COLONIAL ECONOMIC DRAIN (19TH CENTURY)',
+    camera_sfx: 'Pan -30 -> 30 · wind bed, slow footsteps',
+    transIn: { type: 'FADE_DIP', color: '#090D22' },
+    transOut: { type: 'WHIP_PAN_RIGHT' },
+    draw(g, lt, gt, u) {
+      const m = DK.mood('victorianFog');
+      const cam = {
+        x: DK.key(lt, [[0, -30], [2.8, 30]], DK.ease.inOutCubic),
+        y: 0,
+        z: 1.02,
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.clouds(g, { seed: 96, count: 6, y: 170, color: '#7C8A99', a: 0.3, t: gt, speed: 8 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 4,
+        bgFar: (g) => {
+          FX.skyline(g, { style: 'classical', y: 760, seed: 96, color: '#262E3D', lit: 0.2 });
+        },
+        mgBackDepth: 0.75,
+        mgBackBlur: 0,
+        mgBack: (g) => {
+          // Bleak Colonial Revenue Collector's Bungalow
+          FX.architecture1P(g, { style: 'classical', vx: 960, vy: 220, lit: 0.25, wallColor: '#4A5568' });
+
+          // Raised Veranda Platform on Right for Colonial Overseer
+          DK.rr(g, 1300, 790, 380, 55, 6);
+          g.fillStyle = '#363D4A';
+          g.fill();
+          DK.seg(g, [[1340, 790], [1340, 480]], 16, '#CBD5E1');
+          DK.seg(g, [[1620, 790], [1620, 480]], 16, '#CBD5E1');
+
+          FX.ground(g, 840, m.floor, m.key, 0.16, true);
+        },
+        mgHero: (g) => {
+          const farmerX = DK.lerp(420, 960, DK.clamp(lt / 2.8, 0, 1));
+          // Heavy grain sack on farmer's back
+          DK.ellipse(g, farmerX - 24, 705, 48, 32, DK.sphereGrad(g, farmerX - 24, 705, 48, '#A67B5B'), 0.25);
+
+          // CHAR_TAMIL_FARMER trudging slowly under heavy load
+          DK.char(g, {
+            moveX: [420, 960, lt, 2.8],
+            y: 840,
+            s: 1.0,
+            skin: '#7A4E38',
+            hairStyle: 'bun',
+            hairColor: '#261C1A',
+            wardrobe: 'ancientTamil',
+            topColor: '#F4EFE6',
+            bottomColor: '#F4EFE6',
+            foreheadMark: 'vibhuti',
+            prop: 'walkingStick',
+            pose: { preset: 'push', speed: 0.75 },
+            eyeMode: 'wince',
+            brows: 'sad',
+            mouth: 'frown',
+            t: gt,
+            seed: 96,
+          });
+
+          // CHAR_BRITISH_OFFICER standing on right veranda (Stationary Justification: Colonial tax overseer supervising revenue collection)
+          DK.char(g, {
+            x: 1460,
+            y: 790,
+            s: 0.98,
+            flipX: true,
+            skin: '#F2B892',
+            hairStyle: 'shortCrop',
+            hairColor: '#4A2E20',
+            wardrobe: 'victorian',
+            topColor: '#9E2A2B',
+            bottomColor: '#1F242E',
+            headwear: 'topHat',
+            prop: 'walkingStick',
+            pose: { preset: 'stand' },
+            eyeMode: 'halfLidded',
+            brows: 'furrowed',
+            mouth: 'neutral',
+            t: gt,
+            seed: 196,
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.cabinFog(g, gt, { density: 0.18, speed: 45 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.15,
+        x: 960,
+        y: 170,
+        text: 'COLONIAL ECONOMIC DRAIN (19TH CENTURY)',
+        border: '#6C7D99',
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.42, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 97: Exporting Grain & Cotton to London at Rock-Bottom Prices (377.2s – 381.1s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 97,
+    title: 'Exporting Grain & Cotton to London at Rock-Bottom Prices',
+    start: 377.2,
+    end: 381.1,
+    duration: 3.9,
+    vo_line: 'விவசாயிகள் விளைவிக்கிற அத்தனை பொருட்களையும் அடிமாட்டு விலைக்கு வாங்கி கப்பல்ல ஏத்தி லண்டனுக்கு அனுப்புனாங்க.',
+    env_id: 'ENV_COLONIAL_MADRAS',
+    chars: 'CHAR_TAMIL_FARMER (push), CHAR_BRITISH_OFFICER (trade), UI.economicsScale',
+    on_screen_text: 'MASS GRAIN & COTTON EXPORTS TO BRITAIN',
+    camera_sfx: 'Pan -50 -> 60 · ocean bed, steamWhistle @ 0.4s, coinClink @ 1.95s',
+    transIn: { type: 'WHIP_PAN_RIGHT' },
+    transOut: { type: 'HARD_CUT' },
+    draw(g, lt, gt, u) {
+      const m = DK.mood('victorianFog');
+      const cam = {
+        x: DK.key(lt, [[0, -50], [3.9, 60]], DK.ease.inOutCubic),
+        y: 0,
+        z: 1.0,
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.clouds(g, { seed: 97, count: 6, y: 160, color: '#94A3B8', a: 0.26, t: gt, speed: 12 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 3,
+        bgFar: (g) => {
+          // Ocean horizon & British steam-assisted cargo vessel at Madras Pier (1420, 720)
+          g.fillStyle = '#1E293B';
+          g.fillRect(-400, 710, 2720, 380);
+          drawBritishCargoShip(g, 1420, 720, 1.05, gt);
+        },
+        mgBackDepth: 0.75,
+        mgBackBlur: 0,
+        mgBack: (g) => {
+          // Stone Harbor Wharf & Wooden Gangplank
+          FX.pool(g, 1420, 810, 480, 70, '#FFD28A', 0.18);
+          DK.rr(g, -200, 835, 1650, 260, 8);
+          g.fillStyle = '#333B48';
+          g.fill();
+          DK.seg(g, [[980, 835], [1340, 735]], 18, '#8C5832');
+
+          // Background workers hauling cotton & grain sacks
+          DK.crowd(g, {
+            count: 4,
+            x0: 220,
+            x1: 820,
+            y: 830,
+            s: 0.85,
+            wardrobe: 'ancientTamil',
+            behavior: 'walk',
+            moveOffset: lt * 110,
+            t: gt,
+            seed: 970,
+          });
+        },
+        mgHero: (g) => {
+          const fx = DK.lerp(340, 1020, DK.clamp(lt / 3.9, 0, 1));
+          // Cotton & grain sack carried by farmer
+          DK.ellipse(g, fx + 28, 710, 46, 30, DK.sphereGrad(g, fx + 28, 710, 46, '#D9C8B2'), -0.15);
+
+          // CHAR_TAMIL_FARMER hauling grain/cotton sacks rightward
+          DK.char(g, {
+            moveX: [340, 1020, lt, 3.9],
+            y: 840,
+            s: 0.98,
+            skin: '#7A4E38',
+            hairStyle: 'bun',
+            hairColor: '#261C1A',
+            wardrobe: 'ancientTamil',
+            topColor: '#F4EFE6',
+            bottomColor: '#F4EFE6',
+            foreheadMark: 'vibhuti',
+            pose: { preset: 'push', speed: 0.9 },
+            eyeMode: 'wince',
+            brows: 'sad',
+            mouth: 'frown',
+            t: gt,
+            seed: 97,
+          });
+
+          // CHAR_BRITISH_OFFICER tossing a tiny coin bag at x = 1360
+          DK.char(g, {
+            x: 1360,
+            y: 835,
+            s: 1.0,
+            flipX: true,
+            skin: '#F2B892',
+            hairStyle: 'shortCrop',
+            hairColor: '#4A2E20',
+            wardrobe: 'victorian',
+            topColor: '#9E2A2B',
+            bottomColor: '#1F242E',
+            headwear: 'topHat',
+            prop: 'coinBag',
+            pose: { preset: 'trade' },
+            eyeMode: 'halfLidded',
+            brows: 'asymmetric',
+            mouth: 'smile',
+            t: gt,
+            seed: 197,
+          });
+
+          // Mid-Shot Micro-Beat (lt >= 1.95s): Economics Scale pops in
+          if (lt >= 1.95) {
+            const popS = DK.pop(lt, 1.95, 0.38);
+            g.save();
+            g.translate(960, 540);
+            g.scale(popS, popS);
+            g.translate(-960, -540);
+            UI.economicsScale(g, lt - 1.95, {
+              x: 960,
+              y: 540,
+              s: 0.88,
+              tilt: -0.35,
+              leftLabel: 'GRAIN & COTTON TO LONDON',
+              rightLabel: 'PENNIES TO FARMERS',
+            });
+            g.restore();
+          }
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 97, count: 12, color: m.practical, a: 0.14 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.2,
+        x: 960,
+        y: 160,
+        text: 'MASS GRAIN & COTTON EXPORTS TO BRITAIN',
+        border: '#FFAE42',
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.38, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 98: Crushing Ryotwari Land Taxes Even Without Rain (381.1s – 384.8s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 98,
+    title: 'Crushing Ryotwari Land Taxes Even Without Rain',
+    start: 381.1,
+    end: 384.8,
+    duration: 3.7,
+    vo_line: 'கடும் வரி வசூலிச்சிருக்காங்க, மழை பெய்யலைன்னாலும் அந்த வரி கட்டணும்னு impose பண்ணிருக்காங்க.',
+    env_id: 'ENV_COLONIAL_MADRAS',
+    chars: 'CHAR_TAMIL_FARMER (crouch), CHAR_BRITISH_OFFICER (walk)',
+    on_screen_text: 'OPPRESSIVE RYOTWARI TAXATION DURING DROUGHT · 50%+ LAND TAX MANDATORY',
+    camera_sfx: 'Camera Z 1.0 -> 1.08 · wind bed, footsteps, stamp thud @ 1.85s',
+    transIn: { type: 'HARD_CUT' },
+    transOut: { type: 'DEPTH_RACK_FOCUS' },
+    draw(g, lt, gt, u) {
+      const m = DK.mood('parchmentGold');
+      const cam = {
+        x: 0,
+        y: DK.key(lt, [[0, -10], [3.7, 15]]),
+        z: DK.key(lt, [[0, 1.0], [3.7, 1.08]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, ['#5C2C16', '#9E5424', '#D98A3C', '#F7C873']);
+          // Scorching rainless sun
+          FX.sun(g, 960, 220, 82, '#FFF6E0', '#FF9438', 4.5);
+          FX.godRays(g, 960, 220, { count: 8, angle: Math.PI * 0.5, spread: 0.9, color: '#FFE094', a: 0.16, t: gt });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 4,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 98, y: 760, amp: 85, color: '#5C4028' });
+        },
+        mgBackDepth: 0.75,
+        mgBackBlur: 0,
+        mgBack: (g) => {
+          // Parched, cracked mud farmland
+          FX.ground(g, 840, '#4A3728', '#B88E62', 0.15, true);
+          drawParchedEarthCracks(g, 840);
+
+          // Leafless withered trees
+          [280, 1620].forEach((tx, idx) => {
+            DK.seg(g, [[tx, 840], [tx + (idx ? -10 : 12), 710], [tx, 610]], 14, '#3E281B');
+            DK.seg(g, [[tx + 6, 710], [tx - 58, 635]], 8, '#3E281B');
+            DK.seg(g, [[tx + 4, 675], [tx + 64, 605]], 7, '#3E281B');
+          });
+        },
+        mgHero: (g) => {
+          // Left: CHAR_TAMIL_FARMER kneeling on the cracked earth
+          DK.char(g, {
+            x: 640,
+            y: 840,
+            s: 1.0,
+            skin: '#7A4E38',
+            hairStyle: 'bun',
+            hairColor: '#261C1A',
+            wardrobe: 'ancientTamil',
+            topColor: '#F4EFE6',
+            bottomColor: '#F4EFE6',
+            foreheadMark: 'vibhuti',
+            prop: 'walkingStick',
+            pose: { preset: 'crouch' },
+            eyeMode: 'wince',
+            brows: 'sad',
+            mouth: 'frown',
+            t: gt,
+            seed: 98,
+          });
+
+          // Right: CHAR_BRITISH_OFFICER marching leftward demanding revenue
+          DK.char(g, {
+            moveX: [1480, 1020, lt, 3.7],
+            y: 840,
+            s: 1.02,
+            flipX: true,
+            skin: '#F2B892',
+            hairStyle: 'shortCrop',
+            hairColor: '#4A2E20',
+            wardrobe: 'victorian',
+            topColor: '#9E2A2B',
+            bottomColor: '#1F242E',
+            headwear: 'topHat',
+            prop: 'scroll',
+            pose: { preset: 'walk', speed: 1.05 },
+            eyeMode: 'halfLidded',
+            brows: 'furrowed',
+            mouth: 'frown',
+            t: gt,
+            seed: 198,
+          });
+
+          // Mid-Shot Micro-Beat (lt >= 1.85s): Crimson tax mandate badge stamps at (960, 420)
+          if (lt >= 1.85) {
+            UI.pillBadge(g, lt, {
+              t0: 1.85,
+              x: 960,
+              y: 420,
+              scale: 1.12,
+              text: '50%+ LAND TAX MANDATORY (ZERO DROUGHT RELIEF)',
+              bg: '#2A0E14',
+              border: '#FF4D6A',
+            });
+          }
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 10,
+        fgBokeh: (g) => {
+          FX.dust(g, gt, { seed: 98, count: 48, color: '#FFE6B0', speed: 14, vx: 18, a: 0.42 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.2,
+        x: 960,
+        y: 170,
+        text: 'OPPRESSIVE RYOTWARI TAXATION DURING DROUGHT',
+        border: '#FF4D6A',
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.38, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 99: Reaching the Breaking Point (1876 CE) (384.8s – 387.5s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 99,
+    title: 'Reaching the Breaking Point (1876 CE)',
+    start: 384.8,
+    end: 387.5,
+    duration: 2.7,
+    vo_line: '1976-லதான் இது ரொம்ப உச்சத்தை தொடுது.',
+    env_id: 'ENV_XRAY_BLUEPRINT',
+    chars: 'CHAR_TAMIL_FARMER (walk, hypoxia: 0.3), UI.radialTimer (1876)',
+    on_screen_text: '1876 · HISTORICAL YEAR: 1876–1878 CE · PEAK CRISIS',
+    camera_sfx: 'Camera Z 0.95 -> 1.08 · wind bed, heartbeatSub @ 0.15s, timerChime @ 0.10s',
+    transIn: { type: 'DEPTH_RACK_FOCUS' },
+    transOut: { type: 'HARD_CUT' },
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: 0,
+        y: 0,
+        z: DK.key(lt, [[0, 0.95], [2.7, 1.08]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          UI.darkVoidBg(g, gt, { top: '#050812', mid: '#0B1328', bot: '#141D38', grid: true });
+        },
+        mgBackDepth: 0.85,
+        mgBackBlur: 0,
+        mgBack: (g) => {
+          // Parched ground line in lower stage
+          DK.rr(g, -200, 845, 2320, 260, 0);
+          g.fillStyle = '#18141E';
+          g.fill();
+          DK.seg(g, [[-200, 845], [2120, 845]], 3, 'rgba(255, 77, 106, 0.45)');
+        },
+        mgHero: (g) => {
+          // Centered Radial Timer (1876)
+          UI.radialTimer(g, lt, {
+            x: 960,
+            y: 490,
+            r: 175,
+            timeText: '1876',
+            progress: 0.95,
+            mode: 'milestone',
+            t0: 0.05,
+          });
+
+          // CHAR_TAMIL_FARMER walking weakly across parched lower left
+          DK.char(g, {
+            moveX: [380, 680, lt, 2.7],
+            y: 850,
+            s: 0.95,
+            skin: '#7A4E38',
+            hypoxia: 0.3,
+            hairStyle: 'bun',
+            hairColor: '#261C1A',
+            wardrobe: 'ancientTamil',
+            topColor: '#F4EFE6',
+            bottomColor: '#F4EFE6',
+            foreheadMark: 'vibhuti',
+            prop: 'walkingStick',
+            pose: { preset: 'walk', speed: 0.65 },
+            eyeMode: 'wince',
+            brows: 'sad',
+            mouth: 'frown',
+            t: gt,
+            seed: 99,
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 99, count: 10, color: '#FF4D6A', a: 0.15 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.15,
+        x: 960,
+        y: 780,
+        text: 'HISTORICAL YEAR: 1876–1878 CE · PEAK CRISIS',
+        border: '#FF4D6A',
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.42, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 100: The Great Famine of 1876 (தாது வருட பஞ்சம்) (387.5s – 392.2s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 100,
+    title: 'The Great Famine of 1876 (தாது வருட பஞ்சம்)',
+    start: 387.5,
+    end: 392.2,
+    duration: 4.7,
+    vo_line: 'அதாவது தாது வருட பஞ்சம், The Great Famine of 1876-ன்னு சொல்லப்படுது.',
+    env_id: 'ENV_XRAY_BLUEPRINT',
+    chars: 'CHAR_TAMIL_MOTHER (holdBaby, hypoxia: 0.35), UI.eraChapterDial',
+    on_screen_text: 'ERA 7 · 1876–1878 CE · GREAT FAMINE · தாது வருட பஞ்சம் (Madras Presidency)',
+    camera_sfx: 'Camera Z 1.0 -> 1.06 · citySilence bed, 2x heartbeatSub @ 0.3s & 2.5s',
+    transIn: { type: 'HARD_CUT' },
+    transOut: { type: 'FADE_DIP', color: '#070B16' },
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: 0,
+        y: 0,
+        z: DK.key(lt, [[0, 1.0], [4.7, 1.06]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          // Full-Stage Era Chapter Dial (1876–1878 CE · GREAT FAMINE)
+          UI.eraChapterDial(g, lt, {
+            t0: 0.05,
+            hourText: 'ERA 7 · 1876–1878 CE',
+            titleText: 'GREAT FAMINE',
+            subText: 'தாது வருட பஞ்சம் (Madras Presidency)',
+            progress: 0.78,
+            isNight: true,
+          });
+        },
+        mgHero: (g) => {
+          // CHAR_TAMIL_MOTHER standing solemnly on the right cradling her swaddled infant
+          // (Stationary Justification: Gently rocking and cradling her infant during the Great Famine of 1876)
+          DK.char(g, {
+            x: 1380,
+            y: 850,
+            s: 1.0,
+            skin: '#7A4E38',
+            hypoxia: 0.35,
+            hairStyle: 'bun',
+            hairColor: '#261C1A',
+            wardrobe: 'ancientTamil',
+            topColor: '#8C5832',
+            bottomColor: '#E8E4DC',
+            foreheadMark: 'bindi',
+            prop: 'baby',
+            pose: { preset: 'holdBaby' },
+            eyeMode: 'warm',
+            brows: 'sad',
+            mouth: 'frown',
+            t: gt,
+            seed: 100,
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.dust(g, gt, { seed: 100, count: 32, color: '#9EA6B8', speed: 10, a: 0.25 });
+        },
+      });
+
+      UI.citation(g, 'Famine Commission Report of 1880 (British Parliament)');
+
+      DK.finishFrame(g, gt, { vignette: 0.45, grain: 0.03 });
+    },
+  },
+];
+
+// ============================================================================
+// PROCEDURAL WEB AUDIO SFX & AMBIENT SCORE (SFX + AMBIENT ONLY — ZERO BGM)
+// ============================================================================
+function scoreSound(k) {
+  const B0 = SHOTS[0].start; // 347.1s
+
+  // --- SHOT 91 (347.1s – 351.9s | bt: 0.0s – 4.8s) ---
+  {
+    const bt = 347.1 - B0;
+    k.bed('wind', bt + 0.0, bt + 4.8, { gain: 0.75 });
+    k.play('marchSteps', bt + 0.2, { n: 6, rate: 0.38 });
+    k.play('swordClash', bt + 2.40, { gain: 1.0 });
+  }
+
+  // --- SHOT 92 (351.9s – 358.2s | bt: 4.8s – 11.1s) ---
+  {
+    const bt = 351.9 - B0;
+    k.bed('volcanoLava', bt + 0.0, bt + 6.3, { gain: 0.85 });
+    k.play('horseGallop', bt + 0.1, { n: 14, pan: -0.1 });
+    k.play('swordClash', bt + 1.5, { gain: 0.9, pan: 0.0 });
+    k.play('impact', bt + 3.15, { gain: 1.0, pan: 0.35 });
+  }
+
+  // --- SHOT 93 (358.2s – 365.8s | bt: 11.1s – 18.7s) ---
+  {
+    const bt = 358.2 - B0;
+    k.bed('volcanoLava', bt + 0.0, bt + 7.6, { gain: 0.9 });
+    k.play('swordClash', bt + 0.8, { gain: 0.9, pan: -0.35 });
+    k.play('swordClash', bt + 2.2, { gain: 0.9, pan: 0.0 });
+    k.play('impact', bt + 3.80, { gain: 1.0, pan: 0.25 });
+    k.play('swordClash', bt + 5.2, { gain: 0.95, pan: 0.35 });
+  }
+
+  // --- SHOT 94 (365.8s – 368.5s | bt: 18.7s – 21.4s) ---
+  {
+    const bt = 365.8 - B0;
+    k.bed('room', bt + 0.0, bt + 2.7, { gain: 0.65 });
+    k.play('impact', bt + 0.65, { gain: 0.95, pan: -0.2 });
+    k.play('marchSteps', bt + 0.2, { n: 5, rate: 0.42, pan: 0.25 });
+  }
+
+  // --- SHOT 95 (368.5s – 374.4s | bt: 21.4s – 27.3s) ---
+  {
+    const bt = 368.5 - B0;
+    k.bed('wind', bt + 0.0, bt + 5.9, { gain: 0.85 });
+    k.play('marchSteps', bt + 0.2, { n: 8, rate: 0.45, pan: -0.15 });
+    k.play('thud', bt + 2.95, { f: 95, gain: 0.85 });
+  }
+
+  // --- SHOT 96 (374.4s – 377.2s | bt: 27.3s – 30.1s) ---
+  {
+    const bt = 374.4 - B0;
+    k.bed('wind', bt + 0.0, bt + 2.8, { gain: 0.85 });
+    k.play('footstep', bt + 0.2, { n: 4, rate: 0.58, pan: -0.15 });
+  }
+
+  // --- SHOT 97 (377.2s – 381.1s | bt: 30.1s – 34.0s) ---
+  {
+    const bt = 377.2 - B0;
+    k.bed('ocean', bt + 0.0, bt + 3.9, { gain: 0.8 });
+    k.play('steamWhistle', bt + 0.4, { dur: 0.75, gain: 0.7, pan: 0.35 });
+    k.play('coinClink', bt + 1.95, { n: 1, gain: 0.6, pan: 0.2 });
+  }
+
+  // --- SHOT 98 (381.1s – 384.8s | bt: 34.0s – 37.7s) ---
+  {
+    const bt = 381.1 - B0;
+    k.bed('wind', bt + 0.0, bt + 3.7, { gain: 0.85 });
+    k.play('footstep', bt + 0.2, { n: 5, rate: 0.44, pan: 0.25 });
+    k.play('thud', bt + 1.85, { f: 110, gain: 0.85 });
+  }
+
+  // --- SHOT 99 (384.8s – 387.5s | bt: 37.7s – 40.4s) ---
+  {
+    const bt = 384.8 - B0;
+    k.bed('wind', bt + 0.0, bt + 2.7, { gain: 0.8 });
+    k.play('heartbeatSub', bt + 0.15, { gain: 0.95 });
+    k.play('timerChime', bt + 0.10, { f: 'D5', gain: 0.8 });
+  }
+
+  // --- SHOT 100 (387.5s – 392.2s | bt: 40.4s – 45.1s) ---
+  {
+    const bt = 387.5 - B0;
+    k.bed('citySilence', bt + 0.0, bt + 4.7, { gain: 0.9 });
+    k.play('heartbeatSub', bt + 0.3, { gain: 0.85 });
+    k.play('heartbeatSub', bt + 2.5, { gain: 0.85 });
+  }
+
+  // Schedule two-phase matched boundary transition SFX
+  if (window.DK && DK.scheduleTransitions) {
+    DK.scheduleTransitions(k, SHOTS, B0, THEME);
+  }
+}
+
+// ============================================================================
+// STUDIO PLAYER & HEADLESS RENDER HOOK BOILERPLATE (SFX + AMBIENT ONLY)
+// ============================================================================
+if (window.DK && DK.linkShotTransitions) DK.linkShotTransitions(SHOTS, window.THEME);
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const BATCH_START = SHOTS[0].start;
+const BATCH_END = SHOTS[SHOTS.length - 1].end;
+const DURATION = BATCH_END - BATCH_START;
+window.BATCH_START = BATCH_START;
+window.BATCH_END = BATCH_END;
+window.DURATION = DURATION;
+window.SHOTS = SHOTS;
+window.scoreSound = scoreSound;
+let currentT = 0;
+let playing = false;
+let rafId = null;
+let lastTs = 0;
+let stopSound = null;
+let activeShotFilter = 'all';
+let voAudio = null;
+function findShotAtGlobal(gt) {
+  for (let i = 0; i < SHOTS.length; i++) {
+    if (gt >= SHOTS[i].start && gt <= SHOTS[i].end) return SHOTS[i];
+  }
+  return gt < SHOTS[0].start ? SHOTS[0] : SHOTS[SHOTS.length - 1];
+}
+function renderAtLocal(localT) {
+  currentT = DK.clamp(localT, 0, DURATION);
+  const gt = BATCH_START + currentT;
+  const s = findShotAtGlobal(gt);
+  const lt = DK.clamp(gt - s.start, 0, s.duration);
+  const u = s.duration > 0 ? lt / s.duration : 0;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, 1920, 1080);
+  ctx.save();
+  if (window.DK && DK.drawShot) {
+    DK.drawShot(ctx, s, lt, gt, u);
+  } else {
+    s.draw(ctx, lt, gt, u);
+  }
+  ctx.restore();
+  document.getElementById('scrub').value = DURATION > 0 ? currentT / DURATION : 0;
+  document.getElementById('readout').textContent =
+    gt.toFixed(2) + 's (' + currentT.toFixed(2) + 's) · Shot ' + s.shot_number;
+}
+window.seek = function (t, opts) {
+  if (playing) pause();
+  const localT = opts && opts.global ? t - BATCH_START : t;
+  renderAtLocal(localT);
+};
+function startAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  const mixMode = document.getElementById('mixSelect').value;
+  if (mixMode !== 'mute' && window.SOUND) {
+    stopSound = SOUND.live(scoreSound, currentT, { mixMode: 'sfxOnly' });
+  }
+  if (voAudio) {
+    voAudio.currentTime = BATCH_START + currentT;
+    voAudio.play().catch(() => {});
+  }
+}
+function stopAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  if (voAudio) voAudio.pause();
+}
+function play() {
+  if (playing) return;
+  playing = true;
+  document.getElementById('playBtn').textContent = 'Pause';
+  lastTs = performance.now();
+  startAudio();
+  const tick = (now) => {
+    if (!playing) return;
+    const dt = (now - lastTs) / 1000;
+    lastTs = now;
+    let nextT = currentT + dt;
+    if (activeShotFilter !== 'all') {
+      const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+      if (s) {
+        const sLocal0 = s.start - BATCH_START;
+        const sLocal1 = s.end - BATCH_START;
+        if (nextT >= sLocal1) { nextT = sLocal0; currentT = nextT; startAudio(); }
+      }
+    } else if (nextT >= DURATION) {
+      nextT = 0; currentT = 0; startAudio();
+    }
+    renderAtLocal(nextT);
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+}
+function pause() {
+  playing = false;
+  document.getElementById('playBtn').textContent = 'Play';
+  if (rafId) cancelAnimationFrame(rafId);
+  stopAudio();
+}
+const shotSelect = document.getElementById('shotSelect');
+SHOTS.forEach((s) => {
+  const opt = document.createElement('option');
+  opt.value = String(s.shot_number);
+  opt.textContent = 'Shot ' + s.shot_number + ': ' + s.title + ' (' + s.start.toFixed(1) + 's-' + s.end.toFixed(1) + 's)';
+  shotSelect.appendChild(opt);
+});
+shotSelect.addEventListener('change', () => {
+  activeShotFilter = shotSelect.value;
+  if (activeShotFilter !== 'all') {
+    const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+    if (s) { renderAtLocal(s.start - BATCH_START); if (playing) startAudio(); }
+  }
+});
+document.getElementById('playBtn').addEventListener('click', () => (playing ? pause() : play()));
+document.getElementById('scrub').addEventListener('input', (e) => {
+  renderAtLocal(parseFloat(e.target.value) * DURATION);
+  if (playing) startAudio();
+});
+document.getElementById('mixSelect').addEventListener('change', () => { if (playing) startAudio(); });
+document.getElementById('voInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  voAudio = new Audio(URL.createObjectURL(file));
+});
+document.getElementById('wavBtn').addEventListener('click', async () => {
+  const res = await SOUND.renderOffline(scoreSound, DURATION, 48000, { mixMode: 'sfxOnly' });
+  const blob = SOUND.encodeWAV(res.inter, res.sr);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'batch_sfx_' + SHOTS[0].shot_number + '_' + SHOTS[SHOTS.length - 1].shot_number + '.wav';
+  a.click();
+});
+window.addEventListener('DOMContentLoaded', async () => {
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  renderAtLocal(0);
+});
+</script>
+</body></html>

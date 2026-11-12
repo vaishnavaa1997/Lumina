@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Lumina 2.5D / 3D-Parallax (16:9) — Studio Player (Shots 1 to 6 · G-Force Island)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #05070d; color: #e2e8f0; font-family: 'Nunito', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+#stage-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; position: relative; overflow: hidden; }
+canvas { max-width: 100%; max-height: 100%; aspect-ratio: 16 / 9; box-shadow: 0 16px 48px rgba(0,0,0,0.75); background: #070b16; }
+#controls { height: 58px; background: #101522; border-top: 1px solid #222b42; display: flex; align-items: center; gap: 12px; padding: 0 18px; font-size: 13px; }
+button, select, label.btn { background: #1c2539; color: #f8fafc; border: 1px solid #334155; border-radius: 6px; padding: 6px 12px; font-family: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+button:hover, select:hover, label.btn:hover { background: #283552; border-color: #ff8a3d; }
+#scrub { flex: 1; accent-color: #ff8a3d; cursor: pointer; }
+#readout { font-family: 'Space Mono', monospace; font-size: 12px; color: #ffb074; min-width: 230px; }
+</style>
+</head>
+<body>
+<div id="stage-wrap">
+<canvas id="stage" width="1920" height="1080"></canvas>
+</div>
+<div id="controls">
+<button id="playBtn">Play</button>
+<input id="scrub" type="range" min="0" max="1" step="0.001" value="0" />
+<div id="readout">00.0s / 20.0s · Shot 1</div>
+<select id="shotSelect"><option value="all">All Shots in Batch</option></select>
+<select id="mixSelect">
+<option value="sfxOnly" selected>SFX + Ambient Only (No BGM)</option>
+<option value="mute">Mute</option>
+</select>
+<label class="btn">Load vo.wav <input id="voInput" type="file" accept="audio/*" style="display:none" /></label>
+<button id="wavBtn">Export Batch SFX (.wav)</button>
+</div>
+
+<script src="../../engine.js"></script>
+<script>
+// ============================================================================
+// 1. LOCKED CONSISTENCY BIBLE & GLOBAL THEME DICTIONARY
+// ============================================================================
+const THEME = (window.THEME = {
+  CHARS: {
+    CHAR_LEO: {
+      id: 'CHAR_LEO',
+      name: 'Leo (The Unwilling Test Rider)',
+      tier: 'Tier 1',
+      skin: '#E8A478',
+      hairStyle: 'spikyMessy',
+      hairColor: '#182854',
+      wardrobe: 'sweater',
+      topColor: '#FF851B',
+      bottomColor: '#28808C',
+      glasses: false,
+      seatbelt: true,
+      defaultEyeMode: 'warm',
+      defaultBrows: 'neutral',
+      defaultMouth: 'smile'
+    },
+    CHAR_MAYA: {
+      id: 'CHAR_MAYA',
+      name: 'Maya (The Thrill-Seeker)',
+      tier: 'Tier 1',
+      skin: '#D69A72',
+      hairStyle: 'curlyCloud',
+      hairColor: '#261C1A',
+      wardrobe: 'jacket',
+      topColor: '#F7B928',
+      bottomColor: '#1E2749',
+      glasses: true,
+      seatbelt: true,
+      defaultEyeMode: 'happyArch',
+      defaultBrows: 'raised',
+      defaultMouth: 'laugh'
+    },
+    CHAR_OPERATOR: {
+      id: 'CHAR_OPERATOR',
+      name: 'Bored Ride Operator Stan',
+      tier: 'Tier 2',
+      skin: '#F2B892',
+      hairStyle: 'baldTufts',
+      hairColor: '#9EA6B8',
+      wardrobe: 'shirtTie',
+      topColor: '#2E6BE6',
+      bottomColor: '#1E2749',
+      tieColor: '#E53935',
+      headset: true,
+      defaultEyeMode: 'halfLidded',
+      defaultBrows: 'neutral',
+      defaultMouth: 'neutral'
+    }
+  },
+  ANIMALS: {
+    ANIMAL_PIGEON: { id: 'ANIMAL_PIGEON', kind: 'pigeon' },
+    ANIMAL_DOG: { id: 'ANIMAL_DOG', kind: 'dog' }
+  },
+  ENVS: {
+    ENV_PARK_GATE: { id: 'ENV_PARK_GATE', mood: 'sunriseFlight', lightDir: [-0.6, -0.75] },
+    ENV_COASTER_APEX: { id: 'ENV_COASTER_APEX', mood: 'stratosphereDay', lightDir: [-0.5, -0.85] },
+    ENV_XRAY_VOID: { id: 'ENV_XRAY_VOID', mood: 'xrayBlue', lightDir: [-0.5, -0.85] },
+    ENV_PLUNGE_TUNNEL: { id: 'ENV_PLUNGE_TUNNEL', mood: 'cabinNight', lightDir: [0.0, -0.9] }
+  },
+  INFO: {
+    INFO_ALTITUDE_BADGE: { id: 'INFO_ALTITUDE_BADGE', text: '420 FT · 90° DROP', subText: 'WORLD RECORD' },
+    INFO_GFORCE_TIMER: { id: 'INFO_GFORCE_TIMER', timeText: '+5.0 G', r: 165 },
+    INFO_BRAIN_XRAY: { id: 'INFO_BRAIN_XRAY', citation: 'FAA Aerospace Medicine — G-Induced Loss of Consciousness (G-LOC)' },
+    INFO_TITLE_CARD: { id: 'INFO_TITLE_CARD', topText: 'EXPERIENCE THE', mainText: 'G-FORCE ISLAND', subText: 'OPEN DAILY', parenText: '(bring a helmet)' }
+  },
+  SHOTS: {
+    1: { transOut: { type: 'CAMERA_DOLLY_IN', target: [960, 340], dur: 0.34 } },
+    2: { transOut: { type: 'HARD_CUT', dur: 0.0 } },
+    3: { transOut: { type: 'XRAY_DISSOLVE', target: [760, 480], accent: '#5CE1FF', dur: 0.28 } },
+    4: { transOut: { type: 'WHIP_TILT_DOWN', dur: 0.26 } },
+    5: { transOut: { type: 'FLASH_BLOOM', color: '#FFF3D6', dur: 0.22 } },
+    6: { transOut: { type: 'FADE_DIP', color: '#070B16', dur: 0.40 } }
+  }
+});
+
+// ============================================================================
+// 2. REUSABLE BESPOKE SET-PIECE HELPERS (COASTER TRACKS, CHASSIS & ARCHWAY)
+// ============================================================================
+function drawCoasterSilhouetteBG(g, gt, o = {}) {
+  const { col = '#381B3D', railCol = '#FF5268', lit = true } = o;
+  g.save();
+  // Massive vertical tower & parabolic loop on horizon
+  g.strokeStyle = col;
+  g.lineWidth = 6;
+  for (let x = 280; x <= 1640; x += 68) {
+    let topY = 780;
+    if (x < 780) {
+      const u = (x - 280) / 500;
+      topY = 760 - Math.sin(u * Math.PI) * 520;
+    } else if (x < 1260) {
+      const u = (x - 780) / 480;
+      topY = 760 - Math.sin(u * Math.PI) * 380;
+    } else {
+      const u = (x - 1260) / 380;
+      topY = 760 - Math.sin(u * Math.PI) * 240;
+    }
+    DK.seg(g, [[x, 820], [x, topY]], 4, col);
+    // Cross-bracing lattice
+    for (let y = topY + 45; y < 800; y += 55) {
+      DK.seg(g, [[x, y], [x + 68, y + 35]], 2, DK.alpha(col, 0.55));
+    }
+  }
+
+  // Sweeping tubular rails
+  g.strokeStyle = railCol;
+  g.lineWidth = 10;
+  g.beginPath();
+  g.moveTo(160, 780);
+  g.bezierCurveTo(380, 780, 440, 180, 560, 180);
+  g.bezierCurveTo(680, 180, 710, 760, 820, 760);
+  g.bezierCurveTo(920, 760, 960, 340, 1060, 340);
+  g.bezierCurveTo(1160, 340, 1220, 760, 1680, 760);
+  g.stroke();
+
+  // Giant vertical loop ring
+  DK.ring(g, 1020, 530, 195, 11, railCol);
+  DK.ring(g, 1020, 530, 181, 4, col);
+
+  // Chasing chaser lights along the apex
+  if (lit) {
+    for (let i = 0; i < 12; i++) {
+      const ang = (i / 12) * Math.PI * 2 + gt * 1.4;
+      const lx = 1020 + Math.cos(ang) * 195;
+      const ly = 530 + Math.sin(ang) * 195;
+      DK.glow(g, lx, ly, 24, '#FFD578', 0.65);
+      DK.circle(g, lx, ly, 4, '#FFFFFF');
+    }
+  }
+  g.restore();
+}
+
+function drawParkGateArch(g, gt) {
+  g.save();
+  // Left & Right 3D Shaded Entrance Pillars
+  [-560, 560].forEach((dx) => {
+    const px = 960 + dx;
+    DK.contactShadow(g, px, 845, 75, 14, 0.4);
+    DK.rr(g, px - 42, 250, 84, 595, 16);
+    g.fillStyle = DK.cylinderGrad(g, px - 42, 250, px + 42, 250, '#3B234A', -1);
+    g.fill();
+    // Gold trim bands
+    g.fillStyle = '#FFB84D';
+    g.fillRect(px - 46, 310, 92, 14);
+    g.fillRect(px - 46, 780, 92, 16);
+  });
+
+  // Overhead Curved Midway Archway Banner
+  g.save();
+  g.beginPath();
+  g.moveTo(360, 290);
+  g.quadraticCurveTo(960, 145, 1560, 290);
+  g.lineTo(1560, 355);
+  g.quadraticCurveTo(960, 215, 360, 355);
+  g.closePath();
+  g.fillStyle = DK.linGrad(g, 360, 200, 1560, 340, ['#E53935', '#FF6B2B', '#E53935']);
+  g.fill();
+  g.lineWidth = 5;
+  g.strokeStyle = '#FFD54F';
+  g.stroke();
+  g.restore();
+
+  // Marquee bulbs along archway
+  for (let i = 0; i <= 22; i++) {
+    const u = i / 22;
+    const bx = DK.lerp(385, 1535, u);
+    const by = DK.lerp(290, 290, u) - Math.sin(u * Math.PI) * 72 + 28;
+    const pulse = 0.5 + 0.5 * Math.sin(gt * 8 + i);
+    DK.glow(g, bx, by, 18, '#FFE082', pulse * 0.8);
+    DK.circle(g, bx, by, 5, '#FFF9E6');
+  }
+
+  // Operator Control Booth Podium on Left
+  DK.rr(g, 460, 690, 210, 155, 18);
+  g.fillStyle = DK.cylinderGrad(g, 460, 690, 670, 690, '#243052', -1);
+  g.fill();
+  g.strokeStyle = '#FFB84D';
+  g.lineWidth = 3;
+  g.stroke();
+  // Flashing BIG RED "LAUNCH" Button on podium
+  DK.rr(g, 535, 668, 60, 24, 10);
+  g.fillStyle = '#FF2A55';
+  g.fill();
+  DK.glow(g, 565, 675, 38, '#FF2A55', 0.6 + 0.4 * Math.sin(gt * 10));
+  DK.text(g, 'LAUNCH', 565, 755, { size: 24, font: DK.FONTS.mono, color: '#FFD578', weight: 700 });
+  g.restore();
+}
+
+function drawCoasterCar(g, x, y, s, drawPassengersFn, o = {}) {
+  const { nosePigeon = false, gt = 0, speedTilt = 0 } = o;
+  g.save();
+  g.translate(x, y);
+  g.rotate(speedTilt);
+  g.scale(s, s);
+
+  // Back Seat Rests (3D Shaded Dark Charcoal)
+  [-180, 140].forEach((sx) => {
+    DK.rr(g, sx - 95, -245, 190, 210, 28);
+    g.fillStyle = DK.cylinderGrad(g, sx - 95, -245, sx + 95, -245, '#1E243B', -1);
+    g.fill();
+    DK.rr(g, sx - 72, -265, 144, 58, 18);
+    g.fillStyle = '#FFB84D';
+    g.fill();
+  });
+
+  // Draw Passengers Inside Car
+  if (typeof drawPassengersFn === 'function') {
+    drawPassengersFn(g);
+  }
+
+  // Front Aerodynamic Fiberglass Coaster Shell (3D Cylindrical Shaded Red & Gold)
+  DK.rr(g, -380, -95, 780, 165, 58);
+  g.fillStyle = DK.cylinderGrad(g, -380, -95, -380, 70, '#E53935', -1);
+  g.fill();
+  g.strokeStyle = '#FF8A65';
+  g.lineWidth = 4;
+  g.stroke();
+
+  // Racing Lightning Stripe across Chassis
+  DK.poly(
+    g,
+    [
+      [-340, -18],
+      [280, -32],
+      [240, 12],
+      [-320, 24]
+    ],
+    '#FFB84D'
+  );
+  DK.text(g, 'WIDOWMAKER · CAR 01', -40, -4, {
+    size: 24,
+    font: DK.FONTS.mono,
+    weight: 700,
+    color: '#181C2E'
+  });
+
+  // Heavy-Duty Padded Over-The-Shoulder / Lap Harness Bar
+  DK.rr(g, -310, -118, 620, 28, 14);
+  g.fillStyle = DK.cylinderGrad(g, -310, -118, -310, -90, '#2B324A', -1);
+  g.fill();
+  DK.seg(g, [[-180, -95], [-180, -135]], 14, '#F5B942');
+  DK.seg(g, [[140, -95], [140, -135]], 14, '#F5B942');
+
+  // Bogie Wheels & Steel Track Rollers Underneath
+  [-260, 0, 260].forEach((wx) => {
+    DK.rr(g, wx - 42, 55, 84, 36, 10);
+    g.fillStyle = '#262F47';
+    g.fill();
+    DK.circle(g, wx - 22, 82, 22, DK.sphereGrad(g, wx - 22, 82, 22, '#687898'));
+    DK.circle(g, wx + 22, 82, 22, DK.sphereGrad(g, wx + 22, 82, 22, '#687898'));
+  });
+
+  // Optional Calm Pigeon Riding the Nose Cone
+  if (nosePigeon) {
+    DK.animal(g, {
+      kind: 'pigeon',
+      x: 345,
+      y: -92,
+      s: 0.92,
+      flipX: true,
+      expr: 'neutral',
+      t: gt
+    });
+  }
+
+  g.restore();
+}
+
+// ============================================================================
+// 3. SHOT REGISTRY (SHOTS 1 TO 6 · 00.0s – 20.0s)
+// ============================================================================
+const SHOTS = [
+  // --------------------------------------------------------------------------
+  // SHOT 1: Welcome to G-Force Island (00.0s – 03.0s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 1,
+    id: 'shot_01',
+    title: 'Welcome to G-Force Island',
+    start: 0.0,
+    end: 3.0,
+    duration: 3.0,
+    vo_line: 'Tired of theme parks that respect the laws of human biology? Welcome to G-Force Island.',
+    env_id: 'ENV_PARK_GATE',
+    chars: 'CHAR_OPERATOR, CHAR_MAYA, CHAR_LEO',
+    on_screen_text: 'G-FORCE ISLAND · ZERO REFUNDS · 100% GRAVITY',
+    camera_sfx: 'Dolly In (z: 0.94 -> 1.12) · citySilence bed + pillBadge + ding',
+    transOut: THEME.SHOTS[1].transOut,
+    draw(g, lt, gt, u) {
+      const m = DK.mood('sunriseFlight');
+      const cam = DK.key(
+        lt,
+        [
+          [0.0, { x: 0, y: 0, z: 0.94, r: 0 }],
+          [3.0, { x: 0, y: -38, z: 1.12, r: 0 }]
+        ],
+        DK.ease.inOutCubic
+      );
+
+      DK.fivePlane(g, cam, {
+        bgSkyDepth: 0.15,
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.sun(g, 1480, 250, 74, '#FFF6E0', '#FFD59A', 4.5);
+          FX.godRays(g, 1480, 250, { count: 7, angle: Math.PI * 0.68, spread: 0.7, len: 1800, a: 0.14, t: gt });
+          FX.clouds(g, { seed: 14, count: 6, y: 150, h: 130, color: '#FFE6C2', a: 0.25, t: gt, speed: 12 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 3,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 8, y: 770, amp: 95, color: '#4A2545' });
+          drawCoasterSilhouetteBG(g, gt, { col: '#381B3D', railCol: '#FF5268', lit: true });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          FX.ground(g, 840, '#2B1630', '#FFCF78', 0.25, true);
+          FX.lampPost(g, 260, 840, 350, { light: '#FFD59A', on: true, a: 0.25 });
+          FX.lampPost(g, 1660, 840, 350, { light: '#FFD59A', on: true, a: 0.25 });
+          drawParkGateArch(g, gt);
+        },
+        mgHero: (g) => {
+          // Bored Ride Operator Stan at Podium
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_OPERATOR,
+            x: 565,
+            y: 840,
+            s: 1.04,
+            eyeMode: 'halfLidded',
+            brows: 'neutral',
+            mouth: lt > 1.6 ? 'yawn' : 'neutral',
+            look: [0.3, 0.1],
+            pose: { rightHand: [36, -155] },
+            t: gt,
+            seed: 10
+          });
+
+          // Maya (Thrill-Seeker) celebrating in center
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_MAYA,
+            x: 940,
+            y: 845,
+            s: 1.08,
+            eyeMode: 'happyArch',
+            brows: 'raised',
+            mouth: 'laugh',
+            pose: { preset: 'celebrate' },
+            t: gt,
+            seed: 20
+          });
+
+          // Leo staring nervously up at the 420-ft vertical loop
+          const nervousProgress = DK.prog(lt, 1.1, 2.5);
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_LEO,
+            x: 1210,
+            y: 845,
+            s: 1.08,
+            eyeMode: nervousProgress > 0.5 ? 'panic' : 'warm',
+            pupilSize: DK.lerp(0.75, 0.35, nervousProgress),
+            look: [-0.35, -0.65],
+            brows: 'sad',
+            mouth: nervousProgress > 0.5 ? 'gasp' : 'frown',
+            t: gt,
+            seed: 30
+          });
+
+          // Diegetic Park Welcome Badge
+          UI.pillBadge(g, lt, {
+            t0: 0.35,
+            x: 960,
+            y: 175,
+            text: 'G-FORCE ISLAND',
+            subText: 'ZERO REFUNDS · 100% GRAVITY',
+            border: '#FFB84D',
+            size: 30
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 14, color: '#FFD47E', a: 0.2 });
+          FX.dust(g, gt, { count: 40, color: '#FFE9D2', a: 0.4 });
+        }
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.36, grain: 0.03 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 2: The 420-Foot Vertical Crest & Seatbelt Click (03.0s – 06.0s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 2,
+    id: 'shot_02',
+    title: 'The 420-Foot Vertical Crest',
+    start: 3.0,
+    end: 6.0,
+    duration: 3.0,
+    vo_line: 'Meet The Widowmaker. Four hundred feet straight up, followed by a ninety-degree drop!',
+    env_id: 'ENV_COASTER_APEX',
+    chars: 'CHAR_MAYA, CHAR_LEO, ANIMAL_PIGEON + DK.hand',
+    on_screen_text: '420 FT APEX · 90° VERTICAL DROP',
+    camera_sfx: 'Apex Tilt & Zoom · wind bed + counterTick + seatbeltClick + decompressionBang',
+    transOut: THEME.SHOTS[2].transOut,
+    draw(g, lt, gt, u) {
+      const m = DK.mood('stratosphereDay');
+      const teeter = lt > 1.2 ? Math.sin((lt - 1.2) * 14) * 0.015 : 0;
+      const cam = DK.key(
+        lt,
+        [
+          [0.0, { x: -45, y: 20, z: 0.98, r: -0.02 }],
+          [1.2, { x: 40, y: -12, z: 1.14, r: 0.03 }],
+          [3.0, { x: 75, y: -22, z: 1.22, r: 0.06 + teeter }]
+        ],
+        DK.ease.inOutCubic
+      );
+
+      DK.fivePlane(g, cam, {
+        bgSkyDepth: 0.15,
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.sun(g, 360, 210, 68, '#FFFDF5', '#FFE599', 3.8);
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 4,
+        bgFar: (g) => {
+          FX.cumulusDeck(g, gt, { y: 740, seed: 12, palette: 'day', speed: 24 });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          // Red tubular coaster crest track curving into a 90-degree cliff on the right
+          g.save();
+          g.strokeStyle = '#991B1B';
+          g.lineWidth = 18;
+          for (let tx = 260; tx <= 1360; tx += 110) {
+            DK.seg(g, [[tx, 790], [tx - 30, 1080]], 12, '#7F1D1D');
+          }
+          g.strokeStyle = '#FF3B30';
+          g.lineWidth = 24;
+          g.beginPath();
+          g.moveTo(-100, 860);
+          g.quadraticCurveTo(860, 740, 1280, 790);
+          g.quadraticCurveTo(1480, 815, 1540, 1180);
+          g.stroke();
+          g.restore();
+        },
+        mgHero: (g) => {
+          const isPanic = lt >= 1.2;
+          const carTilt = DK.key(lt, [[0.0, -0.04], [1.2, 0.04], [2.6, 0.14], [3.0, 0.28]]);
+
+          drawCoasterCar(
+            g,
+            940,
+            720,
+            1.02,
+            (g) => {
+              // Maya (Left Seat) loving every second
+              DK.char(g, {
+                ...THEME.CHARS.CHAR_MAYA,
+                x: -180,
+                y: 25,
+                s: 1.08,
+                pose: { preset: 'celebrate', sit: true },
+                eyeMode: 'happyArch',
+                brows: 'raised',
+                mouth: 'laugh',
+                seatbelt: true,
+                t: gt,
+                seed: 21
+              });
+
+              // Leo (Right Seat) realizing it's a 90-degree vertical cliff
+              DK.char(g, {
+                ...THEME.CHARS.CHAR_LEO,
+                x: 140,
+                y: 25,
+                s: 1.08,
+                pose: { preset: 'seated', sit: true },
+                eyeMode: isPanic ? 'panic' : 'warm',
+                pupilSize: isPanic ? 0.26 : 0.75,
+                look: isPanic ? [0.55, 0.65] : [0.25, 0.35],
+                brows: 'raised',
+                mouth: isPanic ? 'scream' : 'o',
+                hairWind: isPanic ? 0.45 : 0.1,
+                seatbelt: true,
+                t: gt,
+                seed: 31
+              });
+            },
+            { nosePigeon: true, gt, speedTilt: carTilt }
+          );
+
+          // 5-Finger Articulated Hand double-checking the buckle (0.65s - 2.1s)
+          const handAlpha = DK.clamp(DK.prog(lt, 0.55, 0.85) - DK.prog(lt, 2.0, 2.35), 0, 1);
+          if (handAlpha > 0.01) {
+            g.save();
+            g.globalAlpha = handAlpha;
+            DK.circle(g, 1110, 420, 115, '#12182D');
+            DK.ring(g, 1110, 420, 115, 4, '#FFB84D');
+            g.beginPath();
+            g.arc(1110, 420, 112, 0, Math.PI * 2);
+            g.clip();
+            // Seatbelt strap inside magnifier
+            g.fillStyle = '#2B324A';
+            g.fillRect(990, 405, 240, 32);
+            DK.rr(g, 1080, 396, 60, 50, 8);
+            g.fillStyle = '#CBD5E8';
+            g.fill();
+            DK.hand(g, {
+              x: 1115,
+              y: 445 + Math.sin(lt * 16) * 4,
+              s: 0.72,
+              skin: '#E8A478',
+              sleeveColor: '#FF851B',
+              pose: 'buckle',
+              rot: -0.25,
+              t: gt
+            });
+            g.restore();
+          }
+
+          // Animated Altitude Counter Badge
+          UI.pillBadge(g, lt, {
+            t0: 0.35,
+            x: 470,
+            y: 250,
+            target: [640, 620],
+            countFrom: 0,
+            countTo: 420,
+            countStart: 0.35,
+            countEnd: 1.55,
+            suffix: ' FT APEX',
+            subText: '90° VERTICAL DROP',
+            border: '#FFB84D'
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 10,
+        fgBokeh: (g) => {
+          FX.clouds(g, { seed: 22, count: 4, y: 680, h: 180, color: '#FFFFFF', a: 0.35, t: gt, speed: 45 });
+        }
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.34, grain: 0.03 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 3: The 120 MPH Plunge & +5.0G Radial Timer (06.0s – 09.5s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 3,
+    id: 'shot_03',
+    title: 'The 120 MPH Plunge & +5.0G Crush',
+    start: 6.0,
+    end: 9.5,
+    duration: 3.5,
+    vo_line: "At the bottom of the loop, you'll hit five Gs—making your head feel five times heavier than normal.",
+    env_id: 'ENV_PLUNGE_TUNNEL',
+    chars: 'CHAR_LEO, CHAR_MAYA + UI.ghostDouble + UI.radialTimer',
+    on_screen_text: '+5.0 G · 5.0 × WEIGHT (HEAD ≈ 25 KG)',
+    camera_sfx: 'High-Speed Shake + Ghost Double Pull · supersonicWind + timerChime + pillBadge',
+    transOut: THEME.SHOTS[3].transOut,
+    draw(g, lt, gt, u) {
+      const m = DK.mood('cabinNight');
+      const shk = DK.shake(gt, 8, 18, 4);
+      const cam = {
+        x: shk[0],
+        y: shk[1],
+        z: DK.lerp(1.04, 1.22, u),
+        r: Math.sin(gt * 9) * 0.016
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSkyDepth: 0.15,
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.stars(g, gt, { seed: 9, count: 120 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 5,
+        bgFar: (g) => {
+          FX.bokehOrbs(g, gt, { count: 22, color: '#FF4D6A', rMin: 24, rMax: 64, a: 0.25 });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          // Giant Glowing +5.0G Radial Timer Ring Behind Coaster Car
+          UI.radialTimer(g, lt, {
+            x: 960,
+            y: 440,
+            r: 265,
+            timeText: '+5.0 G',
+            progress: DK.lerp(0.12, 0.94, u),
+            mode: 'milestone',
+            t0: 0.05
+          });
+        },
+        mgHero: (g) => {
+          // Dashed-Outline Cyan Ghost Physics Double pulled downward by +5.0G (lt > 1.2s)
+          if (lt > 1.1) {
+            const ghostPull = DK.ease.out(DK.prog(lt, 1.1, 2.6));
+            UI.ghostDouble(g, {
+              x: 1095,
+              y: 800 + ghostPull * 85,
+              s: 1.15,
+              color: '#8CE8FF',
+              kind: 'person',
+              lean: 0.12 * ghostPull
+            });
+          }
+
+          drawCoasterCar(
+            g,
+            960,
+            780,
+            1.08,
+            (g) => {
+              // Maya (Left) having the time of her life
+              DK.char(g, {
+                ...THEME.CHARS.CHAR_MAYA,
+                x: -180,
+                y: 25,
+                s: 1.1,
+                pose: { preset: 'celebrate', sit: true },
+                eyeMode: 'happyArch',
+                brows: 'raised',
+                mouth: 'laugh',
+                hairWind: 1.0,
+                seatbelt: true,
+                t: gt,
+                seed: 22
+              });
+
+              // Leo (Right) getting squished downward by 5Gs of force
+              const gSquish = DK.lerp(0, 26, DK.prog(lt, 1.0, 2.8));
+              DK.char(g, {
+                ...THEME.CHARS.CHAR_LEO,
+                x: 140,
+                y: 25 + gSquish,
+                s: 1.1,
+                pose: { preset: 'seated', sit: true, headBob: gSquish * 0.4 },
+                eyeMode: 'panic',
+                pupilSize: 0.25,
+                look: [0, -0.2],
+                brows: 'furrowed',
+                mouth: 'scream',
+                hairWind: 1.0,
+                seatbelt: true,
+                t: gt,
+                seed: 32
+              });
+            },
+            { nosePigeon: true, gt, speedTilt: -0.03 }
+          );
+
+          // Diegetic 5x Head Weight Callout
+          UI.pillBadge(g, lt, {
+            t0: 1.35,
+            x: 1470,
+            y: 600,
+            target: [1110, 620],
+            text: '5.0 × WEIGHT',
+            subText: 'HEAD ≈ 25 KG (55 LBS)',
+            border: '#5CE1FF'
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 6,
+        fgBokeh: (g) => {
+          FX.slipstream(g, gt, {
+            speed: 2800,
+            count: 58,
+            dir: -1,
+            color: '#E2EEFF',
+            alpha: 0.55,
+            napkins: 4
+          });
+        }
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.42, grain: 0.03 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 4: X-Ray Science Cutaway — 5G Brain Blood-Drain (09.5s – 13.5s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 4,
+    id: 'shot_04',
+    title: 'X-Ray Cutaway: 5G Brain Hypoxia & Nap',
+    start: 9.5,
+    end: 13.5,
+    duration: 4.0,
+    vo_line: "Your heart literally can't pump blood up to your brain, triggering peaceful tunnel vision... and a free five-second nap.",
+    env_id: 'ENV_XRAY_VOID',
+    chars: 'CHAR_LEO + UI.brainXray + 3x ANIMAL_RED_BLOOD_CELL',
+    on_screen_text: 'G-LOC THRESHOLD · FAA Aerospace Medicine Citation',
+    camera_sfx: 'Diagnostic X-Ray Cutaway · heartbeatSub + powerDown + sleepBubble pop',
+    transOut: THEME.SHOTS[4].transOut,
+    draw(g, lt, gt, u) {
+      UI.darkVoidBg(g, gt, { grid: true, stars: false });
+
+      const cam = DK.key(
+        lt,
+        [
+          [0.0, { x: 0, y: 0, z: 1.0, r: 0 }],
+          [4.0, { x: -25, y: -15, z: 1.07, r: 0 }]
+        ],
+        DK.ease.inOutCubic
+      );
+
+      DK.layer(g, cam, 1.0, (g) => {
+        const isAsleep = lt >= 2.15;
+        const hypoxiaAmt = DK.clamp(DK.prog(lt, 0.2, 2.4), 0, 0.85);
+
+        // Left Side: Leo + Translucent Cranial Brain Hypoxia X-Ray
+        DK.char(g, {
+          ...THEME.CHARS.CHAR_LEO,
+          x: 620,
+          y: 880,
+          s: 1.48,
+          hypoxia: hypoxiaAmt,
+          eyeMode: isAsleep ? 'closed' : 'panic',
+          pupilSize: 0.3,
+          brows: isAsleep ? 'neutral' : 'sad',
+          mouth: isAsleep ? 'sleepBubble' : 'gasp',
+          pose: { preset: 'seated', headBob: isAsleep ? 14 : 0 },
+          t: gt,
+          seed: 33
+        });
+
+        // Cranial Brain X-Ray Dome Overlaid Above Leo's Head
+        UI.brainXray(g, 620, 445 + (isAsleep ? 18 : 0), 1.32, {
+          hypoxiaProg: hypoxiaAmt,
+          o2Count: Math.max(1, Math.round(DK.lerp(6, 1, hypoxiaAmt))),
+          t: gt
+        });
+
+        // Right Side: Vertical Carotid Artery Cutaway Tube & Cute Red Blood Cells Pulled Down by +5G
+        const tubeX = 1320;
+        DK.rr(g, tubeX - 135, 195, 270, 640, 42);
+        g.fillStyle = 'rgba(255, 77, 106, 0.14)';
+        g.fill();
+        g.strokeStyle = '#5CE1FF';
+        g.lineWidth = 4;
+        g.stroke();
+
+        // Downward +5G Gravity Force Arrows inside Artery
+        for (let a = 0; a < 3; a++) {
+          const ay = 260 + ((gt * 180 + a * 180) % 500);
+          DK.seg(g, [[tubeX, ay - 35], [tubeX, ay + 25]], 5, 'rgba(255, 77, 106, 0.55)');
+          DK.poly(g, [[tubeX - 14, ay + 18], [tubeX + 14, ay + 18], [tubeX, ay + 38]], 'rgba(255, 77, 106, 0.65)');
+        }
+
+        // 3 Cute Red Blood Cells sliding downward as +5G overpowers them
+        [0, 1, 2].forEach((idx) => {
+          const baseCellY = 300 + idx * 165;
+          const sinkOffset = DK.ease.inOut(DK.prog(lt, 0.4 + idx * 0.2, 3.2)) * 135;
+          const o2Left = lt > 1.8 + idx * 0.3 ? 1 : 3;
+          DK.animal(g, {
+            kind: 'redBloodCell',
+            x: tubeX + (idx % 2 === 0 ? -38 : 38),
+            y: baseCellY + sinkOffset,
+            s: 0.96,
+            o2Count: o2Left,
+            t: gt,
+            seed: 50 + idx
+          });
+        });
+
+        // Floating Zzz's when Leo enters his "free 5-second nap"
+        if (isAsleep) {
+          ['Z', 'z', 'z'].forEach((zChr, zi) => {
+            const zu = ((lt - 2.15 + zi * 0.35) % 1.4) / 1.4;
+            DK.text(g, zChr, 760 + zi * 34 + zu * 25, 490 - zu * 95, {
+              size: 46 - zi * 8,
+              font: DK.FONTS.title,
+              color: '#8CE8FF',
+              alpha: 1 - zu
+            });
+          });
+        }
+
+        // Badges & Official FAA Aerospace Medicine Citation
+        UI.pillBadge(g, lt, {
+          t0: 0.25,
+          x: 1320,
+          y: 135,
+          text: 'G-LOC THRESHOLD',
+          subText: 'BLOOD POOLS IN FEET (+5.0 G)',
+          border: '#FF4D6A'
+        });
+
+        UI.pillBadge(g, lt, {
+          t0: 2.15,
+          x: 620,
+          y: 230,
+          text: 'FREE 5-SECOND NAP',
+          subText: 'TUNNEL VISION -> SLEEP MODE',
+          border: '#5CE1FF'
+        });
+      });
+
+      UI.citation(g, THEME.INFO.INFO_BRAIN_XRAY.citation, { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.38, grain: 0.03 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 5: The Souvenir On-Ride Photo Booth (13.5s – 17.0s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 5,
+    id: 'shot_05',
+    title: 'The $20 Souvenir Photo Booth',
+    start: 13.5,
+    end: 17.0,
+    duration: 3.5,
+    vo_line: 'Which makes for an incredible twenty-dollar souvenir photo. Look at him. Pure majesty.',
+    env_id: 'ENV_PARK_GATE',
+    chars: 'CHAR_MAYA, CHAR_LEO, ANIMAL_PIGEON, ANIMAL_DOG',
+    on_screen_text: 'SOUVENIR PHOTO: $20 · DIGNITY NOT INCLUDED',
+    camera_sfx: 'Snap Zoom Out + Slow Push · camera flash + pillBadge + dogWhimper',
+    transOut: THEME.SHOTS[5].transOut,
+    draw(g, lt, gt, u) {
+      const m = DK.mood('urbanSunset');
+      const cam = DK.key(
+        lt,
+        [
+          [0.0, { x: 0, y: 0, z: 1.15, r: 0.02 }],
+          [0.4, { x: 0, y: 0, z: 1.0, r: 0 }],
+          [3.5, { x: 28, y: 8, z: 1.06, r: 0 }]
+        ],
+        DK.ease.outBack
+      );
+
+      DK.fivePlane(g, cam, {
+        bgSkyDepth: 0.15,
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 5,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 11, y: 780, amp: 80, color: '#3B2444' });
+          FX.tree(g, 260, 840, 1.1, '#3B5E4C');
+          FX.tree(g, 1680, 840, 1.15, '#3B5E4C');
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          FX.ground(g, 840, '#2E2234', '#FFC680', 0.22, true);
+        },
+        mgHero: (g) => {
+          // Souvenir Photo Kiosk Frame in Center Stage
+          const fx = 960, fy = 490, fw = 920, fh = 580;
+          DK.rr(g, fx - fw / 2 - 22, fy - fh / 2 - 22, fw + 44, fh + 44, 28);
+          g.fillStyle = '#FFFFFF';
+          g.fill();
+          g.strokeStyle = '#FFB84D';
+          g.lineWidth = 6;
+          g.stroke();
+
+          // Clip Inside Polaroid Souvenir Snapshot
+          g.save();
+          DK.rr(g, fx - fw / 2, fy - fh / 2, fw, fh - 65, 16);
+          g.clip();
+
+          // Snapshot Background: Coaster Loop Sky
+          g.fillStyle = DK.linGrad(g, 0, fy - fh / 2, 0, fy + fh / 2, ['#14387A', '#3B78D8', '#8CC8FF']);
+          g.fillRect(fx - fw / 2, fy - fh / 2, fw, fh);
+          FX.slipstream(g, 2.5, { speed: 0, count: 28, color: '#FFFFFF', alpha: 0.35 });
+
+          // Frozen Snapshot Coaster Car
+          drawCoasterCar(
+            g,
+            960,
+            665,
+            0.96,
+            (g) => {
+              // Maya giving a huge thumbs-up and laughing
+              DK.char(g, {
+                ...THEME.CHARS.CHAR_MAYA,
+                x: -180,
+                y: 25,
+                s: 1.08,
+                pose: { preset: 'seated', sit: true, thumbsUp: true },
+                eyeMode: 'happyArch',
+                brows: 'raised',
+                mouth: 'laugh',
+                seatbelt: true,
+                t: 1.2,
+                seed: 23
+              });
+
+              // Leo slumped sideways completely asleep with a giant sleep bubble
+              DK.char(g, {
+                ...THEME.CHARS.CHAR_LEO,
+                x: 135,
+                y: 35,
+                s: 1.08,
+                rot: 0.22,
+                pose: { preset: 'seated', sit: true },
+                eyeMode: 'closed',
+                brows: 'neutral',
+                mouth: 'sleepBubble',
+                hairWind: 0.5,
+                seatbelt: true,
+                t: gt,
+                seed: 34
+              });
+            },
+            { nosePigeon: true, gt: 1.5, speedTilt: -0.05 }
+          );
+
+          // Timestamp Stamp in bottom corner of photo
+          DK.text(g, 'CAM 04 · 120.4 MPH · +5.0G', fx - fw / 2 + 28, fy + fh / 2 - 92, {
+            size: 22,
+            font: DK.FONTS.mono,
+            color: '#FFD54F',
+            align: 'left'
+          });
+          g.restore();
+
+          // Polaroid Bottom Caption Strip
+          DK.text(g, 'THE WIDOWMAKER — OFFICIAL ON-RIDE MEMORY ($20.00)', fx, fy + fh / 2 - 28, {
+            size: 26,
+            font: DK.FONTS.ui,
+            weight: 900,
+            color: '#1E243B'
+          });
+
+          // Companion Park Mascot Dog sitting on left looking at the photo
+          DK.animal(g, {
+            kind: 'dog',
+            x: 330,
+            y: 855,
+            s: 1.18,
+            flipX: true,
+            t: gt
+          });
+
+          // Price Tag Callout Badge
+          UI.pillBadge(g, lt, {
+            t0: 0.45,
+            x: 1480,
+            y: 210,
+            target: [1120, 490],
+            text: 'SOUVENIR PHOTO: $20',
+            subText: 'DIGNITY NOT INCLUDED',
+            border: '#38C878'
+          });
+
+          // Initial white camera flash decay at start of Shot 5
+          if (lt < 0.35) {
+            g.fillStyle = DK.alpha('#FFFFFF', (1 - lt / 0.35) * 0.75);
+            g.fillRect(0, 0, 1920, 1080);
+          }
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 10,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 12, color: '#FFB84D', a: 0.18 });
+        }
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.36, grain: 0.03 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 6: Grand Title Card & CTA Finale (17.0s – 20.0s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 6,
+    id: 'shot_06',
+    title: 'Grand Title Card & Helmet CTA',
+    start: 17.0,
+    end: 20.0,
+    duration: 3.0,
+    vo_line: 'G-Force Island! Grab your tickets now—and maybe wear a helmet.',
+    env_id: 'ENV_PARK_GATE',
+    chars: 'CHAR_LEO (with Neck Pillow & Thumbs Up), CHAR_MAYA, ANIMAL_DOG',
+    on_screen_text: 'EXPERIENCE THE G-FORCE ISLAND · OPEN DAILY (bring a helmet)',
+    camera_sfx: 'Grand Finale Pullback · starShimmer + timerChime + pop',
+    transOut: THEME.SHOTS[6].transOut,
+    draw(g, lt, gt, u) {
+      const m = DK.mood('cabinNight');
+      const cam = DK.key(
+        lt,
+        [
+          [0.0, { x: 0, y: 0, z: 1.06, r: 0 }],
+          [3.0, { x: 0, y: -12, z: 1.0, r: 0 }]
+        ],
+        DK.ease.inOutCubic
+      );
+
+      DK.fivePlane(g, cam, {
+        bgSkyDepth: 0.15,
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.stars(g, gt, { seed: 5, count: 160 });
+          FX.milkyWayArch(g, gt, { cx: 1180, cy: 520, rx: 720, ry: 420, alpha: 0.85, shootingStar: DK.prog(lt, 0.5, 1.8) });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 4,
+        bgFar: (g) => {
+          FX.skyline(g, { seed: 7, y: 840, minH: 70, maxH: 260, color: '#181430', lit: 0.55 });
+          drawCoasterSilhouetteBG(g, gt, { col: '#221B3D', railCol: '#FF5268', lit: true });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          FX.ground(g, 840, '#161229', '#FFB84D', 0.24, true);
+          FX.lampPost(g, 1140, 840, 340, { light: '#FFD59A', on: true, a: 0.24 });
+          FX.lampPost(g, 1740, 840, 340, { light: '#FFD59A', on: true, a: 0.24 });
+        },
+        mgHero: (g) => {
+          // Grand Title Card on Left Safe Stage
+          UI.titleCard(g, lt, {
+            t0: 0.05,
+            topText: THEME.INFO.INFO_TITLE_CARD.topText,
+            mainText: THEME.INFO.INFO_TITLE_CARD.mainText,
+            subText: THEME.INFO.INFO_TITLE_CARD.subText,
+            parenText: THEME.INFO.INFO_TITLE_CARD.parenText,
+            x: 130,
+            y: 390,
+            align: 'left'
+          });
+
+          // Leo awake on Right Stage wearing a Teal Neck Pillow & giving a deadpan Thumbs-Up
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_LEO,
+            x: 1350,
+            y: 850,
+            s: 1.15,
+            eyeMode: 'warm',
+            brows: 'asymmetric',
+            mouth: 'smile',
+            neckPillow: true,
+            pose: { thumbsUp: lt > 1.2 },
+            t: gt,
+            seed: 35
+          });
+
+          // Maya cheering next to Leo
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_MAYA,
+            x: 1580,
+            y: 850,
+            s: 1.15,
+            eyeMode: 'happyArch',
+            brows: 'raised',
+            mouth: 'laugh',
+            glasses: 'starReflect',
+            pose: { preset: 'wave' },
+            t: gt,
+            seed: 24
+          });
+
+          // Park Dog beside Leo
+          DK.animal(g, {
+            kind: 'dog',
+            x: 1180,
+            y: 855,
+            s: 1.05,
+            t: gt
+          });
+
+          // CTA Ticket Pill Badge at bottom left
+          UI.pillBadge(g, lt, {
+            t0: 0.9,
+            x: 410,
+            y: 665,
+            text: 'TICKETS: $19.99',
+            subText: 'NECK PILLOWS INCLUDED FREE',
+            border: '#FFB84D'
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 16, color: '#FFD47E', a: 0.22 });
+        }
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.38, grain: 0.03 });
+    }
+  }
+];
+
+// ============================================================================
+// 4. PROCEDURAL SFX & AMBIENT SCORE ONLY (ZERO BGM IN SHOT BATCHES)
+// ============================================================================
+function scoreSound(k) {
+  // --- SHOT 1 (0.0s – 3.0s): Theme Park Gate ---
+  k.bed('citySilence', 0.0, 3.0, { gain: 0.7 });
+  k.play('pillBadge', 0.35, { f: 'G5' });
+  k.play('ding', 1.65, { f: 'E6' });
+
+  // --- SHOT 2 (3.0s – 6.0s): 420-Foot Coaster Crest ---
+  k.bed('wind', 3.0, 6.0, { gain: 0.85 });
+  k.play('counterTick', 3.35, { n: 10, rate: 0.11 });
+  k.play('seatbeltClick', 3.80, { gain: 1.0 });
+  k.play('decompressionBang', 4.20, { gain: 0.85 });
+
+  // --- SHOT 3 (6.0s – 9.5s): 120 MPH Plunge & +5.0G Timer ---
+  k.bed('supersonicWind', 6.0, 9.5, { gain: 1.0 });
+  k.play('timerChime', 6.08, { f: 'A5', gain: 0.95 });
+  k.play('whoosh', 7.10, { dur: 0.45, top: 2400, gain: 0.85 });
+  k.play('pillBadge', 7.35, { f: 'C6' });
+
+  // --- SHOT 4 (9.5s – 13.5s): X-Ray Brain Hypoxia & 5-Second Nap ---
+  k.bed('room', 9.5, 13.5, { gain: 0.55 });
+  k.play('heartbeatSub', 9.80, { gain: 0.95 });
+  k.play('heartbeatSub', 10.65, { gain: 0.88 });
+  k.play('powerDown', 11.65, { dur: 0.85, gain: 0.75 });
+  k.play('pop', 12.50, { f: 520, gain: 0.70 });
+
+  // --- SHOT 5 (13.5s – 17.0s): Souvenir Photo Booth ---
+  k.bed('citySilence', 13.5, 17.0, { gain: 0.55 });
+  k.play('shatter', 13.55, { gain: 0.45 });
+  k.play('pillBadge', 13.95, { f: 'A5' });
+  k.play('dogWhimper', 15.80, { dur: 0.38, gain: 0.70 });
+
+  // --- SHOT 6 (17.0s – 20.0s): Grand Title Card & CTA ---
+  k.bed('citySilence', 17.0, 20.0, { gain: 0.45 });
+  k.play('starShimmer', 17.10, { gain: 0.90 });
+  k.play('timerChime', 17.20, { f: 'C6', gain: 0.90 });
+  k.play('pillBadge', 17.90, { f: 'G5' });
+  k.play('pop', 18.25, { f: 680, gain: 0.85 });
+
+  // Automatically schedule matched 3D boundary transition SFX
+  if (window.DK && DK.scheduleTransitions) {
+    DK.scheduleTransitions(k, SHOTS, 0.0, THEME);
+  }
+}
+
+// ============================================================================
+// 5. STUDIO PLAYER & HEADLESS RENDER HOOKS
+// ============================================================================
+if (window.DK && DK.linkShotTransitions) DK.linkShotTransitions(SHOTS, window.THEME);
+
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const BATCH_START = SHOTS[0].start;
+const BATCH_END = SHOTS[SHOTS.length - 1].end;
+const DURATION = BATCH_END - BATCH_START;
+
+window.BATCH_START = BATCH_START;
+window.BATCH_END = BATCH_END;
+window.DURATION = DURATION;
+window.SHOTS = SHOTS;
+window.scoreSound = scoreSound;
+
+let currentT = 0;
+let playing = false;
+let rafId = null;
+let lastTs = 0;
+let stopSound = null;
+let activeShotFilter = 'all';
+let voAudio = null;
+
+function findShotAtGlobal(gt) {
+  for (let i = 0; i < SHOTS.length; i++) {
+    if (gt >= SHOTS[i].start && gt <= SHOTS[i].end) return SHOTS[i];
+  }
+  return gt < SHOTS[0].start ? SHOTS[0] : SHOTS[SHOTS.length - 1];
+}
+
+function renderAtLocal(localT) {
+  currentT = DK.clamp(localT, 0, DURATION);
+  const gt = BATCH_START + currentT;
+  const s = findShotAtGlobal(gt);
+  const lt = DK.clamp(gt - s.start, 0, s.duration);
+  const u = s.duration > 0 ? lt / s.duration : 0;
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, 1920, 1080);
+  ctx.save();
+  if (window.DK && DK.drawShot) {
+    DK.drawShot(ctx, s, lt, gt, u);
+  } else {
+    s.draw(ctx, lt, gt, u);
+  }
+  ctx.restore();
+
+  document.getElementById('scrub').value = DURATION > 0 ? currentT / DURATION : 0;
+  document.getElementById('readout').textContent =
+    gt.toFixed(2) + 's (' + currentT.toFixed(2) + 's) · Shot ' + s.shot_number;
+}
+
+window.seek = function (t, opts) {
+  if (playing) pause();
+  const localT = opts && opts.global ? t - BATCH_START : t;
+  renderAtLocal(localT);
+};
+
+function startAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  const mixMode = document.getElementById('mixSelect').value;
+  if (mixMode !== 'mute' && window.SOUND) {
+    stopSound = SOUND.live(scoreSound, currentT, { mixMode: 'sfxOnly' });
+  }
+  if (voAudio) {
+    voAudio.currentTime = BATCH_START + currentT;
+    voAudio.play().catch(() => {});
+  }
+}
+
+function stopAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  if (voAudio) voAudio.pause();
+}
+
+function play() {
+  if (playing) return;
+  playing = true;
+  document.getElementById('playBtn').textContent = 'Pause';
+  lastTs = performance.now();
+  startAudio();
+  const tick = (now) => {
+    if (!playing) return;
+    const dt = (now - lastTs) / 1000;
+    lastTs = now;
+    let nextT = currentT + dt;
+    if (activeShotFilter !== 'all') {
+      const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+      if (s) {
+        const sLocal0 = s.start - BATCH_START;
+        const sLocal1 = s.end - BATCH_START;
+        if (nextT >= sLocal1) { nextT = sLocal0; currentT = nextT; startAudio(); }
+      }
+    } else if (nextT >= DURATION) {
+      nextT = 0; currentT = 0; startAudio();
+    }
+    renderAtLocal(nextT);
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+}
+
+function pause() {
+  playing = false;
+  document.getElementById('playBtn').textContent = 'Play';
+  if (rafId) cancelAnimationFrame(rafId);
+  stopAudio();
+}
+
+const shotSelect = document.getElementById('shotSelect');
+SHOTS.forEach((s) => {
+  const opt = document.createElement('option');
+  opt.value = String(s.shot_number);
+  opt.textContent = 'Shot ' + s.shot_number + ': ' + s.title + ' (' + s.start.toFixed(1) + 's-' + s.end.toFixed(1) + 's)';
+  shotSelect.appendChild(opt);
+});
+shotSelect.addEventListener('change', () => {
+  activeShotFilter = shotSelect.value;
+  if (activeShotFilter !== 'all') {
+    const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+    if (s) { renderAtLocal(s.start - BATCH_START); if (playing) startAudio(); }
+  }
+});
+document.getElementById('playBtn').addEventListener('click', () => (playing ? pause() : play()));
+document.getElementById('scrub').addEventListener('input', (e) => {
+  renderAtLocal(parseFloat(e.target.value) * DURATION);
+  if (playing) startAudio();
+});
+document.getElementById('mixSelect').addEventListener('change', () => { if (playing) startAudio(); });
+document.getElementById('voInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  voAudio = new Audio(URL.createObjectURL(file));
+});
+document.getElementById('wavBtn').addEventListener('click', async () => {
+  const res = await SOUND.renderOffline(scoreSound, DURATION, 48000, { mixMode: 'sfxOnly' });
+  const blob = SOUND.encodeWAV(res.inter, res.sr);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'batch_sfx_' + SHOTS[0].shot_number + '_' + SHOTS[SHOTS.length - 1].shot_number + '.wav';
+  a.click();
+});
+window.addEventListener('DOMContentLoaded', async () => {
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  renderAtLocal(0);
+});
+</script>
+</body>
+</html>

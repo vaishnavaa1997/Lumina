@@ -1,0 +1,2481 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8" /><title>Lumina 2.5D / 3D-Parallax (16:9) — Shots 111 to 120 (shots_111_120.html)</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Space+Mono:wght@700&display=swap" rel="stylesheet"><style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #05070d; color: #e2e8f0; font-family: 'Nunito', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+#stage-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; position: relative; overflow: hidden; }
+canvas { max-width: 100%; max-height: 100%; aspect-ratio: 16 / 9; box-shadow: 0 16px 48px rgba(0,0,0,0.75); background: #070b16; }
+#controls { height: 58px; background: #101522; border-top: 1px solid #222b42; display: flex; align-items: center; gap: 12px; padding: 0 18px; font-size: 13px; }
+button, select, label.btn { background: #1c2539; color: #f8fafc; border: 1px solid #334155; border-radius: 6px; padding: 6px 12px; font-family: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+button:hover, select:hover, label.btn:hover { background: #283552; border-color: #ff8a3d; }
+#scrub { flex: 1; accent-color: #ff8a3d; cursor: pointer; }
+#readout { font-family: 'Space Mono', monospace; font-size: 12px; color: #ffb074; min-width: 230px; }
+</style></head><body><div id="stage-wrap"><canvas id="stage" width="1920" height="1080"></canvas></div><div id="controls"><button id="playBtn">Play</button><input id="scrub" type="range" min="0" max="1" step="0.001" value="0" /><div id="readout">00.0s / 00.0s · Shot 111</div><select id="shotSelect"><option value="all">All Shots in Batch (111–120)</option></select><select id="mixSelect"><option value="sfxOnly" selected>SFX + Ambient Only (No BGM)</option><option value="mute">Mute</option></select><label class="btn">Load vo.wav <input id="voInput" type="file" accept="audio/*" style="display:none" /></label><button id="wavBtn">Export Batch SFX (.wav)</button></div>
+
+<script src="../../engine.js"></script>
+<script>
+// ============================================================================
+// LOCKED MASTER CONSISTENCY BIBLE & GLOBAL THEME DICTIONARY (STEP 9)
+// ============================================================================
+const THEME = {
+  PROJECT: {
+    title: '4,200 Years of Tamil Nadu History (2170 BCE – Present)',
+    width: 1920,
+    height: 1080,
+    fps: 60,
+    totalDuration: 497.8,
+    totalShots: 125,
+  },
+
+  CHARS: {
+    CHAR_VIEWER_PROTAG: {
+      tier: 1,
+      era: 'modern',
+      skin: '#D69A72',
+      hairStyle: 'curlyCloud',
+      hairColor: '#261C1A',
+      wardrobe: 'sweater',
+      topColor: '#FF851B',
+      bottomColor: '#28808C',
+      headwear: 'none',
+      prop: 'phone',
+      allowModern: true,
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_ARCHAEOLOGIST: {
+      tier: 1,
+      era: 'modern',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#261C1A',
+      wardrobe: 'shirtTie',
+      topColor: '#C98A2C',
+      bottomColor: '#2D3748',
+      headwear: 'none',
+      prop: 'hammer',
+      allowModern: true,
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_IRON_SMITH: {
+      tier: 1,
+      era: '2170_BCE_Mayiladumparai',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'prehistoric',
+      topColor: '#8C5832',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      beard: true,
+      mustache: true,
+      prop: 'hammer',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'grimace',
+    },
+    CHAR_IRON_HELPER: {
+      tier: 2,
+      era: '2170_BCE_Mayiladumparai',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'prehistoric',
+      topColor: '#785238',
+      bottomColor: '#E8E4DC',
+      headwear: 'none',
+      prop: 'none',
+      defaultAction: 'push',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'neutral',
+    },
+    CHAR_TAMIL_FARMER: {
+      tier: 1,
+      era: 'ancientTamil',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#F4EFE6',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      prop: 'walkingStick',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+    },
+    CHAR_SANGAM_POET: {
+      tier: 1,
+      era: '600_BCE_Sangam',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#F4EFE6',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      prop: 'palmLeaf',
+      defaultAction: 'write',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_KEELADI_WEAVER: {
+      tier: 2,
+      era: '580_BCE_Keeladi',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#D96B27',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'tilak',
+      prop: 'palmLeaf',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+    },
+    CHAR_KEELADI_BUILDER: {
+      tier: 1,
+      era: '580_BCE_Keeladi',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#C98A2C',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      prop: 'hammer',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'smile',
+    },
+    CHAR_TAMIL_MERCHANT: {
+      tier: 1,
+      era: 'Sangam_to_Chola',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#28808C',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'coinBag',
+      defaultAction: 'trade',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_ROMAN_MERCHANT: {
+      tier: 2,
+      era: 'Indo_Roman_Trade',
+      skin: '#F2B892',
+      hairStyle: 'shortCrop',
+      hairColor: '#4A2E20',
+      wardrobe: 'roman',
+      topColor: '#E53935',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      prop: 'coinBag',
+      defaultAction: 'trade',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_CHERA_KING: {
+      tier: 1,
+      era: 'Sangam_Moovendhar',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#38C878',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'flag',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_CHOLA_KING: {
+      tier: 1,
+      era: 'Sangam_to_Medieval_Chola',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_PANDYA_KING: {
+      tier: 1,
+      era: 'Sangam_to_Medieval_Pandya',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#E53935',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'vel',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_THIRUVALLUVAR: {
+      tier: 1,
+      era: 'Sangam_Literature',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#788092',
+      wardrobe: 'ancientTamil',
+      topColor: '#F4EFE6',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      beard: true,
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'palmLeaf',
+      defaultAction: 'write',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+    },
+    CHAR_ILANGO_ADIGAL: {
+      tier: 1,
+      era: 'Sangam_Literature',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#FF7722',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      prop: 'scroll',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_KALABHRA_GENERAL: {
+      tier: 1,
+      era: '300_CE_Kalabhra',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'medieval',
+      topColor: '#363D4A',
+      bottomColor: '#1F242E',
+      headwear: 'none',
+      beard: true,
+      mustache: true,
+      prop: 'sword',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+    },
+    CHAR_BUDDHIST_MONK: {
+      tier: 2,
+      era: '400_CE_Monastic',
+      skin: '#C88C68',
+      hairStyle: 'baldTufts',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#FF7722',
+      bottomColor: '#FF7722',
+      headwear: 'none',
+      prop: 'palmLeaf',
+      defaultAction: 'meditate',
+      eyeMode: 'closed',
+      brows: 'neutral',
+      mouth: 'smile',
+    },
+    CHAR_PALLAVA_KING: {
+      tier: 1,
+      era: '600_CE_Pallava',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_MAHENDRAVARMAN: {
+      tier: 1,
+      era: '600_CE_Pallava',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'scroll',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_NARASIMHAVARMAN: {
+      tier: 1,
+      era: '630_CE_Pallava',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#E53935',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_PALLAVA_SCULPTOR: {
+      tier: 1,
+      era: 'Pallava_and_Chola_Architecture',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#F4EFE6',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      prop: 'hammer',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'smile',
+    },
+    CHAR_CHINESE_ENVOY: {
+      tier: 2,
+      era: 'Tang_China_720_CE',
+      skin: '#E8A478',
+      hairStyle: 'topknot',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientChina',
+      topColor: '#9E2A2B',
+      bottomColor: '#1E2436',
+      headwear: 'scholarCap',
+      mustache: true,
+      prop: 'scroll',
+      defaultAction: 'trade',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+    },
+    CHAR_BODHIDHARMA: {
+      tier: 1,
+      era: '6th_Century_Pallava_Shaolin',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#D96B27',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      beard: true,
+      mustache: true,
+      prop: 'walkingStick',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'neutral',
+    },
+    CHAR_VIJAYALAYA_CHOLA: {
+      tier: 1,
+      era: '850_CE_Imperial_Chola',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      beard: true,
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'flag',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_RAJARAJA_CHOLA: {
+      tier: 1,
+      era: '985_CE_Imperial_Chola',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      beard: true,
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'scroll',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_RAJENDRA_CHOLA: {
+      tier: 1,
+      era: '1014_CE_Imperial_Chola',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#E53935',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_MARCO_POLO: {
+      tier: 2,
+      era: '1292_CE_Pandya_Court',
+      skin: '#F2B892',
+      hairStyle: 'shortCrop',
+      hairColor: '#4A2E20',
+      wardrobe: 'medieval',
+      topColor: '#28808C',
+      bottomColor: '#3E2723',
+      headwear: 'flatCap',
+      beard: true,
+      prop: 'scroll',
+      defaultAction: 'write',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'o',
+    },
+    CHAR_MALIK_KAFUR: {
+      tier: 1,
+      era: '1311_CE_Delhi_Sultanate',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'medieval',
+      topColor: '#2B120E',
+      bottomColor: '#1C0C0A',
+      headwear: 'turban',
+      mustache: true,
+      prop: 'sword',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+    },
+    CHAR_VIJAYANAGARA_GENERAL: {
+      tier: 1,
+      era: '1370_1565_CE_Vijayanagara',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#FF7722',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'tilak',
+      prop: 'sword',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_NAYAK_KING: {
+      tier: 2,
+      era: '1529_CE_Nayak',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'tilak',
+      prop: 'scroll',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_THIRUMALAI_NAYAK: {
+      tier: 1,
+      era: '1623_CE_Madurai_Nayak',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'tilak',
+      prop: 'sword',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_RAGHUNATHA_NAYAK: {
+      tier: 1,
+      era: '1600_CE_Thanjavur_Nayak',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#28808C',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'tilak',
+      prop: 'palmLeaf',
+      defaultAction: 'write',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_PALAYAKKARAR: {
+      tier: 1,
+      era: '1529_1801_CE_Polygar',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#E53935',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'neutral',
+    },
+    CHAR_BRITISH_OFFICER: {
+      tier: 1,
+      era: '1639_1947_British_Colonial',
+      skin: '#F2B892',
+      hairStyle: 'shortCrop',
+      hairColor: '#4A2E20',
+      wardrobe: 'victorian',
+      topColor: '#9E2A2B',
+      bottomColor: '#1F242E',
+      headwear: 'topHat',
+      prop: 'telescope',
+      defaultAction: 'walk',
+      eyeMode: 'halfLidded',
+      brows: 'asymmetric',
+      mouth: 'smile',
+    },
+    CHAR_PULI_THEVAN: {
+      tier: 1,
+      era: '1755_CE_Polygar_War',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#D96B27',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+    },
+    CHAR_VELU_NACHIYAR: {
+      tier: 1,
+      era: '1780_CE_Sivaganga',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#E53935',
+      bottomColor: '#F7B928',
+      headwear: 'crown',
+      foreheadMark: 'tilak',
+      prop: 'sword',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+    },
+    CHAR_KATTABOMMAN: {
+      tier: 1,
+      era: '1799_CE_Panchalankurichi',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+    },
+    CHAR_MARUTHU_BROTHER: {
+      tier: 1,
+      era: '1801_CE_Sivaganga',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#E53935',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'vel',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+    },
+    CHAR_DHEERAN_CHINNAMALAI: {
+      tier: 1,
+      era: '1805_CE_Kongu',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#38C878',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'swordFight',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+    },
+    CHAR_TAMIL_MOTHER: {
+      tier: 2,
+      era: '1876_Great_Famine',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#8C5832',
+      bottomColor: '#E8E4DC',
+      headwear: 'none',
+      foreheadMark: 'bindi',
+      prop: 'baby',
+      defaultAction: 'holdBaby',
+      eyeMode: 'warm',
+      brows: 'sad',
+      mouth: 'frown',
+    },
+    CHAR_FREEDOM_FIGHTER: {
+      tier: 1,
+      era: '1900_1947_Freedom_Struggle',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'indianIndependence',
+      topColor: '#F4F6FA',
+      bottomColor: '#F4EFE6',
+      headwear: 'gandhiCap',
+      mustache: true,
+      prop: 'flag',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_BHARATHIYAR: {
+      tier: 1,
+      era: '1900_1921_Freedom_Struggle',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'indianIndependence',
+      topColor: '#1E2436',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'tilak',
+      prop: 'scroll',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_VOC: {
+      tier: 1,
+      era: '1906_Swadeshi_Movement',
+      skin: '#7A4E38',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'indianIndependence',
+      topColor: '#F4F6FA',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'flag',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_SATYAMURTI: {
+      tier: 1,
+      era: '1930s_Freedom_Struggle',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#261C1A',
+      wardrobe: 'indianIndependence',
+      topColor: '#F4F6FA',
+      bottomColor: '#F4EFE6',
+      headwear: 'gandhiCap',
+      foreheadMark: 'vibhuti',
+      prop: 'scroll',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_PERIYAR: {
+      tier: 1,
+      era: '1925_Self_Respect_Movement',
+      skin: '#C88C68',
+      hairStyle: 'baldTufts',
+      hairColor: '#CBD5E1',
+      wardrobe: 'indianIndependence',
+      topColor: '#1A1615',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      beard: true,
+      mustache: true,
+      glasses: true,
+      allowModern: true,
+      prop: 'walkingStick',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_JUSTICE_LEADER: {
+      tier: 2,
+      era: '1916_Justice_Party',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#261C1A',
+      wardrobe: '1900s',
+      topColor: '#2B3040',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      prop: 'scroll',
+      defaultAction: 'trade',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_TAMIL_WOMAN_GRAD: {
+      tier: 1,
+      era: 'Social_Justice_Reform',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'indianIndependence',
+      topColor: '#28808C',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'bindi',
+      prop: 'scroll',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_KAMARAJAR: {
+      tier: 1,
+      era: '1954_1963_Kamarajar_Era',
+      skin: '#7A4E38',
+      hairStyle: 'shortCrop',
+      hairColor: '#261C1A',
+      wardrobe: 'indianIndependence',
+      topColor: '#F4F6FA',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      mustache: true,
+      prop: 'none',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_SCHOOL_STUDENT: {
+      tier: 2,
+      era: 'Modern_Tamil_Nadu',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'shirtTie',
+      topColor: '#F4F6FA',
+      bottomColor: '#1E2749',
+      headwear: 'none',
+      allowModern: true,
+      prop: 'palmLeaf',
+      defaultAction: 'walk',
+      eyeMode: 'happyArch',
+      brows: 'raised',
+      mouth: 'laugh',
+    },
+    CHAR_MODERN_ENGINEER: {
+      tier: 1,
+      era: 'Modern_Chennai',
+      skin: '#D69A72',
+      hairStyle: 'shortCrop',
+      hairColor: '#261C1A',
+      wardrobe: 'shirtTie',
+      topColor: '#2E6BE6',
+      bottomColor: '#1E293B',
+      headwear: 'none',
+      allowModern: true,
+      prop: 'wrench',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_TAMIL_DOCTOR: {
+      tier: 1,
+      era: 'Modern_Chennai',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'scientist',
+      topColor: '#F4F6FA',
+      bottomColor: '#28808C',
+      headwear: 'none',
+      glasses: true,
+      foreheadMark: 'bindi',
+      allowModern: true,
+      prop: 'beaker',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+  },
+
+  ANIMALS: {
+    ANIMAL_ROYAL_ELEPHANT: {
+      kind: 'elephant',
+      royal: true,
+      color: '#7C8494',
+      caparisonColor: '#C92A2A',
+      trimColor: '#FFD54F',
+      defaultAction: 'walk',
+    },
+    ANIMAL_BULL: {
+      kind: 'bull',
+      color: '#D9C8B2',
+      hornColor: '#4A3F35',
+      defaultAction: 'walk',
+    },
+    ANIMAL_WAR_HORSE: {
+      kind: 'horse',
+      color: '#8C5230',
+      defaultAction: 'run',
+    },
+    ANIMAL_SPARROW: {
+      kind: 'sparrow',
+      color: '#A67B5B',
+      wingColor: '#785238',
+      expr: 'singing',
+    },
+  },
+
+  ENVS: {
+    ENV_FREEDOM_AND_REFORM: { mood: 'day', altMood: 'golden', archStyle: 'classical', lightDir: [-0.60, -0.80] },
+    ENV_MODERN_CHENNAI: { mood: 'urbanMorning', altMood: 'cyberFuture', archStyle: 'modern', lightDir: [-0.65, -0.75] },
+  },
+
+  INFO: {
+    INFO_SCALE_SOCIAL_JUSTICE: { type: 'economicsScale', leftLabel: 'EQUAL OPPORTUNITY', rightLabel: 'SOCIAL JUSTICE', tilt: 0.0 },
+  },
+
+  SHOTS: {
+    111: { start: 434.7, end: 442.1, duration: 7.4, env_id: 'ENV_FREEDOM_AND_REFORM', info_id: 'INFO_SCALE_SOCIAL_JUSTICE', transOut: { type: 'CLOUD_WIPE', variant: 'day' }, citation: 'Madras Temple Entry Authorization Act (1939) & Communal G.O. (1921/1927)' },
+    112: { start: 442.1, end: 446.9, duration: 4.8, env_id: 'ENV_FREEDOM_AND_REFORM', transOut: { type: 'CAMERA_DOLLY_IN', target: [960, 540] } },
+    113: { start: 446.9, end: 449.8, duration: 2.9, env_id: 'ENV_FREEDOM_AND_REFORM', transOut: { type: 'HARD_CUT' } },
+    114: { start: 449.8, end: 453.2, duration: 3.4, env_id: 'ENV_MODERN_CHENNAI', transOut: { type: 'CLOUD_WIPE', variant: 'golden' } },
+    115: { start: 453.2, end: 457.2, duration: 4.0, env_id: 'ENV_FREEDOM_AND_REFORM', transOut: { type: 'CAMERA_DOLLY_OUT', target: [960, 540] }, citation: 'K. Kamaraj & N.D. Sundaravadivelu — Pioneer Statewide School Meal Scheme (1956)' },
+    116: { start: 457.2, end: 462.8, duration: 5.6, env_id: 'ENV_FREEDOM_AND_REFORM', info_id: 'INFO_SCALE_SOCIAL_JUSTICE', transOut: { type: 'SCANNER_WIPE', dir: 'left', accent: '#38C878' } },
+    117: { start: 462.8, end: 467.1, duration: 4.3, env_id: 'ENV_MODERN_CHENNAI', transOut: { type: 'WHIP_PAN_RIGHT' } },
+    118: { start: 467.1, end: 469.6, duration: 2.5, env_id: 'ENV_MODERN_CHENNAI', transOut: { type: 'HARD_CUT' } },
+    119: { start: 469.6, end: 473.4, duration: 3.8, env_id: 'ENV_MODERN_CHENNAI', transOut: { type: 'CAMERA_DOLLY_OUT', target: [960, 540] } },
+    120: { start: 473.4, end: 478.3, duration: 4.9, env_id: 'ENV_MODERN_CHENNAI', info_id: 'INFO_SCALE_SOCIAL_JUSTICE', transOut: { type: 'CLOUD_WIPE', variant: 'golden' }, citation: 'Ministry of Statistics & Programme Implementation (MoSPI) / RBI GSDP Data' },
+  },
+};
+window.THEME = THEME;
+
+// ============================================================================
+// CUSTOM SCENE ART HELPERS FOR SHOTS 111–120
+// ============================================================================
+function drawMeenakshiGopuram(g, x, y, s = 1) {
+  g.save();
+  g.translate(x, y);
+  g.scale(s, s);
+  const tiers = 7;
+  const baseW = 250;
+  const tierH = 48;
+  for (let i = 0; i < tiers; i++) {
+    const u = i / tiers;
+    const w0 = DK.lerp(baseW, 92, u);
+    const w1 = DK.lerp(baseW, 92, (i + 1) / tiers);
+    const ty = -i * tierH;
+    const cols = ['#A84832', '#28808C', '#C98A2C', '#8C3838'];
+    const c = cols[i % cols.length];
+    DK.poly(g, [[-w0 / 2, ty], [w0 / 2, ty], [w1 / 2, ty - tierH + 4], [-w1 / 2, ty - tierH + 4]], DK.cylinderGrad(g, -w0 / 2, ty - tierH, w0 / 2, ty, c, -1));
+    DK.rr(g, -w0 * 0.52, ty - tierH, w0 * 1.04, 8, 3);
+    g.fillStyle = '#FFD54F';
+    g.fill();
+    for (let k = -2; k <= 2; k++) {
+      DK.rr(g, k * (w1 * 0.16) - 5, ty - tierH + 12, 10, 26, 4);
+      g.fillStyle = DK.shade(c, -0.25);
+      g.fill();
+    }
+  }
+  const topY = -tiers * tierH;
+  DK.rr(g, -54, topY - 26, 108, 26, 12);
+  g.fillStyle = '#B87333';
+  g.fill();
+  for (let f = -2; f <= 2; f++) {
+    DK.circle(g, f * 18, topY - 34, 6, '#FFD54F');
+  }
+  // Open Golden Temple Archway at Base
+  DK.rr(g, -42, -96, 84, 96, 38);
+  g.fillStyle = '#181018';
+  g.fill();
+  DK.glow(g, 0, -48, 68, '#FFD54F', 0.65);
+  g.restore();
+}
+
+function drawUniversityClocktower(g, x, y, s = 1) {
+  g.save();
+  g.translate(x, y);
+  g.scale(s, s);
+  // Indo-Saracenic Red Brick & Sandstone University Hall + Clocktower
+  DK.rr(g, -170, -180, 340, 180, 8);
+  g.fillStyle = DK.cylinderGrad(g, -170, -180, 170, 0, '#9E382E', -1);
+  g.fill();
+  for (let i = -2; i <= 2; i++) {
+    DK.rr(g, i * 58 - 18, -120, 36, 120, 18);
+    g.fillStyle = '#24181C';
+    g.fill();
+  }
+  DK.rr(g, -48, -370, 96, 370, 6);
+  g.fillStyle = DK.cylinderGrad(g, -48, -370, 48, 0, '#B04238', -1);
+  g.fill();
+  // Dome & Finial
+  g.beginPath();
+  g.arc(0, -370, 48, Math.PI, 0);
+  g.fillStyle = '#D99B26';
+  g.fill();
+  DK.seg(g, [[0, -418], [0, -448]], 4, '#FFD54F');
+  // Clock Face
+  DK.circle(g, 0, -305, 28, '#FFF8E7');
+  DK.ring(g, 0, -305, 28, 4, '#D99B26');
+  DK.seg(g, [[0, -305], [0, -322]], 3, '#1E293B');
+  DK.seg(g, [[0, -305], [14, -305]], 3, '#1E293B');
+  g.restore();
+}
+
+function drawIndianTricolorFlag(g, poleX, poleBottomY, poleTopY, flagY, t) {
+  DK.seg(g, [[poleX, poleBottomY], [poleX, poleTopY]], 8, '#CBD5E1');
+  DK.circle(g, poleX, poleTopY - 6, 10, '#FFD54F');
+  const fw = 180, fh = 114;
+  const wave = Math.sin(t * 5.5) * 10;
+  g.save();
+  g.translate(poleX + 4, flagY);
+  // Saffron Top Band
+  DK.poly(g, [[0, 0], [fw, wave], [fw, fh / 3 + wave], [0, fh / 3]], '#FF7722');
+  // White Middle Band
+  DK.poly(g, [[0, fh / 3], [fw, fh / 3 + wave], [fw, (fh * 2) / 3 + wave], [0, (fh * 2) / 3]], '#FFFFFF');
+  // India Green Bottom Band
+  DK.poly(g, [[0, (fh * 2) / 3], [fw, (fh * 2) / 3 + wave], [fw, fh + wave], [0, fh]], '#138808');
+  // Navy Ashoka Chakra
+  const cx = fw * 0.5, cy = fh * 0.5 + wave * 0.5;
+  DK.ring(g, cx, cy, 15, 2.5, '#000080');
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    DK.seg(g, [[cx - Math.cos(a) * 14, cy - Math.sin(a) * 14], [cx + Math.cos(a) * 14, cy + Math.sin(a) * 14]], 1.4, '#000080');
+  }
+  g.restore();
+}
+
+function drawBicycleProp(g, x, y, s, t) {
+  g.save();
+  g.translate(x, y);
+  g.scale(s, s);
+  const wR = 34;
+  const rot = t * 6.5;
+  [-58, 58].forEach((wx) => {
+    DK.ring(g, wx, -wR, wR, 5, '#1E293B');
+    DK.ring(g, wx, -wR, wR - 4, 2, '#CBD5E1');
+    for (let i = 0; i < 6; i++) {
+      const a = rot + (i / 6) * Math.PI * 2;
+      DK.seg(g, [[wx, -wR], [wx + Math.cos(a) * (wR - 4), -wR + Math.sin(a) * (wR - 4)]], 1.8, '#94A3B8');
+    }
+  });
+  // Frame
+  DK.seg(g, [[-58, -wR], [-8, -wR], [28, -wR - 46], [-32, -wR - 46], [-58, -wR]], 5, '#2E6BE6');
+  DK.seg(g, [[-8, -wR], [-32, -wR - 58]], 5, '#2E6BE6');
+  DK.seg(g, [[58, -wR], [24, -wR - 64], [10, -wR - 68]], 5, '#CBD5E1');
+  DK.rr(g, -44, -wR - 64, 26, 9, 4);
+  g.fillStyle = '#1E293B';
+  g.fill();
+  g.restore();
+}
+
+function drawWindTurbine(g, x, y, s, t, seed = 1) {
+  g.save();
+  g.translate(x, y);
+  g.scale(s, s);
+  DK.seg(g, [[0, 0], [0, -240]], 10, '#E2E8F0');
+  g.translate(0, -240);
+  g.rotate(t * 2.8 + seed);
+  for (let i = 0; i < 3; i++) {
+    g.save();
+    g.rotate((i * Math.PI * 2) / 3);
+    DK.poly(g, [[-4, 0], [4, 0], [2, -96], [-2, -96]], '#F8FAFC');
+    g.restore();
+  }
+  DK.circle(g, 0, 0, 9, '#CBD5E1');
+  g.restore();
+}
+
+function drawModernCar(g, x, y, s, bodyCol = '#00F2FE') {
+  g.save();
+  g.translate(x, y);
+  g.scale(s, s);
+  DK.contactShadow(g, 0, 8, 125, 14, 0.35);
+  DK.poly(
+    g,
+    [
+      [-115, -24],
+      [-95, -62],
+      [-35, -96],
+      [48, -96],
+      [98, -58],
+      [120, -24],
+    ],
+    DK.linGrad(g, 0, -96, 0, -24, [DK.shade(bodyCol, 0.25), bodyCol, DK.shade(bodyCol, -0.25)])
+  );
+  DK.rr(g, -124, -44, 248, 36, 14);
+  g.fillStyle = bodyCol;
+  g.fill();
+  // Windows
+  DK.poly(g, [[-78, -58], [-32, -88], [42, -88], [82, -58]], '#162447');
+  // Headlight glow
+  DK.circle(g, 116, -34, 7, '#FFF9C4');
+  // Wheels
+  [-74, 74].forEach((wx) => {
+    DK.circle(g, wx, -12, 24, '#1E293B');
+    DK.circle(g, wx, -12, 12, '#94A3B8');
+  });
+  g.restore();
+}
+
+// ============================================================================
+// SHOT DEFINITIONS FOR SHOTS 111 TO 120 (gt: 434.7s – 478.3s)
+// ============================================================================
+const SHOTS = [
+  // --------------------------------------------------------------------------
+  // SHOT 111: Temple Entry, Education Rights, Reservation & Women's Property Rights
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 111,
+    title: "Temple Entry, Education, Reservation & Women's Rights",
+    start: 434.7,
+    end: 442.1,
+    duration: 7.4,
+    vo_line: "கோயிலுக்குள்ள வரக்கூடாதுன்னு சொன்னவங்களுக்கு எல்லாம் கல்வி உரிமை, இட ஒதுக்கீடு, பெண்களுக்கான சொத்துரிமை, ஒரு சமூக நீதிக்கான போராட்டம் எல்லாமே இந்த time-லதான் வருது.",
+    env_id: 'ENV_FREEDOM_AND_REFORM',
+    info_id: 'INFO_SCALE_SOCIAL_JUSTICE',
+    chars: 'CHAR_TAMIL_WOMAN_GRAD + DK.crowd Citizens',
+    on_screen_text: "TEMPLE ENTRY · RESERVATION · WOMEN'S RIGHTS · SOCIAL JUSTICE",
+    camera_sfx: 'Golden pan & dolly-in · templeBell + pillBadge + footsteps',
+    transOut: THEME.SHOTS[111].transOut,
+    draw(g, lt, gt, u) {
+      const m = DK.mood('golden');
+      const cam = {
+        x: DK.key(lt, [[0, -60], [7.4, 60]], DK.ease.inOutCubic),
+        y: 0,
+        z: DK.key(lt, [[0, 0.96], [7.4, 1.06]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.sun(g, 960, 290, 74, '#FFF6E0', '#FFD59A', 4.5);
+          FX.clouds(g, { seed: 111, count: 5, y: 160, color: '#FFF5EA', a: 0.24, t: gt, speed: 12 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 3,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 111, y: 780, amp: 70, color: '#4A3832' });
+          drawMeenakshiGopuram(g, 420, 840, 1.15);
+          drawUniversityClocktower(g, 1480, 840, 1.08);
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          FX.godRays(g, 960, 180, { count: 7, angle: Math.PI * 0.5, spread: 0.85, len: 1200, color: '#FFE5B8', a: 0.14, t: gt });
+          FX.ground(g, 840, m.floor, m.key, 0.25, true);
+          FX.tree(g, 150, 840, 1.05, '#3E6B48', 'palm');
+          FX.tree(g, 1770, 840, 1.05, '#3E6B48', 'palm');
+        },
+        mgHero: (g) => {
+          // Left: Citizens walking joyfully into the open temple entrance
+          DK.crowd(g, {
+            count: 4,
+            x0: 220,
+            x1: 540,
+            y: 840,
+            s: 0.9,
+            wardrobe: 'indianIndependence',
+            behavior: 'walk',
+            moveOffset: lt * 32,
+            t: gt,
+            seed: 1110,
+          });
+
+          // Center: Social Justice & Equal Opportunity Balance Scale
+          UI.economicsScale(g, lt, {
+            x: 960,
+            y: 600,
+            s: 0.92,
+            tilt: 0.0,
+            leftLabel: 'EQUAL OPPORTUNITY',
+            rightLabel: 'SOCIAL JUSTICE',
+          });
+
+          // Right: CHAR_TAMIL_WOMAN_GRAD walking proudly forward with scroll/deed
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_TAMIL_WOMAN_GRAD, {
+            moveX: [1640, 1260, lt, 7.4],
+            y: 840,
+            s: 1.02,
+            flipX: true,
+            pose: { preset: 'walk', speed: 1.0 },
+            t: gt,
+            seed: 111,
+          }));
+
+          // Mid-Shot Micro-Beat (lt = 3.70s): Four reform pillar badges
+          UI.pillBadge(g, lt, { t0: 1.80, x: 430, y: 270, text: 'TEMPLE ENTRY (1939)', border: '#FFD54F' });
+          UI.pillBadge(g, lt, { t0: 2.40, x: 1480, y: 270, text: 'EDUCATION FOR ALL', border: '#5CE1FF' });
+          UI.pillBadge(g, lt, { t0: 3.70, x: 430, y: 340, text: 'RESERVATION (இட ஒதுக்கீடு)', border: '#38C878' });
+          UI.pillBadge(g, lt, { t0: 4.10, x: 1480, y: 340, text: "WOMEN'S PROPERTY RIGHTS", border: '#FF851B' });
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 111, count: 14, color: '#FFD584', a: 0.16 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.25,
+        x: 960,
+        y: 150,
+        text: "TEMPLE ENTRY · RESERVATION · WOMEN'S RIGHTS · SOCIAL JUSTICE",
+        border: '#38C878',
+      });
+      UI.citation(g, THEME.SHOTS[111].citation, { align: 'left' });
+      DK.finishFrame(g, gt);
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 112: 1947 Indian Independence & Healing Tamil Nadu's Wounds
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 112,
+    title: "15 August 1947 · Indian Independence & Healing Wounds",
+    start: 442.1,
+    end: 446.9,
+    duration: 4.8,
+    vo_line: "1947-ல இந்தியாவுக்கு சுதந்திரம் கிடைக்குது, தமிழ்நாடும் தன்னோட காயங்களை எல்லாம் குணப்படுத்த ஆரம்பிக்குது.",
+    env_id: 'ENV_FREEDOM_AND_REFORM',
+    chars: 'CHAR_FREEDOM_FIGHTER + DK.crowd + ANIMAL_SPARROW',
+    on_screen_text: '15 AUGUST 1947 · INDIAN INDEPENDENCE (சுதந்திர தினம்)',
+    camera_sfx: 'Upward crane & dolly-in · whoosh + birdSong + starShimmer',
+    transOut: THEME.SHOTS[112].transOut,
+    draw(g, lt, gt, u) {
+      const m = DK.mood('sunriseFlight');
+      const cam = {
+        x: 0,
+        y: DK.key(lt, [[0, 25], [4.8, -25]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 0.98], [4.8, 1.08]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.sun(g, 960, 320, 88, '#FFF8E0', '#FFB84D', 4.8);
+          FX.godRays(g, 960, 320, { count: 9, angle: -Math.PI * 0.5, spread: 1.4, len: 1400, color: '#FFE09E', a: 0.16, t: gt });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 4,
+        bgFar: (g) => {
+          FX.skyline(g, { style: 'classical', y: 780, seed: 112, color: '#3E2440', lit: 0.25 });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          // Fort St. George Classical Ramparts & Hoisted Indian Tricolor Flag
+          DK.rr(g, 260, 620, 1400, 220, 10);
+          g.fillStyle = DK.cylinderGrad(g, 260, 620, 1660, 840, '#E8E0D5', -1);
+          g.fill();
+          for (let i = 0; i < 9; i++) {
+            DK.rr(g, 310 + i * 155, 660, 74, 180, 36);
+            g.fillStyle = '#3B2838';
+            g.fill();
+          }
+          const flagY = DK.lerp(560, 250, DK.ease.outCubic(DK.clamp(lt / 2.2, 0, 1)));
+          drawIndianTricolorFlag(g, 960, 620, 240, flagY, gt);
+          FX.ground(g, 840, m.floor, m.key, 0.25, true);
+        },
+        mgHero: (g) => {
+          // Cheering Citizens Crowd
+          DK.crowd(g, {
+            count: 6,
+            x0: 280,
+            x1: 1640,
+            y: 845,
+            s: 0.88,
+            wardrobe: 'indianIndependence',
+            behavior: lt < 2.4 ? 'march' : 'celebrate',
+            moveOffset: lt < 2.4 ? lt * 28 : 67,
+            t: gt,
+            seed: 1120,
+          });
+
+          // Hero Freedom Fighter marching then celebrating
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_FREEDOM_FIGHTER, {
+            moveX: [640, 960, lt, 4.8],
+            y: 840,
+            s: 1.05,
+            pose: { preset: lt < 2.4 ? 'march' : 'celebrate' },
+            eyeMode: 'happyArch',
+            brows: 'raised',
+            mouth: 'laugh',
+            t: gt,
+            seed: 112,
+          }));
+
+          // Two Singing Sparrows (Chittu Kuruvi) flying across the dawn sky
+          DK.animal(g, {
+            kind: 'sparrow',
+            moveX: [380, 1480, lt, 4.8],
+            y: 350 + Math.sin(gt * 4) * 18,
+            s: 0.92,
+            flipX: true,
+            expr: 'singing',
+            t: gt,
+          });
+          DK.animal(g, {
+            kind: 'sparrow',
+            moveX: [240, 1340, lt, 4.8],
+            y: 410 + Math.cos(gt * 4.5) * 16,
+            s: 0.82,
+            flipX: true,
+            expr: 'singing',
+            t: gt,
+          });
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 112, count: 18, color: '#FFD584', a: 0.22 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.1,
+        x: 960,
+        y: 160,
+        size: 30,
+        text: '15 AUGUST 1947 · INDIAN INDEPENDENCE (சுதந்திர தினம்)',
+        border: '#FF7722',
+      });
+      DK.finishFrame(g, gt);
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 113: Karmaveerar Kamarajar Takes Office as Chief Minister (1954 CE)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 113,
+    title: 'Karmaveerar K. Kamaraj Takes Office (1954 CE)',
+    start: 446.9,
+    end: 449.8,
+    duration: 2.9,
+    vo_line: "கர்மவீரர் காமராஜர் முதல் முதலமைச்சரா நம்மளுக்காக வராரு.",
+    env_id: 'ENV_FREEDOM_AND_REFORM',
+    chars: 'CHAR_KAMARAJAR +CHAR_SCHOOL_STUDENT',
+    on_screen_text: 'KARMAVEERAR K. KAMARAJ (CHIEF MINISTER · 1954–1963)',
+    camera_sfx: 'Lateral tracking shot · footsteps + birdSong',
+    transOut: THEME.SHOTS[113].transOut,
+    draw(g, lt, gt, u) {
+      const m = DK.mood('day');
+      const cam = {
+        x: DK.key(lt, [[0, -40], [2.9, 40]], DK.ease.inOutCubic),
+        y: 0,
+        z: 1.04,
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.sun(g, 1480, 220, 62, '#FFF9E6', '#FFE29A', 3.8);
+          FX.clouds(g, { seed: 113, count: 5, y: 170, t: gt, speed: 10 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 3,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 113, y: 770, amp: 85, color: '#4A6B53' });
+          FX.tree(g, 320, 780, 0.9, '#3A7048', 'palm');
+          FX.tree(g, 1620, 780, 0.95, '#3A7048', 'palm');
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          // Tiled-Roof Village Elementary Schoolhouse (ஊராட்சி ஒன்றிய தொடக்கப்பள்ளி)
+          DK.rr(g, 980, 560, 560, 280, 8);
+          g.fillStyle = '#F5EFE6';
+          g.fill();
+          DK.poly(g, [[940, 560], [1580, 560], [1500, 460], [1020, 460]], '#B84A32');
+          for (let i = 0; i < 4; i++) {
+            DK.seg(g, [[1040 + i * 145, 560], [1040 + i * 145, 840]], 14, '#D8CFC2');
+          }
+          DK.rr(g, 1110, 515, 300, 38, 6);
+          g.fillStyle = '#1E293B';
+          g.fill();
+          DK.text(g, 'அரசுப் பள்ளி · GOVT SCHOOL', 1260, 534, { size: 20, color: '#FFD54F', weight: 800 });
+
+          FX.tree(g, 240, 840, 1.15, '#2E7D32', 'palm');
+          FX.ground(g, 840, '#785A40', m.key, 0.2, true);
+        },
+        mgHero: (g) => {
+          // Two Village Schoolchildren welcoming Kamarajar
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_SCHOOL_STUDENT, {
+            moveX: [1420, 1190, lt, 2.9],
+            y: 840,
+            s: 0.78,
+            flipX: true,
+            pose: { preset: 'walk', wave: true },
+            t: gt,
+            seed: 1131,
+          }));
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_SCHOOL_STUDENT, {
+            moveX: [1520, 1290, lt, 2.9],
+            y: 845,
+            s: 0.74,
+            flipX: true,
+            pose: { preset: 'walk', wave: true },
+            t: gt,
+            seed: 1132,
+          }));
+
+          // Hero: Karmaveerar Kamarajar walking warmly down the village road
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_KAMARAJAR, {
+            moveX: [460, 1020, lt, 2.9],
+            y: 840,
+            s: 1.06,
+            pose: { preset: 'walk', wave: true, speed: 0.95 },
+            eyeMode: 'warm',
+            brows: 'raised',
+            mouth: 'smile',
+            t: gt,
+            seed: 113,
+          }));
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 113, count: 10, color: '#FFE2A8', a: 0.14 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.15,
+        x: 960,
+        y: 170,
+        text: 'KARMAVEERAR K. KAMARAJ (CHIEF MINISTER · 1954–1963)',
+        border: '#FFB84D',
+      });
+      DK.finishFrame(g, gt);
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 114: Modern Welfare — Free Laptops & Bicycles for School Students
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 114,
+    title: 'Modern Welfare: Free Laptops & Bicycles for Students',
+    start: 449.8,
+    end: 453.2,
+    duration: 3.4,
+    vo_line: "இன்னைக்கு government school குழந்தைகளுக்கு laptop, cycle-னு free-ஆ கொடுக்குறாங்க.",
+    env_id: 'ENV_MODERN_CHENNAI',
+    chars: 'CHAR_SCHOOL_STUDENT (x2) + 3D Bicycle & Laptop',
+    on_screen_text: 'TODAY: FREE LAPTOPS, BICYCLES & SMART CLASSROOMS',
+    camera_sfx: 'Tracking pan · footsteps + bicycle bell ding',
+    transOut: THEME.SHOTS[114].transOut,
+    draw(g, lt, gt, u) {
+      const m = DK.mood('urbanMorning');
+      const cam = {
+        x: DK.key(lt, [[0, -50], [3.4, 50]], DK.ease.inOutCubic),
+        y: 0,
+        z: 1.0,
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.clouds(g, { seed: 114, count: 5, y: 150, t: gt, speed: 12 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 3,
+        bgFar: (g) => {
+          FX.skyline(g, { style: 'modern', y: 780, seed: 114, color: '#4E5D78', lit: 0.25 });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          FX.architecture1P(g, { style: 'modern', vx: 960, vy: 220, lit: 0.2, mood: 'day' });
+          // Modern Government Higher Secondary School Arch
+          DK.rr(g, 580, 420, 760, 420, 12);
+          g.fillStyle = 'rgba(244, 247, 252, 0.15)';
+          g.strokeStyle = '#38C878';
+          g.lineWidth = 6;
+          g.stroke();
+          DK.rr(g, 620, 390, 680, 54, 12);
+          g.fillStyle = '#1E293B';
+          g.fill();
+          DK.text(g, 'GOVT. HIGHER SECONDARY SCHOOL', 960, 418, { size: 26, color: '#38C878', weight: 900 });
+          FX.ground(g, 840, m.floor, m.key, 0.2, true);
+        },
+        mgHero: (g) => {
+          const bikeX = DK.lerp(560, 1420, u);
+          drawBicycleProp(g, bikeX, 840, 1.15, gt);
+
+          // Student 1 walking cheerfully with bicycle
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_SCHOOL_STUDENT, {
+            moveX: [420, 1280, lt, 3.4],
+            y: 840,
+            s: 0.94,
+            prop: 'phone',
+            pose: { preset: 'walk', speed: 1.1 },
+            eyeMode: 'happyArch',
+            brows: 'raised',
+            mouth: 'laugh',
+            t: gt,
+            seed: 1141,
+          }));
+
+          // Student 2 walking alongside holding open laptop/books
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_SCHOOL_STUDENT, {
+            moveX: [260, 1080, lt, 3.4],
+            y: 845,
+            s: 0.90,
+            prop: 'palmLeaf',
+            pose: { preset: 'walk', speed: 1.1 },
+            eyeMode: 'happyArch',
+            brows: 'raised',
+            mouth: 'laugh',
+            t: gt,
+            seed: 1142,
+          }));
+
+          // Mid-Shot Micro-Beat (lt = 1.70s): Dual Welfare Callout Badges
+          UI.pillBadge(g, lt, { t0: 1.30, x: 560, y: 310, text: '💻 FREE STUDENT LAPTOP', border: '#5CE1FF' });
+          UI.pillBadge(g, lt, { t0: 1.70, x: 1360, y: 310, text: '🚲 FREE BICYCLE SCHEME', border: '#FFB84D' });
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 114, count: 12, color: '#FFE094', a: 0.15 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.2,
+        x: 960,
+        y: 170,
+        text: 'TODAY: FREE LAPTOPS, BICYCLES & SMART CLASSROOMS',
+        border: '#38C878',
+      });
+      DK.finishFrame(g, gt);
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 115: Kamarajar's Pioneer Midday Meal Scheme (மதிய உணவு திட்டம், 1956)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 115,
+    title: "Kamarajar's Pioneer Midday Meal Scheme (1956)",
+    start: 453.2,
+    end: 457.2,
+    duration: 4.0,
+    vo_line: "ஆனா அன்னைக்கு பசியில வாடுன குழந்தைகளுக்கு மதிய உணவு திட்டத்தை கொடுக்குறாரு காமராஜர்.",
+    env_id: 'ENV_FREEDOM_AND_REFORM',
+    chars: 'CHAR_KAMARAJAR + 3 Seated CHAR_SCHOOL_STUDENT',
+    on_screen_text: '1956 · FREE MIDDAY MEAL SCHEME (மதிய உணவு திட்டம்)',
+    camera_sfx: 'Warm push-in · footsteps + school bell chime',
+    transOut: THEME.SHOTS[115].transOut,
+    draw(g, lt, gt, u) {
+      const m = DK.mood('golden');
+      const cam = {
+        x: 0,
+        y: 0,
+        z: DK.key(lt, [[0, 0.98], [4.0, 1.06]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.sun(g, 380, 240, 68, '#FFF4D4', '#FFD494', 4.2);
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 3,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 115, y: 780, amp: 70, color: '#5A3A34' });
+          FX.tree(g, 260, 790, 1.0, '#486638', 'palm');
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          // Sunlit Village School Veranda & Blackboard reading "அ ஆ இ ஈ"
+          DK.rr(g, 640, 360, 1080, 480, 8);
+          g.fillStyle = '#E8DCCB';
+          g.fill();
+          DK.poly(g, [[590, 360], [1760, 360], [1690, 260], [660, 260]], '#A8422C');
+          // Blackboard
+          DK.rr(g, 920, 430, 520, 210, 10);
+          g.fillStyle = '#182420';
+          g.fill();
+          g.strokeStyle = '#8C5832';
+          g.lineWidth = 8;
+          g.stroke();
+          DK.text(g, 'அ   ஆ   இ   ஈ', 1180, 515, { size: 54, color: '#F8FAFC', weight: 900 });
+          DK.text(g, 'கல்வி கண் திறந்த கர்மவீரர்', 1180, 585, { size: 26, color: '#FFD54F', weight: 800 });
+
+          FX.godRays(g, 380, 240, { count: 6, angle: Math.PI * 0.25, spread: 0.55, len: 1300, color: '#FFE7B0', a: 0.16, t: gt });
+          FX.ground(g, 840, m.floor, m.key, 0.25, true);
+        },
+        mgHero: (g) => {
+          // Three Seated Schoolchildren eating warm rice on green banana leaves
+          // (Stationary Justification: Seated in a row on school veranda eating midday meal)
+          [1160, 1340, 1520].forEach((sx, idx) => {
+            DK.char(g, Object.assign({}, THEME.CHARS.CHAR_SCHOOL_STUDENT, {
+              x: sx,
+              y: 860,
+              s: 0.74,
+              flipX: true,
+              wardrobe: 'ancientTamil',
+              topColor: '#F4F6FA',
+              pose: { preset: 'seated' },
+              eyeMode: 'happyArch',
+              brows: 'raised',
+              mouth: 'laugh',
+              t: gt,
+              seed: 215 + idx,
+            }));
+            // Green Banana Leaf (வாழை இலை) & Warm Steaming Rice
+            DK.ellipse(g, sx - 32, 852, 42, 14, '#388E3C');
+            DK.ellipse(g, sx - 32, 848, 22, 10, '#FFFFFF');
+            if (lt >= 1.2) {
+              const wOff = Math.sin(gt * 5 + idx) * 6;
+              DK.seg(g, [[sx - 32, 835], [sx - 32 + wOff, 810], [sx - 32 - wOff, 785]], 3, 'rgba(255,255,255,0.55)');
+            }
+          });
+
+          // Karmaveerar Kamarajar walking gently along the veranda serving meals
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_KAMARAJAR, {
+            moveX: [480, 1020, lt, 4.0],
+            y: 840,
+            s: 1.05,
+            pose: { preset: 'trade', speed: 0.9 },
+            eyeMode: 'warm',
+            look: [0.3, 0.2],
+            brows: 'raised',
+            mouth: 'smile',
+            t: gt,
+            seed: 115,
+          }));
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 115, count: 14, color: '#FFE7B0', a: 0.18 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.2,
+        x: 960,
+        y: 160,
+        text: '1956 · FREE MIDDAY MEAL SCHEME (மதிய உணவு திட்டம்)',
+        border: '#FFD54F',
+      });
+      UI.citation(g, THEME.SHOTS[115].citation, { align: 'left' });
+      DK.finishFrame(g, gt);
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 116: Dams, Schools & Surging Literacy Across Tamil Nadu
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 116,
+    title: 'Irrigation Dams, 27,000+ Schools & Surging Literacy',
+    start: 457.2,
+    end: 462.8,
+    duration: 5.6,
+    vo_line: "இந்த மாதிரி பல நலத்திட்டங்கள் மூலியமா தமிழ்நாட்டை மேல கொண்டு வராரு, அதுமட்டுமில்லாம தமிழ்நாட்டோட கல்வியறிவை பன்மடங்கு உயர்த்துறாரு.",
+    env_id: 'ENV_FREEDOM_AND_REFORM',
+    info_id: 'INFO_SCALE_SOCIAL_JUSTICE',
+    chars: 'CHAR_KAMARAJAR + 2 Running CHAR_SCHOOL_STUDENT',
+    on_screen_text: '27,000+ SCHOOLS · IRRIGATION DAMS · LITERACY REVOLUTION',
+    camera_sfx: 'Pan & crane up · fountainWater dam spillway + counterTick + footsteps',
+    transOut: THEME.SHOTS[116].transOut,
+    draw(g, lt, gt, u) {
+      const m = DK.mood('day');
+      const cam = {
+        x: DK.key(lt, [[0, -60], [5.6, 60]], DK.ease.inOutCubic),
+        y: DK.key(lt, [[0, 15], [5.6, -20]], DK.ease.inOutCubic),
+        z: 1.0,
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.sun(g, 1520, 230, 66, '#FFF6E0', '#FFD59A', 4.0);
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 3,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 116, y: 760, amp: 95, color: '#3E5E4E' });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          // Lower Bhavani / Vaigai Irrigation Dam Spillway on Left
+          DK.poly(g, [[180, 520], [760, 520], [820, 840], [140, 840]], DK.cylinderGrad(g, 180, 520, 760, 840, '#7C8798', -1));
+          for (let k = 0; k < 4; k++) {
+            const sx = 260 + k * 125;
+            DK.poly(g, [[sx, 560], [sx + 75, 560], [sx + 95, 840], [sx - 20, 840]], DK.linGrad(g, sx, 560, sx, 840, ['#E0F7FA', '#38BDF8', '#0284C7']));
+          }
+          FX.pool(g, 480, 845, 340, 38, '#A8E6FF', 0.55);
+          FX.ground(g, 840, m.floor, m.key, 0.22, true);
+
+          // Glowing Golden Literacy Growth Curve (16% -> 80%+)
+          const curveProg = DK.ease.outCubic(DK.clamp(lt / 3.8, 0, 1));
+          const pts = [];
+          for (let i = 0; i <= 24; i++) {
+            const cu = (i / 24) * curveProg;
+            const cx = DK.lerp(420, 1580, cu);
+            const cy = DK.lerp(720, 290, Math.pow(cu, 1.35));
+            pts.push([cx, cy]);
+          }
+          if (pts.length > 1) {
+            DK.seg(g, pts, 8, '#FFD54F');
+            const tip = pts[pts.length - 1];
+            DK.glow(g, tip[0], tip[1], 36, '#FFD54F', 0.9);
+            DK.circle(g, tip[0], tip[1], 10, '#FFFFFF');
+          }
+        },
+        mgHero: (g) => {
+          // Karmaveerar Kamarajar walking across foreground
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_KAMARAJAR, {
+            moveX: [380, 1180, lt, 5.6],
+            y: 840,
+            s: 1.02,
+            pose: { preset: 'walk' },
+            eyeMode: 'warm',
+            brows: 'raised',
+            mouth: 'smile',
+            t: gt,
+            seed: 116,
+          }));
+
+          // Two Schoolchildren running joyfully with books
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_SCHOOL_STUDENT, {
+            moveX: [520, 1540, lt, 5.6],
+            y: 850,
+            s: 0.82,
+            prop: 'palmLeaf',
+            pose: { preset: 'run', speed: 1.2 },
+            eyeMode: 'happyArch',
+            mouth: 'laugh',
+            t: gt,
+            seed: 216,
+          }));
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_SCHOOL_STUDENT, {
+            moveX: [360, 1380, lt, 5.6],
+            y: 855,
+            s: 0.78,
+            prop: 'palmLeaf',
+            pose: { preset: 'run', speed: 1.2 },
+            eyeMode: 'happyArch',
+            mouth: 'laugh',
+            t: gt,
+            seed: 217,
+          }));
+
+          UI.pillBadge(g, lt, { t0: 2.80, x: 1480, y: 240, text: 'LITERACY: 80%+ SURGE', border: '#FFD54F' });
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 116, count: 14, color: '#FFE2A8', a: 0.16 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.25,
+        x: 960,
+        y: 160,
+        countFrom: 12000,
+        countTo: 27000,
+        countStart: 0.3,
+        countEnd: 2.8,
+        suffix: '+ SCHOOLS · IRRIGATION DAMS · LITERACY REVOLUTION',
+        border: '#38C878',
+      });
+      DK.finishFrame(g, gt);
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 117: Dravidian Governments Transform Tamil Nadu into an Industrial Hub
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 117,
+    title: 'From Agriculture to High-Tech Industrial Powerhouse',
+    start: 462.8,
+    end: 467.1,
+    duration: 4.3,
+    vo_line: "அதுக்கப்புறமா வந்த திராவிட அரசுகள் விவசாயத்துல இருந்து தமிழ்நாட்டை ஒரு industrial hub-ஆ மாத்துறாங்க.",
+    env_id: 'ENV_MODERN_CHENNAI',
+    chars: 'CHAR_MODERN_ENGINEER',
+    on_screen_text: 'AGRICULTURE + MANUFACTURING POWERHOUSE (1967–PRESENT)',
+    camera_sfx: 'Pan from green fields to SIPCOT industrial hub · cabinHum + footsteps + hammerHit',
+    transOut: THEME.SHOTS[117].transOut,
+    draw(g, lt, gt, u) {
+      const m = DK.mood('urbanMorning');
+      const cam = {
+        x: DK.key(lt, [[0, -80], [4.3, 80]], DK.ease.inOutCubic),
+        y: 0,
+        z: DK.key(lt, [[0, 1.0], [4.3, 1.06]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.clouds(g, { seed: 117, count: 5, y: 160, t: gt, speed: 14 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 3,
+        bgFar: (g) => {
+          // Left: Green Hills & Palms; Right: Modern Industrial Skyline & Wind Turbines
+          FX.hills(g, { seed: 117, y: 780, amp: 65, color: '#3E6B48' });
+          FX.skyline(g, { style: 'modern', x: 860, w: 1100, y: 780, seed: 117, color: '#3B4D6B', lit: 0.4 });
+          drawWindTurbine(g, 920, 780, 0.85, gt, 1);
+          drawWindTurbine(g, 1120, 780, 0.95, gt, 2);
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          // Left: Lush Green Paddy Field
+          g.fillStyle = '#388E3C';
+          g.fillRect(-200, 760, 1020, 90);
+          FX.tree(g, 240, 780, 1.1, '#2E7D32', 'palm');
+          FX.tree(g, 520, 780, 1.0, '#2E7D32', 'palm');
+
+          // Right: SIPCOT Industrial Corridor & Robotic Arms
+          DK.rr(g, 980, 520, 720, 320, 12);
+          g.fillStyle = DK.cylinderGrad(g, 980, 520, 1700, 840, '#28354E', -1);
+          g.fill();
+          DK.rr(g, 1040, 475, 420, 48, 8);
+          g.fillStyle = '#0F172A';
+          g.fill();
+          DK.text(g, 'SIPCOT INDUSTRIAL PARK', 1250, 499, { size: 24, color: '#5CE1FF', weight: 900 });
+
+          // Articulated Robotic Assembly Arms spinning in Plane 3
+          [1160, 1460].forEach((rx, idx) => {
+            const ang = Math.sin(gt * 3.5 + idx) * 0.45;
+            DK.seg(g, [[rx, 820], [rx + Math.sin(ang) * 75, 710], [rx + Math.cos(ang) * 95, 650]], 14, '#FF851B');
+            if (lt >= 2.15) {
+              DK.glow(g, rx + Math.cos(ang) * 95, 650, 28, '#5CE1FF', 0.85);
+            }
+          });
+
+          FX.ground(g, 840, m.floor, m.key, 0.22, true);
+        },
+        mgHero: (g) => {
+          // Hero Engineer walking from agrarian side into industrial corridor
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_MODERN_ENGINEER, {
+            moveX: [380, 1340, lt, 4.3],
+            y: 840,
+            s: 1.02,
+            pose: { preset: 'walk', speed: 1.1 },
+            eyeMode: 'warm',
+            brows: 'raised',
+            mouth: 'smile',
+            t: gt,
+            seed: 117,
+          }));
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 117, count: 14, color: '#5CE1FF', a: 0.16 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.2,
+        x: 960,
+        y: 170,
+        text: 'AGRICULTURE + MANUFACTURING POWERHOUSE (1967–PRESENT)',
+        border: '#5CE1FF',
+      });
+      DK.finishFrame(g, gt);
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 118: Chennai — The "Detroit of Asia"
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 118,
+    title: 'Chennai — The "Detroit of Asia"',
+    start: 467.1,
+    end: 469.6,
+    duration: 2.5,
+    vo_line: "இவ்வளவு ஏன், Detroit of Asia-ன்னு நம்ம சென்னையைதான் சொல்றாங்க.",
+    env_id: 'ENV_MODERN_CHENNAI',
+    chars: 'Two CHAR_MODERN_ENGINEER Technicians + Moving Cars',
+    on_screen_text: "CHENNAI: 'DETROIT OF ASIA' (40%+ OF INDIA'S AUTO EXPORTS)",
+    camera_sfx: 'High-tech factory tracking pan · cabinHum + hammerHit + seatbeltClick',
+    transOut: THEME.SHOTS[118].transOut,
+    draw(g, lt, gt, u) {
+      const m = DK.mood('cyberFuture');
+      const cam = {
+        x: DK.key(lt, [[0, -40], [2.5, 40]], DK.ease.inOutCubic),
+        y: 0,
+        z: 1.04,
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 3,
+        bgFar: (g) => {
+          FX.skyline(g, { style: 'futuristic', y: 780, seed: 118, color: '#181C42', lit: 0.55 });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          // High-Tech Automobile Assembly Conveyor Line
+          DK.rr(g, -100, 690, 2120, 36, 8);
+          g.fillStyle = '#1E293B';
+          g.fill();
+          DK.seg(g, [[-100, 708], [2020, 708]], 4, '#00F2FE');
+
+          const shiftX = lt * 165;
+          drawModernCar(g, 280 + shiftX, 690, 1.05, '#00F2FE');
+          drawModernCar(g, 820 + shiftX, 690, 1.05, '#FF851B');
+          drawModernCar(g, 1360 + shiftX, 690, 1.05, '#38C878');
+
+          FX.ground(g, 840, m.floor, m.key, 0.28, true);
+        },
+        mgHero: (g) => {
+          // Two Modern Engineers actively building and calibrating vehicles
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_MODERN_ENGINEER, {
+            x: 680,
+            y: 840,
+            s: 1.0,
+            prop: 'wrench',
+            pose: { preset: 'build', speed: 1.35 },
+            eyeMode: 'warm',
+            brows: 'raised',
+            mouth: 'smile',
+            t: gt,
+            seed: 1181,
+          }));
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_MODERN_ENGINEER, {
+            x: 1240,
+            y: 840,
+            s: 1.0,
+            flipX: true,
+            prop: 'hammer',
+            pose: { preset: 'build', speed: 1.35 },
+            eyeMode: 'warm',
+            brows: 'raised',
+            mouth: 'smile',
+            t: gt,
+            seed: 1182,
+          }));
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 118, count: 16, color: '#00F2FE', a: 0.18 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.1,
+        x: 960,
+        y: 170,
+        text: "CHENNAI: 'DETROIT OF ASIA' (40%+ OF INDIA'S AUTO EXPORTS)",
+        border: '#00F2FE',
+      });
+      DK.finishFrame(g, gt);
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 119: IT Parks, Automobile Factories & World-Class Healthcare
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 119,
+    title: 'IT Parks, Automobile Factories & World-Class Healthcare',
+    start: 469.6,
+    end: 473.4,
+    duration: 3.8,
+    vo_line: "IT கம்பெனிகள், automobile factory-கள், உலகத்தரம் வாய்ந்த மருத்துவமனைகள்னு,",
+    env_id: 'ENV_MODERN_CHENNAI',
+    chars: 'CHAR_VIEWER_PROTAG (IT) + CHAR_MODERN_ENGINEER + CHAR_TAMIL_DOCTOR',
+    on_screen_text: 'IT CORRIDOR · AUTOMOBILES · GLOBAL HEALTHCARE HUB',
+    camera_sfx: '1-point perspective boulevard push-in · footsteps + 3 sector pillBadges',
+    transOut: THEME.SHOTS[119].transOut,
+    draw(g, lt, gt, u) {
+      const m = DK.mood('urbanMorning');
+      const cam = {
+        x: 0,
+        y: DK.key(lt, [[0, 15], [3.8, -15]], DK.ease.inOutCubic),
+        z: DK.key(lt, [[0, 0.96], [3.8, 1.04]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.clouds(g, { seed: 119, count: 5, y: 150, t: gt, speed: 12 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 3,
+        bgFar: (g) => {
+          FX.skyline(g, { style: 'modern', y: 760, seed: 119, color: '#3E506E', lit: 0.45 });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          FX.cityStreet1P(g, { vx: 960, vy: 220, lit: 0.35, mood: 'day' });
+          // Hospital Red Cross Sign on Right Building
+          DK.circle(g, 1520, 420, 34, '#FFFFFF');
+          DK.rr(g, 1512, 398, 16, 44, 3);
+          g.fillStyle = '#E53935';
+          g.fill();
+          DK.rr(g, 1498, 412, 44, 16, 3);
+          g.fill();
+          FX.ground(g, 840, m.floor, m.key, 0.22, true);
+        },
+        mgHero: (g) => {
+          // 1. Left: CHAR_VIEWER_PROTAG as IT Professional
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_VIEWER_PROTAG, {
+            moveX: [280, 620, lt, 3.8],
+            y: 840,
+            s: 0.98,
+            wardrobe: 'shirtTie',
+            topColor: '#FF851B',
+            prop: 'phone',
+            pose: { preset: 'walk' },
+            eyeMode: 'warm',
+            brows: 'raised',
+            mouth: 'smile',
+            t: gt,
+            seed: 1191,
+          }));
+
+          // 2. Center: CHAR_MODERN_ENGINEER
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_MODERN_ENGINEER, {
+            moveX: [780, 1080, lt, 3.8],
+            y: 840,
+            s: 0.98,
+            prop: 'wrench',
+            pose: { preset: 'walk' },
+            eyeMode: 'warm',
+            brows: 'raised',
+            mouth: 'smile',
+            t: gt,
+            seed: 1192,
+          }));
+
+          // 3. Right: CHAR_TAMIL_DOCTOR
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_TAMIL_DOCTOR, {
+            moveX: [1280, 1580, lt, 3.8],
+            y: 840,
+            s: 0.98,
+            prop: 'beaker',
+            pose: { preset: 'walk' },
+            eyeMode: 'warm',
+            brows: 'raised',
+            mouth: 'smile',
+            t: gt,
+            seed: 1193,
+          }));
+
+          // Three Sector Callout Badges
+          UI.pillBadge(g, lt, { t0: 0.60, x: 450, y: 270, text: 'OMR IT CORRIDOR', border: '#FF851B' });
+          UI.pillBadge(g, lt, { t0: 1.25, x: 960, y: 270, text: 'AUTO & EV HUB', border: '#5CE1FF' });
+          UI.pillBadge(g, lt, { t0: 1.90, x: 1470, y: 270, text: 'MEDICAL CAPITAL OF INDIA', border: '#38C878' });
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 119, count: 14, color: '#FFE094', a: 0.16 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.2,
+        x: 960,
+        y: 150,
+        text: 'IT CORRIDOR · AUTOMOBILES · GLOBAL HEALTHCARE HUB',
+        border: '#38C878',
+      });
+      DK.finishFrame(g, gt);
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 120: Tamil Nadu — India's 2nd Largest Economic Powerhouse
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 120,
+    title: "Tamil Nadu — India's #2 Largest Economy (GSDP Powerhouse)",
+    start: 473.4,
+    end: 478.3,
+    duration: 4.9,
+    vo_line: "இன்னைக்கு இந்தியாவோட இரண்டாவது மிகப்பெரிய பொருளாதாரமா தமிழ்நாடு வளர்ந்து நிக்குது!",
+    env_id: 'ENV_MODERN_CHENNAI',
+    info_id: 'INFO_SCALE_SOCIAL_JUSTICE',
+    chars: 'CHAR_VIEWER_PROTAG + CHAR_MODERN_ENGINEER + CHAR_TAMIL_DOCTOR',
+    on_screen_text: '#2 LARGEST ECONOMY IN INDIA (GSDP POWERHOUSE)',
+    camera_sfx: 'Triumphant crane pullback · counterTick + starShimmer + pillBadge',
+    transOut: THEME.SHOTS[120].transOut,
+    draw(g, lt, gt, u) {
+      const m = DK.mood('urbanMorning');
+      const cam = {
+        x: 0,
+        y: DK.key(lt, [[0, 20], [4.9, -20]], DK.ease.inOutCubic),
+        z: DK.key(lt, [[0, 1.06], [4.9, 0.96]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.sun(g, 960, 260, 84, '#FFF8E0', '#FFD584', 4.6);
+          FX.godRays(g, 960, 260, { count: 8, angle: Math.PI * 0.5, spread: 1.1, len: 1300, color: '#FFE8B0', a: 0.16, t: gt });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 3,
+        bgFar: (g) => {
+          FX.skyline(g, { style: 'modern', y: 780, seed: 120, color: '#364968', lit: 0.5 });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          FX.ground(g, 840, m.floor, m.key, 0.26, true);
+          // 3D Rising Economic Podium Bars in Center-Back
+          const pProg = DK.ease.outBack(DK.clamp(lt / 1.8, 0, 1));
+          const bars = [
+            { x: 740, w: 130, h: 250 * pProg, col: '#475569', label: '#3' },
+            { x: 960, w: 156, h: 370 * pProg, col: '#FFB84D', label: '#2 TAMIL NADU' },
+            { x: 1180, w: 130, h: 420 * pProg, col: '#334155', label: '#1' },
+          ];
+          bars.forEach((b) => {
+            DK.rr(g, b.x - b.w / 2, 840 - b.h, b.w, b.h, 12);
+            g.fillStyle = DK.cylinderGrad(g, b.x - b.w / 2, 840 - b.h, b.x + b.w / 2, 840, b.col, -1);
+            g.fill();
+            if (b.col === '#FFB84D') {
+              DK.glow(g, b.x, 840 - b.h, 90, '#FFD54F', 0.65);
+            }
+            DK.text(g, b.label, b.x, 840 - b.h - 26, { size: 22, color: '#FFFFFF', weight: 900 });
+          });
+        },
+        mgHero: (g) => {
+          // Left: CHAR_VIEWER_PROTAG walking in and celebrating
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_VIEWER_PROTAG, {
+            moveX: [260, 520, lt, 4.9],
+            y: 840,
+            s: 1.02,
+            wardrobe: 'shirtTie',
+            topColor: '#FF851B',
+            pose: { preset: lt < 2.2 ? 'walk' : 'celebrate', thumbsUp: true },
+            eyeMode: 'happyArch',
+            brows: 'raised',
+            mouth: 'laugh',
+            t: gt,
+            seed: 1201,
+          }));
+
+          // Right-Center: CHAR_MODERN_ENGINEER
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_MODERN_ENGINEER, {
+            moveX: [1620, 1360, lt, 4.9],
+            y: 840,
+            s: 1.0,
+            flipX: true,
+            pose: { preset: lt < 2.2 ? 'walk' : 'celebrate' },
+            eyeMode: 'happyArch',
+            brows: 'raised',
+            mouth: 'laugh',
+            t: gt,
+            seed: 1202,
+          }));
+
+          // Far Right: CHAR_TAMIL_DOCTOR
+          DK.char(g, Object.assign({}, THEME.CHARS.CHAR_TAMIL_DOCTOR, {
+            moveX: [1760, 1540, lt, 4.9],
+            y: 845,
+            s: 0.96,
+            flipX: true,
+            pose: { preset: 'walk', wave: true },
+            eyeMode: 'warm',
+            brows: 'raised',
+            mouth: 'smile',
+            t: gt,
+            seed: 1203,
+          }));
+
+          UI.pillBadge(g, lt, {
+            t0: 1.5,
+            x: 960,
+            y: 260,
+            text: 'GSDP GROWTH + SOCIAL DEVELOPMENT MODEL',
+            border: '#38C878',
+          });
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 120, count: 16, color: '#FFD584', a: 0.2 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.15,
+        x: 960,
+        y: 160,
+        size: 30,
+        text: '#2 LARGEST ECONOMY IN INDIA · TAMIL NADU',
+        border: '#FFD54F',
+      });
+      UI.citation(g, THEME.SHOTS[120].citation, { align: 'left' });
+      DK.finishFrame(g, gt);
+    },
+  },
+];
+
+// ============================================================================
+// PER-SHOT PROCEDURAL SFX & AMBIENT SCORE ONLY (ZERO BGM)
+// ============================================================================
+function scoreSound(k) {
+  const B = SHOTS[0].start; // BATCH_START = 434.7s
+
+  // Shot 111 (434.7s - 442.1s, dur: 7.4s)
+  {
+    const bt = 434.7 - B;
+    k.bed('room', bt + 0.0, bt + 7.4, { gain: 0.65 });
+    k.play('templeBell', bt + 0.5, { f: 'C5', gain: 0.85, pan: -0.35 });
+    k.play('pillBadge', bt + 1.8, { f: 'E5', pan: -0.15 });
+    k.play('pillBadge', bt + 3.7, { f: 'G5', pan: 0.25 });
+    k.play('footstep', bt + 0.4, { n: 8, rate: 0.44 });
+  }
+
+  // Shot 112 (442.1s - 446.9s, dur: 4.8s)
+  {
+    const bt = 442.1 - B;
+    k.bed('wind', bt + 0.0, bt + 4.8, { gain: 0.65 });
+    k.play('whoosh', bt + 0.4, { dur: 0.45, top: 1800, gain: 0.8 });
+    k.play('birdSong', bt + 1.2, { gain: 0.85, pan: 0.25 });
+    k.play('starShimmer', bt + 2.4, { gain: 0.85 });
+  }
+
+  // Shot 113 (446.9s - 449.8s, dur: 2.9s)
+  {
+    const bt = 446.9 - B;
+    k.bed('wind', bt + 0.0, bt + 2.9, { gain: 0.6 });
+    k.play('footstep', bt + 0.2, { n: 5, rate: 0.44 });
+    k.play('birdSong', bt + 0.8, { gain: 0.7, pan: -0.3 });
+  }
+
+  // Shot 114 (449.8s - 453.2s, dur: 3.4s)
+  {
+    const bt = 449.8 - B;
+    k.bed('room', bt + 0.0, bt + 3.4, { gain: 0.6 });
+    k.play('footstep', bt + 0.2, { n: 6, rate: 0.38 });
+    k.play('ding', bt + 1.7, { f: 'E6', gain: 0.85 });
+  }
+
+  // Shot 115 (453.2s - 457.2s, dur: 4.0s)
+  {
+    const bt = 453.2 - B;
+    k.bed('wind', bt + 0.0, bt + 4.0, { gain: 0.6 });
+    k.play('footstep', bt + 0.2, { n: 5, rate: 0.48, pan: -0.15 });
+    k.play('templeBell', bt + 2.0, { f: 'G5', gain: 0.8, pan: 0.2 });
+  }
+
+  // Shot 116 (457.2s - 462.8s, dur: 5.6s)
+  {
+    const bt = 457.2 - B;
+    k.bed('fountainWater', bt + 0.0, bt + 5.6, { gain: 0.75 });
+    k.play('counterTick', bt + 0.3, { n: 15, rate: 0.15 });
+    k.play('footstep', bt + 0.4, { n: 8, rate: 0.32, pan: 0.15 });
+  }
+
+  // Shot 117 (462.8s - 467.1s, dur: 4.3s)
+  {
+    const bt = 462.8 - B;
+    k.bed('cabinHum', bt + 0.0, bt + 4.3, { gain: 0.65 });
+    k.play('footstep', bt + 0.2, { n: 7, rate: 0.40 });
+    k.play('hammerHit', bt + 2.15, { n: 3, rate: 0.35, pan: 0.3 });
+  }
+
+  // Shot 118 (467.1s - 469.6s, dur: 2.5s)
+  {
+    const bt = 467.1 - B;
+    k.bed('cabinHum', bt + 0.0, bt + 2.5, { gain: 0.7 });
+    k.play('hammerHit', bt + 0.3, { n: 4, rate: 0.38, pan: -0.2 });
+    k.play('seatbeltClick', bt + 1.25, { gain: 0.85, pan: 0.25 });
+  }
+
+  // Shot 119 (469.6s - 473.4s, dur: 3.8s)
+  {
+    const bt = 469.6 - B;
+    k.bed('room', bt + 0.0, bt + 3.8, { gain: 0.6 });
+    k.play('footstep', bt + 0.2, { n: 6, rate: 0.42 });
+    k.play('pillBadge', bt + 0.6, { f: 'E5', pan: -0.3 });
+    k.play('pillBadge', bt + 1.25, { f: 'G5', pan: 0.0 });
+    k.play('pillBadge', bt + 1.9, { f: 'C6', pan: 0.3 });
+  }
+
+  // Shot 120 (473.4s - 478.3s, dur: 4.9s)
+  {
+    const bt = 473.4 - B;
+    k.bed('room', bt + 0.0, bt + 4.9, { gain: 0.65 });
+    k.play('counterTick', bt + 0.25, { n: 12, rate: 0.12 });
+    k.play('pillBadge', bt + 1.5, { f: 'G5', gain: 0.85 });
+    k.play('starShimmer', bt + 2.2, { gain: 0.85 });
+    k.play('footstep', bt + 0.2, { n: 5, rate: 0.42 });
+  }
+
+  if (window.DK && DK.scheduleTransitions) {
+    DK.scheduleTransitions(k, SHOTS, B, THEME);
+  }
+}
+
+// ============================================================================
+// STUDIO PLAYER & HEADLESS RENDER HOOK BOILERPLATE
+// ============================================================================
+if (window.DK && DK.linkShotTransitions) DK.linkShotTransitions(SHOTS, window.THEME);
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const BATCH_START = SHOTS[0].start;
+const BATCH_END = SHOTS[SHOTS.length - 1].end;
+const DURATION = BATCH_END - BATCH_START;
+window.BATCH_START = BATCH_START;
+window.BATCH_END = BATCH_END;
+window.DURATION = DURATION;
+window.SHOTS = SHOTS;
+window.scoreSound = scoreSound;
+let currentT = 0;
+let playing = false;
+let rafId = null;
+let lastTs = 0;
+let stopSound = null;
+let activeShotFilter = 'all';
+let voAudio = null;
+
+function findShotAtGlobal(gt) {
+  for (let i = 0; i < SHOTS.length; i++) {
+    if (gt >= SHOTS[i].start && gt <= SHOTS[i].end) return SHOTS[i];
+  }
+  return gt < SHOTS[0].start ? SHOTS[0] : SHOTS[SHOTS.length - 1];
+}
+
+function renderAtLocal(localT) {
+  currentT = DK.clamp(localT, 0, DURATION);
+  const gt = BATCH_START + currentT;
+  const s = findShotAtGlobal(gt);
+  const lt = DK.clamp(gt - s.start, 0, s.duration);
+  const u = s.duration > 0 ? lt / s.duration : 0;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, 1920, 1080);
+  ctx.save();
+  if (window.DK && DK.drawShot) {
+    DK.drawShot(ctx, s, lt, gt, u);
+  } else {
+    s.draw(ctx, lt, gt, u);
+  }
+  ctx.restore();
+  document.getElementById('scrub').value = DURATION > 0 ? currentT / DURATION : 0;
+  document.getElementById('readout').textContent =
+    gt.toFixed(2) + 's (' + currentT.toFixed(2) + 's) · Shot ' + s.shot_number;
+}
+
+window.seek = function (t, opts) {
+  if (playing) pause();
+  const localT = opts && opts.global ? t - BATCH_START : t;
+  renderAtLocal(localT);
+};
+
+function startAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  const mixMode = document.getElementById('mixSelect').value;
+  if (mixMode !== 'mute' && window.SOUND) {
+    stopSound = SOUND.live(scoreSound, currentT, { mixMode: 'sfxOnly' });
+  }
+  if (voAudio) {
+    voAudio.currentTime = BATCH_START + currentT;
+    voAudio.play().catch(() => {});
+  }
+}
+
+function stopAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  if (voAudio) voAudio.pause();
+}
+
+function play() {
+  if (playing) return;
+  playing = true;
+  document.getElementById('playBtn').textContent = 'Pause';
+  lastTs = performance.now();
+  startAudio();
+  const tick = (now) => {
+    if (!playing) return;
+    const dt = (now - lastTs) / 1000;
+    lastTs = now;
+    let nextT = currentT + dt;
+    if (activeShotFilter !== 'all') {
+      const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+      if (s) {
+        const sLocal0 = s.start - BATCH_START;
+        const sLocal1 = s.end - BATCH_START;
+        if (nextT >= sLocal1) { nextT = sLocal0; currentT = nextT; startAudio(); }
+      }
+    } else if (nextT >= DURATION) {
+      nextT = 0; currentT = 0; startAudio();
+    }
+    renderAtLocal(nextT);
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+}
+
+function pause() {
+  playing = false;
+  document.getElementById('playBtn').textContent = 'Play';
+  if (rafId) cancelAnimationFrame(rafId);
+  stopAudio();
+}
+
+const shotSelect = document.getElementById('shotSelect');
+SHOTS.forEach((s) => {
+  const opt = document.createElement('option');
+  opt.value = String(s.shot_number);
+  opt.textContent = 'Shot ' + s.shot_number + ': ' + s.title + ' (' + s.start.toFixed(1) + 's-' + s.end.toFixed(1) + 's)';
+  shotSelect.appendChild(opt);
+});
+shotSelect.addEventListener('change', () => {
+  activeShotFilter = shotSelect.value;
+  if (activeShotFilter !== 'all') {
+    const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+    if (s) { renderAtLocal(s.start - BATCH_START); if (playing) startAudio(); }
+  }
+});
+document.getElementById('playBtn').addEventListener('click', () => (playing ? pause() : play()));
+document.getElementById('scrub').addEventListener('input', (e) => {
+  renderAtLocal(parseFloat(e.target.value) * DURATION);
+  if (playing) startAudio();
+});
+document.getElementById('mixSelect').addEventListener('change', () => { if (playing) startAudio(); });
+document.getElementById('voInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  voAudio = new Audio(URL.createObjectURL(file));
+});
+document.getElementById('wavBtn').addEventListener('click', async () => {
+  const res = await SOUND.renderOffline(scoreSound, DURATION, 48000, { mixMode: 'sfxOnly' });
+  const blob = SOUND.encodeWAV(res.inter, res.sr);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'batch_sfx_' + SHOTS[0].shot_number + '_' + SHOTS[SHOTS.length - 1].shot_number + '.wav';
+  a.click();
+});
+window.addEventListener('DOMContentLoaded', async () => {
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  renderAtLocal(0);
+});
+</script>
+</body></html>

@@ -1,0 +1,21 @@
+# Node dependencies
+node_modules/
+npm-debug.log*
+
+# Rendered MP4s, WAVs, and temporary build artifacts
+projects/*/build/
+*.mp4
+*.mov
+*.mkv
+*.wav
+*.mp3
+*.aac
+*.flac
+
+# OS & Editor temporary files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.bak
+New Text Document.txt

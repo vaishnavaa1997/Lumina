@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8" /><title>Lumina 2.5D / 3D-Parallax (16:9) — Shots 51 to 60 (Imperial Cholas & Brihadeeswarar Temple)</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Space+Mono:wght@700&display=swap" rel="stylesheet"><style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #05070d; color: #e2e8f0; font-family: 'Nunito', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+#stage-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; position: relative; overflow: hidden; }
+canvas { max-width: 100%; max-height: 100%; aspect-ratio: 16 / 9; box-shadow: 0 16px 48px rgba(0,0,0,0.75); background: #070b16; }
+#controls { height: 58px; background: #101522; border-top: 1px solid #222b42; display: flex; align-items: center; gap: 12px; padding: 0 18px; font-size: 13px; }
+button, select, label.btn { background: #1c2539; color: #f8fafc; border: 1px solid #334155; border-radius: 6px; padding: 6px 12px; font-family: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+button:hover, select:hover, label.btn:hover { background: #283552; border-color: #ff8a3d; }
+#scrub { flex: 1; accent-color: #ff8a3d; cursor: pointer; }
+#readout { font-family: 'Space Mono', monospace; font-size: 12px; color: #ffb074; min-width: 230px; }
+</style></head><body><div id="stage-wrap"><canvas id="stage" width="1920" height="1080"></canvas></div><div id="controls"><button id="playBtn">Play</button><input id="scrub" type="range" min="0" max="1" step="0.001" value="0" /><div id="readout">00.0s / 00.0s · Shot 51</div><select id="shotSelect"><option value="all">All Shots in Batch (51–60)</option></select><select id="mixSelect"><option value="sfxOnly" selected>SFX + Ambient Only (No BGM)</option><option value="mute">Mute</option></select><label class="btn">Load vo.wav <input id="voInput" type="file" accept="audio/*" style="display:none" /></label><button id="wavBtn">Export Batch SFX (.wav)</button></div>
+
+<script src="../../engine.js"></script>
+<script>
+// ============================================================================
+// LOCKED MASTER THEME DICTIONARY (STEP 9)
+// ============================================================================
+const THEME = {
+  PROJECT: {
+    title: '4,200 Years of Tamil Nadu History (2170 BCE – Present)',
+    width: 1920,
+    height: 1080,
+    fps: 60,
+    totalDuration: 497.8,
+    totalShots: 125,
+  },
+
+  CHARS: {
+    CHAR_VIEWER_PROTAG: {
+      tier: 1,
+      era: 'modern',
+      skin: '#D69A72',
+      hairStyle: 'curlyCloud',
+      hairColor: '#261C1A',
+      wardrobe: 'sweater',
+      topColor: '#FF851B',
+      bottomColor: '#28808C',
+      headwear: 'none',
+      prop: 'phone',
+      allowModern: true,
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_ARCHAEOLOGIST: {
+      tier: 1,
+      era: 'modern',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#261C1A',
+      wardrobe: 'shirtTie',
+      topColor: '#C98A2C',
+      bottomColor: '#2D3748',
+      headwear: 'none',
+      prop: 'hammer',
+      allowModern: true,
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_IRON_SMITH: {
+      tier: 1,
+      era: '2170_BCE_Mayiladumparai',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'prehistoric',
+      topColor: '#8C5832',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      beard: true,
+      mustache: true,
+      prop: 'hammer',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'grimace',
+    },
+    CHAR_IRON_HELPER: {
+      tier: 2,
+      era: '2170_BCE_Mayiladumparai',
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'prehistoric',
+      topColor: '#785238',
+      bottomColor: '#E8E4DC',
+      headwear: 'none',
+      prop: 'none',
+      defaultAction: 'push',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'neutral',
+    },
+    CHAR_TAMIL_FARMER: {
+      tier: 1,
+      era: 'ancientTamil',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#F4EFE6',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      prop: 'walkingStick',
+      defaultAction: 'walk',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+    },
+    CHAR_SANGAM_POET: {
+      tier: 1,
+      era: '600_BCE_Sangam',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#F4EFE6',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      prop: 'palmLeaf',
+      defaultAction: 'write',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_KEELADI_WEAVER: {
+      tier: 2,
+      era: '580_BCE_Keeladi',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#D96B27',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'tilak',
+      prop: 'palmLeaf',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+    },
+    CHAR_KEELADI_BUILDER: {
+      tier: 1,
+      era: '580_BCE_Keeladi',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#C98A2C',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      prop: 'hammer',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'smile',
+    },
+    CHAR_TAMIL_MERCHANT: {
+      tier: 1,
+      era: 'Sangam_to_Chola',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#28808C',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'coinBag',
+      defaultAction: 'trade',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_PALLAVA_SCULPTOR: {
+      tier: 1,
+      era: 'Pallava_and_Chola_Architecture',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#F4EFE6',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      prop: 'hammer',
+      defaultAction: 'build',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'smile',
+    },
+    CHAR_VIJAYALAYA_CHOLA: {
+      tier: 1,
+      era: '850_CE_Imperial_Chola',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      beard: true,
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'flag',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_RAJARAJA_CHOLA: {
+      tier: 1,
+      era: '985_CE_Imperial_Chola',
+      skin: '#C88C68',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      beard: true,
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'scroll',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+    CHAR_RAJENDRA_CHOLA: {
+      tier: 1,
+      era: '1014_CE_Imperial_Chola',
+      skin: '#7A4E38',
+      hairStyle: 'bun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#E53935',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      mustache: true,
+      foreheadMark: 'vibhuti',
+      prop: 'sword',
+      defaultAction: 'march',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+    },
+  },
+
+  ANIMALS: {
+    ANIMAL_ROYAL_ELEPHANT: {
+      kind: 'elephant',
+      royal: true,
+      color: '#7C8494',
+      caparisonColor: '#C92A2A',
+      trimColor: '#FFD54F',
+      defaultAction: 'walk',
+    },
+  },
+
+  ENVS: {
+    ENV_ROYAL_AVENUE: { mood: 'ancientTemple', archStyle: 'ancientTamil', lightDir: [-0.65, -0.75] },
+    ENV_MONSOON_TO_DAWN: { mood: 'monsoonLush', altMood: 'sunriseFlight', archStyle: 'ancientTamil', lightDir: [-0.60, -0.78] },
+    ENV_THANJAVUR_BIG_TEMPLE: { mood: 'ancientTemple', altMood: 'golden', archStyle: 'ancientTamil', lightDir: [-0.65, -0.75] },
+    ENV_MODERN_CHENNAI: { mood: 'urbanMorning', altMood: 'cyberFuture', archStyle: 'modern', lightDir: [-0.65, -0.75] },
+    ENV_XRAY_BLUEPRINT: { mood: 'xrayBlue', archStyle: 'none', lightDir: [-0.50, -0.85] },
+  },
+
+  INFO: {
+    INFO_DIAL_CHOLA: { type: 'eraChapterDial', hourText: 'ERA 4 · 850–1279 CE', titleText: 'CHOLA EMPIRE', subText: 'Founded by Vijayalaya Chola', progress: 0.42, portholeStyle: 'ancientTemple' },
+    INFO_LEGO_INTERLOCK: { type: 'legoInterlock', label: 'PRECISION INTERLOCKING STONE SYSTEM (உள்-பூட்டு முறை)' },
+  },
+
+  SHOTS: {
+    51: { start: 186.1, end: 190.3, duration: 4.2, env_id: 'ENV_ROYAL_AVENUE', transOut: { type: 'DEPTH_RACK_FOCUS' } },
+    52: { start: 190.3, end: 193.5, duration: 3.2, env_id: 'ENV_ROYAL_AVENUE', info_id: 'INFO_DIAL_CHOLA', transOut: { type: 'HARD_CUT' }, citation: 'Tiruvalangadu Copper Plates of Rajendra Chola I' },
+    53: { start: 193.5, end: 197.8, duration: 4.3, env_id: 'ENV_ROYAL_AVENUE', transOut: { type: 'SCANNER_WIPE', dir: 'left', accent: '#FFB84D' } },
+    54: { start: 197.8, end: 201.7, duration: 3.9, env_id: 'ENV_MONSOON_TO_DAWN', transOut: { type: 'HARD_CUT' }, citation: 'Uthiramerur Inscriptions of Parantaka I (920 CE) & Rajaraja I Land Survey' },
+    55: { start: 201.7, end: 204.8, duration: 3.1, env_id: 'ENV_ROYAL_AVENUE', transOut: { type: 'WHIP_TILT_UP' } },
+    56: { start: 204.8, end: 207.1, duration: 2.3, env_id: 'ENV_THANJAVUR_BIG_TEMPLE', transOut: { type: 'CAMERA_DOLLY_OUT', target: [960, 540] }, citation: 'UNESCO World Heritage Site: Great Living Chola Temples' },
+    57: { start: 207.1, end: 209.8, duration: 2.7, env_id: 'ENV_MONSOON_TO_DAWN', transOut: { type: 'WHIP_PAN_LEFT' } },
+    58: { start: 209.8, end: 216.6, duration: 6.8, env_id: 'ENV_THANJAVUR_BIG_TEMPLE', transOut: { type: 'HARD_CUT' }, citation: 'ASI Architectural Survey of Brihadeeswarar Temple (1998)' },
+    59: { start: 216.6, end: 218.5, duration: 1.9, env_id: 'ENV_MODERN_CHENNAI', transOut: { type: 'XRAY_DISSOLVE', target: [960, 540] } },
+    60: { start: 218.5, end: 223.2, duration: 4.7, env_id: 'ENV_XRAY_BLUEPRINT', info_id: 'INFO_LEGO_INTERLOCK', transOut: { type: 'MATCH_CUT_SCALE', target: [960, 540] } },
+  },
+};
+window.THEME = THEME;
+
+// ============================================================================
+// BESPOKE CHOLA ARCHITECTURAL & ENGINEERING SET-PIECE HELPERS
+// ============================================================================
+
+// Helper: Draw Chola Tiger Standards / Royal Banners along avenues
+function drawCholaTigerBanner(g, x, y, s = 1, t = 0) {
+  g.save();
+  g.translate(x, y);
+  g.scale(s, s);
+  const wave = Math.sin(t * 4.5 + x * 0.01) * 10;
+  // Bronze flagpole + finial
+  DK.seg(g, [[0, 0], [0, -320]], 8, '#8C5832');
+  DK.circle(g, 0, -328, 12, '#FFD54F');
+  // Crimson & Saffron Royal Chola Pennant
+  DK.poly(
+    g,
+    [
+      [0, -310],
+      [135, -295 + wave],
+      [110, -245 + wave * 0.8],
+      [140, -195 + wave],
+      [0, -205],
+    ],
+    '#C92A2A',
+    '#FFD54F',
+    3
+  );
+  // Stylized Golden Jumping Tiger Emblem (Puli Kodi)
+  DK.ellipse(g, 58, -254 + wave * 0.5, 24, 10, '#FFD54F', -0.18);
+  DK.circle(g, 82, -262 + wave * 0.6, 9, '#FFD54F');
+  DK.seg(g, [[34, -252 + wave * 0.4], [18, -268 + wave * 0.3]], 4, '#FFD54F');
+  g.restore();
+}
+
+// Helper: Draw Monumental 216-ft, 13-Tiered Brihadeeswarar Temple Vimana (Shots 56 & 58)
+function drawBrihadeeswararVimana(g, cx, baseY, s = 1, o = {}) {
+  const { underConstruction = false, t = 0 } = o;
+  g.save();
+  g.translate(cx, baseY);
+  g.scale(s, s);
+
+  // Base Adhishthana & Double-Storey Sanctum Wall (Srivimana Base)
+  const baseW = 540;
+  const baseH = 150;
+  DK.rr(g, -baseW / 2, -baseH, baseW, baseH, 8);
+  g.fillStyle = DK.cylinderGrad(g, -baseW / 2, -baseH, baseW / 2, 0, '#A67249', -1);
+  g.fill();
+  g.strokeStyle = '#6E472B';
+  g.lineWidth = 3;
+  g.stroke();
+
+  // Carved Pilasters & Niches on Base Wall
+  for (let i = -4; i <= 4; i++) {
+    const px = i * 54;
+    DK.rr(g, px - 10, -baseH + 14, 20, baseH - 22, 4);
+    g.fillStyle = DK.shade('#A67249', i % 2 === 0 ? 0.1 : -0.12);
+    g.fill();
+  }
+
+  // 13 Stepped Pyramid Tiers (Talas) Rising to 216 Feet
+  const tiers = 13;
+  const totalPyramidH = 440;
+  const tierH = totalPyramidH / tiers;
+  for (let i = 0; i < tiers; i++) {
+    const u0 = i / tiers;
+    const u1 = (i + 1) / tiers;
+    const w0 = DK.lerp(baseW * 0.92, 148, u0);
+    const w1 = DK.lerp(baseW * 0.92, 148, u1);
+    const y0 = -baseH - i * tierH;
+    const y1 = y0 - tierH;
+    const tierCol = DK.shade('#B88256', (i % 2) * 0.06 - 0.04);
+
+    DK.poly(
+      g,
+      [
+        [-w0 / 2, y0],
+        [w0 / 2, y0],
+        [w1 / 2, y1],
+        [-w1 / 2, y1],
+      ],
+      DK.cylinderGrad(g, -w0 / 2, y1, w0 / 2, y0, tierCol, -1),
+      '#6E472B',
+      1.8
+    );
+
+    // Kudu / Sala miniature shrines along each tier cornice
+    const shrines = Math.max(3, 9 - Math.floor(i * 0.5));
+    for (let k = 0; k < shrines; k++) {
+      const sx = DK.lerp(-w1 * 0.42, w1 * 0.42, k / Math.max(1, shrines - 1));
+      DK.rr(g, sx - 6, y1 + 4, 12, tierH - 6, 3);
+      g.fillStyle = '#D9A16C';
+      g.fill();
+    }
+  }
+
+  // Top Platform (Griva) + Nandi Bulls at Corners
+  const topY = -baseH - totalPyramidH;
+  DK.rr(g, -82, topY - 22, 164, 22, 4);
+  g.fillStyle = '#9C6840';
+  g.fill();
+
+  // 80-Ton Octagonal Cupola (Kumbam / Shikhara)
+  g.beginPath();
+  g.moveTo(-78, topY - 22);
+  g.bezierCurveTo(-92, topY - 88, -38, topY - 112, 0, topY - 112);
+  g.bezierCurveTo(38, topY - 112, 92, topY - 88, 78, topY - 22);
+  g.closePath();
+  g.fillStyle = DK.sphereGrad(g, 0, topY - 68, 86, '#C89262', [-0.6, -0.75], 0.22);
+  g.fill();
+  g.strokeStyle = '#FFD54F';
+  g.lineWidth = 2.5;
+  g.stroke();
+
+  // Gold-Plated Copper Kalasam Finial (12.5 ft tall)
+  if (!underConstruction) {
+    DK.glow(g, 0, topY - 138, 64, '#FFD54F', 0.75);
+    DK.seg(g, [[0, topY - 112], [0, topY - 164]], 7, '#FFD54F');
+    DK.circle(g, 0, topY - 126, 13, '#FFD54F');
+    DK.circle(g, 0, topY - 144, 9, '#FFF3B0');
+    DK.circle(g, 0, topY - 164, 5, '#FFFFFF');
+  } else {
+    // Timber & Bamboo Scaffolding Lattice around Upper Tiers (Shot 58)
+    g.strokeStyle = 'rgba(217, 168, 108, 0.65)';
+    g.lineWidth = 3;
+    for (let sx = -240; sx <= 240; sx += 60) {
+      g.beginPath();
+      g.moveTo(sx, 0);
+      g.lineTo(sx * 0.45, topY - 90);
+      g.stroke();
+    }
+    for (let sy = -80; sy >= topY - 60; sy -= 55) {
+      const span = DK.lerp(260, 110, Math.abs(sy) / 620);
+      g.beginPath();
+      g.moveTo(-span, sy);
+      g.lineTo(span, sy);
+      g.stroke();
+    }
+  }
+
+  g.restore();
+}
+
+// Helper: Draw Uthiramerur Stone Dais & Kudavolai Terracotta Ballot Pot (Shot 54)
+function drawKudavolaiPotAndDais(g, x, y, lt) {
+  g.save();
+  g.translate(x, y);
+
+  // Uthiramerur Inscription Stone Wall Backdrop
+  DK.rr(g, -280, -340, 560, 260, 10);
+  g.fillStyle = DK.cylinderGrad(g, -280, -340, 280, -80, '#6E5A48', -1);
+  g.fill();
+  g.strokeStyle = '#9C846C';
+  g.lineWidth = 3;
+  g.stroke();
+
+  // Carved Tamil-Brahmi / Vatteluttu / Chola Grantha Inscription Lines on Stone Wall
+  g.strokeStyle = 'rgba(255, 235, 195, 0.35)';
+  g.lineWidth = 2;
+  for (let row = 0; row < 7; row++) {
+    const ry = -310 + row * 30;
+    g.beginPath();
+    g.moveTo(-240, ry);
+    g.lineTo(240, ry);
+    g.stroke();
+  }
+
+  // Stepped Stone Sabha Dais
+  DK.contactShadow(g, 0, 96, 190, 18, 0.38);
+  DK.rr(g, -170, 35, 340, 62, 8);
+  g.fillStyle = '#7C6652';
+  g.fill();
+  DK.rr(g, -130, -10, 260, 48, 8);
+  g.fillStyle = '#8F7760';
+  g.fill();
+
+  // Sacred Brass Oil Lamps (Kuthuvilakku) Flanking the Pot
+  [-105, 105].forEach((lx) => {
+    DK.seg(g, [[lx, -10], [lx, -85]], 6, '#D99B26');
+    DK.ellipse(g, lx, -10, 18, 6, '#B87333');
+    DK.ellipse(g, lx, -85, 16, 5, '#FFD54F');
+    DK.glow(g, lx, -96, 32, '#FFAE38', 0.85);
+    DK.circle(g, lx, -94, 6, '#FFF5D6');
+  });
+
+  // Terracotta Kudavolai Ballot Pot (குடவோலை)
+  DK.circle(g, 0, -56, 46, DK.sphereGrad(g, 0, -56, 46, '#D96B27', [-0.6, -0.75], 0.22));
+  // Decorative white & gold ceremonial bands on pot
+  DK.seg(g, [[-43, -58], [43, -58]], 4, '#FFF6D6');
+  DK.seg(g, [[-38, -44], [38, -44]], 3, '#FFD54F');
+  // Pot Neck & Rim
+  DK.rr(g, -28, -108, 56, 18, 8);
+  g.fillStyle = '#B85218';
+  g.fill();
+  DK.ellipse(g, 0, -108, 30, 8, '#6E2B0C');
+
+  // Animated Palm-Leaf Ballot (ஓலைச்சுவடி) Dropping into the Pot at lt = 1.6..2.3s
+  const dropU = DK.clamp((lt - 1.55) / 0.55, 0, 1);
+  if (dropU > 0 && dropU < 1) {
+    const by = DK.lerp(-185, -108, DK.ease.inOut(dropU));
+    g.save();
+    g.translate(0, by);
+    g.rotate(0.25 * (1 - dropU));
+    DK.rr(g, -22, -8, 44, 16, 3);
+    g.fillStyle = '#F5D796';
+    g.fill();
+    g.strokeStyle = '#B38B4D';
+    g.lineWidth = 2;
+    g.stroke();
+    g.restore();
+  }
+  if (lt >= 1.95) {
+    DK.glow(g, 0, -112, 48 * (1 - DK.clamp((lt - 1.95) / 0.8, 0, 1)), '#FFD54F', 0.8);
+  }
+
+  g.restore();
+}
+
+// ============================================================================
+// SHOT DEFINITIONS (SHOTS 51 TO 60 · 186.1s – 223.2s)
+// ============================================================================
+const SHOTS = [
+  // --------------------------------------------------------------------------
+  // SHOT 51: Rise of the Imperial Cholas of Thanjavur (186.1s – 190.3s · 4.2s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 51,
+    title: 'Rise of the Imperial Cholas of Thanjavur',
+    start: 186.1,
+    end: 190.3,
+    duration: 4.2,
+    vo_line: 'அப்பதான் தஞ்சாவூர்ல இருந்த சோழ அரசு இவங்க எல்லாத்தையும் வீழ்த்தி ஒரு பேரரசாவும் மாறுது.',
+    env_id: 'ENV_ROYAL_AVENUE',
+    chars: 'CHAR_VIJAYALAYA_CHOLA (march, moveX: 380 -> 960)',
+    on_screen_text: 'RISE OF THE IMPERIAL CHOLAS · THANJAVUR (850 CE)',
+    camera_sfx: 'Golden Z-dolly 0.98->1.08 · wind + marchSteps + templeBell',
+    transOut: { type: 'DEPTH_RACK_FOCUS' },
+    draw(g, lt, gt, u) {
+      const m = DK.mood('golden');
+      const cam = {
+        x: 0,
+        y: DK.key(lt, [[0.0, 15], [4.2, -15]], DK.ease.outCubic),
+        z: DK.key(lt, [[0.0, 0.98], [4.2, 1.08]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, ['#5A4878', '#D68356', '#F2B878', '#FCE2A6']);
+          FX.sun(g, 960, 250, 88, '#FFF6E0', '#FFD494', 4.5);
+          FX.clouds(g, { seed: 51, count: 6, y: 160, h: 120, color: '#FFF5EA', a: 0.25, t: gt, speed: 12 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 4,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 51, y: 770, amp: 70, color: '#4A302A' });
+          FX.skyline(g, { style: 'ancientTamil', y: 760, color: '#3D2824', lit: 0.6, seed: 51 });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          FX.architecture1P(g, { style: 'ancientTamil', vx: 960, vy: 220, lit: 0.75, wallColor: '#8C583A' });
+          FX.godRays(g, 960, 0, { count: 8, color: '#FFD494', a: 0.22, t: gt });
+          FX.ground(g, 840, '#3D2824', '#FFD494', 0.28, true);
+          drawCholaTigerBanner(g, 340, 840, 0.95, gt);
+          drawCholaTigerBanner(g, 1580, 840, 0.95, gt);
+        },
+        mgHero: (g) => {
+          // Royal Chola Vanguard Retinue Marching Behind Vijayalaya Chola
+          DK.crowd(g, {
+            count: 4,
+            x0: 140,
+            x1: 520,
+            y: 828,
+            s: 0.88,
+            wardrobe: 'ancientTamil',
+            behavior: 'march',
+            moveOffset: lt * 125,
+            t: gt,
+            seed: 510,
+          });
+
+          // Hero: Vijayalaya Chola Marching Triumphantly to Center Stage
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_VIJAYALAYA_CHOLA,
+            moveX: [380, 960, lt, 4.2],
+            y: 840,
+            s: 1.08,
+            prop: 'flag',
+            pose: { preset: 'march', speed: 1.1 },
+            eyeMode: 'warm',
+            look: [0.25, -0.1],
+            brows: 'raised',
+            mouth: 'smile',
+            lightDir: [-0.70, -0.70],
+            t: gt,
+            seed: 51,
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 51, count: 14, color: '#FFE7B0', a: 0.20 });
+          FX.dust(g, gt, { seed: 51, count: 40, color: '#FFE7B0', a: 0.35 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.30,
+        x: 960,
+        y: 160,
+        text: 'RISE OF THE IMPERIAL CHOLAS · THANJAVUR (850 CE)',
+        border: '#FFD54F',
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.36, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 52: Era Chapter Dial — Vijayalaya Chola (190.3s – 193.5s · 3.2s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 52,
+    title: 'Era Chapter Dial — Vijayalaya Chola',
+    start: 190.3,
+    end: 193.5,
+    duration: 3.2,
+    vo_line: 'சுமாரா ஒரு 1000 வருஷத்துக்கு முன்னாடி விஜயாலய சோழன்ல ஆரம்பிச்ச இந்த சாம்ராஜ்யம்,',
+    env_id: 'ENV_ROYAL_AVENUE',
+    chars: 'CHAR_VIJAYALAYA_CHOLA (march, moveX: 1620 -> 1240)',
+    on_screen_text: 'ERA 4 · 850–1279 CE · CHOLA EMPIRE · Founded by Vijayalaya Chola',
+    camera_sfx: 'Z-dolly 0.96->1.04 · room + timerChime + counterTick',
+    transOut: { type: 'HARD_CUT' },
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: 0,
+        y: 0,
+        z: DK.key(lt, [[0.0, 0.96], [3.2, 1.04]], DK.ease.outCubic),
+        r: 0,
+      };
+
+      // Era 4 Chapter Dial Background & Porthole
+      UI.eraChapterDial(g, lt, {
+        t0: 0.05,
+        hourText: 'ERA 4 · 850–1279 CE',
+        titleText: 'CHOLA EMPIRE',
+        subText: 'Founded by Vijayalaya Chola',
+        progress: 0.42,
+        portholeStyle: 'ancientTemple',
+        dialX: 500,
+        dialY: 540,
+        dialR: 215,
+      });
+
+      // Hero Layer: Vijayalaya Chola Marching in from Right with Royal Sword
+      DK.layer(g, cam, 1.0, (g) => {
+        DK.char(g, {
+          ...THEME.CHARS.CHAR_VIJAYALAYA_CHOLA,
+          moveX: [1620, 1240, lt, 3.2],
+          y: 840,
+          s: 1.04,
+          prop: 'sword',
+          pose: { preset: 'march', speed: 1.05 },
+          eyeMode: 'warm',
+          look: [-0.35, 0.0],
+          brows: 'raised',
+          mouth: 'smile',
+          t: gt,
+          seed: 52,
+        });
+      });
+
+      UI.citation(g, 'Tiruvalangadu Copper Plates of Rajendra Chola I', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.35, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 53: Rajaraja Chola I & Rajendra Chola I — Global Superpowers (193.5s – 197.8s · 4.3s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 53,
+    title: 'Rajaraja Chola I & Rajendra Chola I — Global Superpowers',
+    start: 193.5,
+    end: 197.8,
+    duration: 4.3,
+    vo_line: 'ராஜராஜ சோழன், ராஜேந்திர சோழன் இந்த மாதிரி காலத்துல எல்லாம் உலகத்தையே திரும்பிப் பார்க்க வச்சது.',
+    env_id: 'ENV_ROYAL_AVENUE',
+    chars: 'CHAR_RAJARAJA_CHOLA (march, moveX: 380->780), CHAR_RAJENDRA_CHOLA (march, moveX: 620->1020)',
+    on_screen_text: 'RAJARAJA CHOLA I (985–1014 CE) · RAJENDRA CHOLA I (1014–1044 CE)',
+    camera_sfx: 'Pan X -50->50, Z 1.0->1.07 · room + marchSteps + 2x pillBadge',
+    transOut: { type: 'SCANNER_WIPE', dir: 'left', accent: '#FFB84D' },
+    draw(g, lt, gt, u) {
+      const m = DK.mood('ancientTemple');
+      const cam = {
+        x: DK.key(lt, [[0.0, -50], [4.3, 50]], DK.ease.inOutCubic),
+        y: 0,
+        z: DK.key(lt, [[0.0, 1.0], [4.3, 1.07]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.stars(g, gt, { seed: 53, count: 90 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 4,
+        bgFar: (g) => {
+          FX.skyline(g, { style: 'ancientTamil', y: 760, color: '#4A281E', lit: 0.55, seed: 53 });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          FX.architecture1P(g, { style: 'ancientTamil', vx: 960, vy: 220, lit: 0.7 });
+          FX.ground(g, 840, '#5C3824', '#FFE094', 0.28, true);
+          drawCholaTigerBanner(g, 260, 840, 0.9, gt);
+          // Rotating 3D Earth Globe on Right Highlighting Global Maritime Reach
+          FX.earthGlobe(g, 1520, 500, 230, {
+            rot: gt * 0.12,
+            cityLightsProg: 1.0,
+            flightArcs: 1.0,
+            pins: [{ angle: -0.4, label: 'THANJAVUR' }],
+          });
+        },
+        mgHero: (g) => {
+          // Emperor Rajaraja Chola I
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_RAJARAJA_CHOLA,
+            moveX: [380, 780, lt, 4.3],
+            y: 840,
+            s: 1.08,
+            prop: 'scroll',
+            pose: { preset: 'march', speed: 1.05 },
+            eyeMode: 'warm',
+            look: [0.3, 0.0],
+            brows: 'raised',
+            mouth: 'smile',
+            lightDir: m.lightDir,
+            t: gt,
+            seed: 531,
+          });
+
+          // Emperor Rajendra Chola I
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_RAJENDRA_CHOLA,
+            moveX: [620, 1020, lt, 4.3],
+            y: 840,
+            s: 1.08,
+            prop: 'sword',
+            pose: { preset: 'march', speed: 1.05 },
+            eyeMode: 'warm',
+            look: [0.3, 0.0],
+            brows: 'raised',
+            mouth: 'smile',
+            lightDir: m.lightDir,
+            t: gt,
+            seed: 532,
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 53, count: 14, color: m.practical, a: 0.18 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.30,
+        x: 640,
+        y: 170,
+        text: 'RAJARAJA CHOLA I (985–1014 CE)',
+        border: '#F7B928',
+      });
+      UI.pillBadge(g, lt, {
+        t0: 1.20,
+        x: 1180,
+        y: 170,
+        text: 'RAJENDRA CHOLA I (1014–1044 CE)',
+        border: '#E53935',
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.38, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 54: Kudavolai Democratic Elections & Land Survey System (197.8s – 201.7s · 3.9s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 54,
+    title: 'Kudavolai Democratic Elections & Land Survey System',
+    start: 197.8,
+    end: 201.7,
+    duration: 3.9,
+    vo_line: 'ராஜராஜ சோழன்லாம் ஊராட்சி சபைகள், நில அளவை முறை, ஜனநாயக தேர்தல்,',
+    env_id: 'ENV_MONSOON_TO_DAWN',
+    chars: 'CHAR_SANGAM_POET (walk->trade, moveX: 380->820), CHAR_TAMIL_FARMER (walk, moveX: 1140->1580)',
+    on_screen_text: 'KUDAVOLAI BALLOT SYSTEM (குடவோலை) & LAND SURVEY (1001 CE)',
+    camera_sfx: 'Pan X -40->40 · wind + footstep + pop',
+    transOut: { type: 'HARD_CUT' },
+    draw(g, lt, gt, u) {
+      const m = DK.mood('monsoonLush');
+      const cam = {
+        x: DK.key(lt, [[0.0, -40], [3.9, 40]], DK.ease.inOutCubic),
+        y: 0,
+        z: 1.04,
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.clouds(g, { seed: 54, count: 5, y: 150, h: 110, color: '#FFFFFF', a: 0.25, t: gt, speed: 10 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 4,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 54, y: 760, amp: 75, color: '#2E5840' });
+          FX.tree(g, 280, 780, 0.9, '#2E8540', 'palm');
+          FX.tree(g, 1660, 780, 0.95, '#2E8540', 'palm');
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          FX.architecture1P(g, { style: 'ancientTamil', vx: 960, vy: 220, lit: 0.5, wallColor: '#5C6658' });
+          FX.ground(g, 840, '#38473C', '#FFF6D6', 0.25, true);
+
+          // Central Uthiramerur Stone Dais & Terracotta Kudavolai Ballot Pot
+          drawKudavolaiPotAndDais(g, 960, 740, lt);
+
+          // Land Survey Measuring Markers (உலகளந்த கோல்) on Right Field
+          for (let i = 0; i < 4; i++) {
+            const mx = 1220 + i * 130;
+            DK.seg(g, [[mx, 840], [mx, 780]], 5, '#FFD54F');
+            DK.circle(g, mx, 778, 7, '#FF7722');
+          }
+          DK.seg(g, [[1220, 810], [1610, 810]], 2.5, 'rgba(255, 213, 79, 0.65)');
+        },
+        mgHero: (g) => {
+          // Citizen / Scholar Dropping Palm-Leaf Ballot into Kudavolai Pot
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_SANGAM_POET,
+            moveX: [380, 820, lt, 3.9],
+            y: 840,
+            s: 1.0,
+            wardrobe: 'ancientTamil',
+            prop: 'palmLeaf',
+            pose: { preset: lt < 1.95 ? 'walk' : 'trade', walk: 1.0, speed: 1.0 },
+            eyeMode: 'warm',
+            brows: 'raised',
+            mouth: 'smile',
+            lightDir: m.lightDir,
+            t: gt,
+            seed: 541,
+          });
+
+          // Land Surveyor / Farmer Measuring Agricultural Plots on Right
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_TAMIL_FARMER,
+            moveX: [1140, 1580, lt, 3.9],
+            y: 840,
+            s: 1.0,
+            wardrobe: 'ancientTamil',
+            prop: 'walkingStick',
+            pose: { preset: 'walk', speed: 1.0 },
+            eyeMode: 'warm',
+            brows: 'neutral',
+            mouth: 'smile',
+            lightDir: m.lightDir,
+            t: gt,
+            seed: 542,
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 54, count: 12, color: '#FFC44D', a: 0.16 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.25,
+        x: 960,
+        y: 160,
+        text: 'KUDAVOLAI BALLOT SYSTEM (குடவோலை) & LAND SURVEY (1001 CE)',
+        border: '#FFD54F',
+      });
+      UI.citation(g, 'Uthiramerur Inscriptions of Parantaka I (920 CE) & Rajaraja I Land Survey', { align: 'left' });
+
+      DK.finishFrame(g, gt, { vignette: 0.35, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 55: Progressive Chola Governance (201.7s – 204.8s · 3.1s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 55,
+    title: 'Progressive Chola Governance',
+    start: 201.7,
+    end: 204.8,
+    duration: 3.1,
+    vo_line: 'இந்த மாதிரியான முற்போக்கு சிந்தனைகள் எல்லாம் அப்பவே அவர் வச்சிருந்தாரு.',
+    env_id: 'ENV_ROYAL_AVENUE',
+    chars: 'CHAR_RAJARAJA_CHOLA (trade, moveX: 580->980), CHAR_TAMIL_MERCHANT (trade, moveX: 1480->1180)',
+    on_screen_text: 'VILLAGE SABHAS · WATER MANAGEMENT · MARITIME GUILDS',
+    camera_sfx: 'Z-dolly 1.0->1.06 · room + 3x pillBadge',
+    transOut: { type: 'WHIP_TILT_UP' },
+    draw(g, lt, gt, u) {
+      const m = DK.mood('ancientTemple');
+      const cam = {
+        x: 0,
+        y: 0,
+        z: DK.key(lt, [[0.0, 1.0], [3.1, 1.06]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 4,
+        bgFar: (g) => {
+          FX.skyline(g, { style: 'ancientTamil', y: 760, color: '#4A2A1E', lit: 0.5, seed: 55 });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          FX.architecture1P(g, { style: 'ancientTamil', vx: 960, vy: 220, lit: 0.65 });
+          FX.godRays(g, 960, 0, { count: 6, color: '#FFE094', a: 0.18, t: gt });
+          FX.ground(g, 840, m.floor, m.key, 0.25, true);
+          drawCholaTigerBanner(g, 380, 840, 0.9, gt);
+          drawCholaTigerBanner(g, 1540, 840, 0.9, gt);
+        },
+        mgHero: (g) => {
+          // Rajaraja Chola Presenting Royal Charter
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_RAJARAJA_CHOLA,
+            moveX: [580, 980, lt, 3.1],
+            y: 840,
+            s: 1.06,
+            prop: 'scroll',
+            pose: { preset: 'trade', walk: 1.0, speed: 1.0 },
+            eyeMode: 'warm',
+            brows: 'raised',
+            mouth: 'smile',
+            lightDir: m.lightDir,
+            t: gt,
+            seed: 551,
+          });
+
+          // Guild Merchant Receiving Charter on Right
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_TAMIL_MERCHANT,
+            moveX: [1480, 1180, lt, 3.1],
+            y: 840,
+            s: 1.0,
+            prop: 'palmLeaf',
+            pose: { preset: 'trade', walk: 1.0, speed: 1.0 },
+            eyeMode: 'warm',
+            brows: 'raised',
+            mouth: 'smile',
+            lightDir: m.lightDir,
+            t: gt,
+            seed: 552,
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 55, count: 14, color: m.practical, a: 0.18 });
+        },
+      });
+
+      UI.pillBadge(g, lt, { t0: 0.25, x: 520, y: 180, text: 'VILLAGE SABHAS', border: '#FFD54F' });
+      UI.pillBadge(g, lt, { t0: 0.85, x: 960, y: 180, text: 'WATER MANAGEMENT', border: '#5CE1FF' });
+      UI.pillBadge(g, lt, { t0: 1.45, x: 1400, y: 180, text: 'MARITIME GUILDS', border: '#38C878' });
+
+      DK.finishFrame(g, gt, { vignette: 0.36, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 56: The Towering Brihadeeswarar Temple (Big Temple) (204.8s – 207.1s · 2.3s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 56,
+    title: 'The Towering Brihadeeswarar Temple (Big Temple)',
+    start: 204.8,
+    end: 207.1,
+    duration: 2.3,
+    vo_line: 'தஞ்சை பெரிய கோயிலும் ராஜராஜ சோழன் கட்டுனதுதான்.',
+    env_id: 'ENV_THANJAVUR_BIG_TEMPLE',
+    chars: 'CHAR_RAJARAJA_CHOLA (admire), CHAR_PALLAVA_SCULPTOR (walk, moveX: 1480->1240)',
+    on_screen_text: 'BRIHADEESWARAR TEMPLE (தஞ்சை பெரிய கோயில் · 1010 CE)',
+    camera_sfx: 'Tilt Y 60->-40, Z 1.06->0.98 · wind + templeBell',
+    transOut: { type: 'CAMERA_DOLLY_OUT', target: [960, 540] },
+    draw(g, lt, gt, u) {
+      const m = DK.mood('golden');
+      const cam = {
+        x: 0,
+        y: DK.key(lt, [[0.0, 60], [2.3, -40]], DK.ease.outCubic),
+        z: DK.key(lt, [[0.0, 1.06], [2.3, 0.98]], DK.ease.outCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.sun(g, 960, 220, 110, '#FFF6E0', '#FFD494', 4.8);
+          FX.cumulusDeck(g, gt, { y: 740, seed: 56, palette: 'golden', speed: 16 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 4,
+        bgFar: (g) => {
+          FX.skyline(g, { style: 'ancientTamil', y: 790, color: '#4A2C22', lit: 0.45, seed: 56 });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          FX.godRays(g, 960, 180, { count: 8, color: '#FFD494', a: 0.25, t: gt });
+          FX.ground(g, 860, '#3D2824', '#FFD494', 0.30, true);
+          // Monumental 216-ft, 13-Tiered Brihadeeswarar Temple Vimana
+          drawBrihadeeswararVimana(g, 960, 860, 0.96, { underConstruction: false, t: gt });
+        },
+        mgHero: (g) => {
+          // Emperor Rajaraja Chola I Admiring His Completed 216-ft Vimana
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_RAJARAJA_CHOLA,
+            x: 560,
+            y: 860,
+            s: 1.04,
+            prop: 'scroll',
+            pose: { preset: 'admire' },
+            eyeMode: 'warm',
+            look: [0.35, -0.4],
+            brows: 'raised',
+            mouth: 'smile',
+            lightDir: [-0.70, -0.70],
+            t: gt,
+            seed: 561,
+          });
+
+          // Chief Architect Kunjara Mallan Rajaraja Perunthachan Walking in with Blueprint Scroll
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_PALLAVA_SCULPTOR,
+            moveX: [1480, 1240, lt, 2.3],
+            y: 860,
+            s: 1.0,
+            prop: 'scroll',
+            pose: { preset: 'walk', speed: 1.0 },
+            eyeMode: 'warm',
+            look: [-0.35, -0.35],
+            brows: 'raised',
+            mouth: 'smile',
+            lightDir: [-0.70, -0.70],
+            t: gt,
+            seed: 562,
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 56, count: 16, color: '#FFE7B0', a: 0.22 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.15,
+        x: 960,
+        y: 140,
+        text: 'BRIHADEESWARAR TEMPLE (தஞ்சை பெரிய கோயில் · 1010 CE)',
+        border: '#FFD54F',
+      });
+      UI.citation(g, 'UNESCO World Heritage Site: Great Living Chola Temples', { align: 'left' });
+
+      DK.finishFrame(g, gt, { vignette: 0.36, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 57: Flat Alluvial Plains — Zero Mountains Around Thanjavur (207.1s – 209.8s · 2.7s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 57,
+    title: 'Flat Alluvial Plains — Zero Mountains Around Thanjavur',
+    start: 207.1,
+    end: 209.8,
+    duration: 2.7,
+    vo_line: 'அந்த time-ல தஞ்சாவூரை சுத்தி எந்த மலையும் பாறையும் கிடையாது.',
+    env_id: 'ENV_MONSOON_TO_DAWN',
+    chars: 'CHAR_VIEWER_PROTAG (walk, moveX: 480 -> 1080)',
+    on_screen_text: '0 GRANITE HILLS WITHIN 50 KM OF THANJAVUR',
+    camera_sfx: 'Pan X -50->50, Z 0.96 · wind + footstep + pillBadge',
+    transOut: { type: 'WHIP_PAN_LEFT' },
+    draw(g, lt, gt, u) {
+      const m = DK.mood('monsoonLush');
+      const cam = {
+        x: DK.key(lt, [[0.0, -50], [2.7, 50]], DK.ease.inOutCubic),
+        y: 0,
+        z: 0.96,
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.sun(g, 1460, 210, 68, '#FFF6D6', '#FFC44D', 3.8);
+          FX.clouds(g, { seed: 57, count: 6, y: 170, h: 110, color: '#FFFFFF', a: 0.28, t: gt, speed: 14 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 2,
+        bgFar: (g) => {
+          // Completely Flat 180-Degree Kaveri Delta Horizon (Zero Hills or Rocks!)
+          g.fillStyle = '#387A48';
+          g.fillRect(-600, 760, 3120, 60);
+          // Dashed Horizon Scan Line Emphasizing 0 Elevation
+          g.save();
+          g.setLineDash([12, 10]);
+          DK.seg(g, [[-200, 756], [2120, 756]], 2.5, 'rgba(255, 213, 79, 0.75)');
+          g.restore();
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          // Flat Green Alluvial Paddy Plains & Kaveri Canal
+          FX.ground(g, 800, '#2E8540', '#FFF6D6', 0.22, true);
+          FX.pool(g, 960, 825, 860, 18, '#78C8E6', 0.45);
+          FX.tree(g, 240, 800, 0.75, '#266E36', 'palm');
+          FX.tree(g, 1680, 800, 0.78, '#266E36', 'palm');
+        },
+        mgHero: (g) => {
+          // Viewer Protagonist Scanning the Flat Horizon with Telescope
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_VIEWER_PROTAG,
+            moveX: [480, 1080, lt, 2.7],
+            y: 840,
+            s: 1.02,
+            prop: 'telescope',
+            pose: { preset: 'walk', speed: 1.0 },
+            eyeMode: 'warm',
+            look: [0.35, 0.0],
+            brows: 'raised',
+            mouth: 'o',
+            lightDir: m.lightDir,
+            t: gt,
+            seed: 57,
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 57, count: 10, color: '#FFF6D6', a: 0.16 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.20,
+        x: 960,
+        y: 170,
+        text: '0 GRANITE HILLS WITHIN 50 KM OF THANJAVUR',
+        border: '#FFB84D',
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.34, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 58: Hauling 130,000 Tons of Granite Over 50 Kilometers (209.8s – 216.6s · 6.8s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 58,
+    title: 'Hauling 130,000 Tons of Granite Over 50 Kilometers',
+    start: 209.8,
+    end: 216.6,
+    duration: 6.8,
+    vo_line: 'ஆனா 1,30,000 டன் எடையுள்ள granite-களை 50 கிலோமீட்டருக்கும் அங்கிட்டு இருந்து தள்ளி இங்க கொண்டு வந்து இந்த கோயில்களை கட்டிருக்காங்க.',
+    env_id: 'ENV_THANJAVUR_BIG_TEMPLE',
+    chars: 'ANIMAL_ROYAL_ELEPHANT (moveX: 580->1420), CHAR_KEELADI_BUILDER (push, moveX: 220->980), Stone-Hauling Crew (DK.crowd)',
+    on_screen_text: '130,000 TONS OF GRANITE · HAULED 50+ KM',
+    camera_sfx: 'Tracking Pan X -90->90 + camera shake · wind + marchSteps + counterTick + thud',
+    transOut: { type: 'HARD_CUT' },
+    draw(g, lt, gt, u) {
+      const m = DK.mood('ancientTemple');
+      const cam = {
+        x: DK.key(lt, [[0.0, -90], [6.8, 90]], DK.ease.inOutCubic),
+        y: DK.shake(lt, 2.5, 8, 14)[1],
+        z: DK.key(lt, [[0.0, 1.0], [6.8, 1.08]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      const blockX = DK.lerp(420, 1180, lt / 6.8);
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.sun(g, 1480, 240, 84, '#FFE094', '#FFAE38', 4.0);
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 4,
+        bgFar: (g) => {
+          FX.skyline(g, { style: 'ancientTamil', y: 760, color: '#4A2A1E', lit: 0.35, seed: 58 });
+          // Distant Brihadeeswarar Vimana Rising Under Scaffolding
+          drawBrihadeeswararVimana(g, 1420, 760, 0.56, { underConstruction: true, t: gt });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          FX.godRays(g, 1420, 120, { count: 7, color: '#FFE094', a: 0.18, t: gt });
+          // Inclined Earthen Transport Ramp (Charupallam Ramp)
+          FX.ground(g, 840, '#5C3824', '#FFE094', 0.25, true);
+          DK.poly(g, [[-400, 840], [2320, 822], [2320, 920], [-400, 920]], '#4A2C1B');
+        },
+        mgHero: (g) => {
+          // Background Stone-Hauling Crew Pushing and Pulling Ropes
+          DK.crowd(g, {
+            count: 5,
+            x0: 140,
+            x1: 720,
+            y: 840,
+            s: 0.92,
+            wardrobe: 'ancientTamil',
+            behavior: 'push',
+            moveOffset: lt * 110,
+            t: gt,
+            seed: 58,
+          });
+
+          // Colossal 80-Ton Granite Monolith Block on Rotating Timber Logs
+          g.save();
+          g.translate(blockX, 840);
+          DK.contactShadow(g, 0, 4, 175, 16, 0.45);
+          // 5 Rotating Wooden Roller Logs Underneath
+          for (let i = -2; i <= 2; i++) {
+            const lx = i * 62;
+            const rotAng = gt * 4.5 + i;
+            DK.circle(g, lx, -16, 16, DK.sphereGrad(g, lx, -16, 16, '#6E472B'));
+            DK.seg(
+              g,
+              [
+                [lx + Math.cos(rotAng) * 10, -16 + Math.sin(rotAng) * 10],
+                [lx - Math.cos(rotAng) * 10, -16 - Math.sin(rotAng) * 10],
+              ],
+              3,
+              '#3E2723'
+            );
+          }
+          // Massive Dressed Granite Block
+          DK.rr(g, -155, -168, 310, 140, 12);
+          g.fillStyle = DK.cylinderGrad(g, -155, -168, 155, -28, '#8C857B', -1);
+          g.fill();
+          g.strokeStyle = '#5C554E';
+          g.lineWidth = 4;
+          g.stroke();
+          // Chiseled Chola Quarry Marks & Rope Bindings
+          DK.seg(g, [[-95, -168], [-95, -28]], 6, '#C98A2C');
+          DK.seg(g, [[95, -168], [95, -28]], 6, '#C98A2C');
+          g.restore();
+
+          // Heavy Braided Hemp Hauling Ropes Connecting Block to Royal Elephant
+          const eleX = DK.lerp(580, 1420, lt / 6.8);
+          DK.seg(g, [[blockX + 150, 745], [eleX - 65, 735]], 7, '#D9A86C');
+          DK.seg(g, [[blockX + 150, 775], [eleX - 65, 760]], 6, '#B8864D');
+
+          // Royal Elephant Hauling Front Ropes
+          DK.animal(g, {
+            kind: 'elephant',
+            royal: true,
+            moveX: [580, 1420, lt, 6.8],
+            y: 840,
+            s: 1.15,
+            t: gt,
+          });
+
+          // Master Builder Pushing Granite Monolith from Behind
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_KEELADI_BUILDER,
+            moveX: [220, 980, lt, 6.8],
+            y: 840,
+            s: 1.04,
+            prop: 'none',
+            pose: { preset: 'push', walk: 1.0, speed: 1.1 },
+            eyeMode: 'warm',
+            brows: 'furrowed',
+            mouth: 'grimace',
+            lightDir: m.lightDir,
+            t: gt,
+            seed: 581,
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.dust(g, gt, { seed: 58, count: 65, color: '#FFE094', a: 0.48, vx: -18 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.35,
+        x: 960,
+        y: 160,
+        countFrom: 1000,
+        countTo: 130000,
+        countStart: 0.4,
+        countEnd: 4.5,
+        suffix: ' TONS OF GRANITE · HAULED 50+ KM',
+        border: '#FFD54F',
+      });
+      UI.citation(g, 'ASI Architectural Survey of Brihadeeswarar Temple (1998)', { align: 'left' });
+
+      DK.finishFrame(g, gt, { vignette: 0.38, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 59: Modern Cement Construction Comparison (216.6s – 218.5s · 1.9s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 59,
+    title: 'Modern Cement Construction Comparison',
+    start: 216.6,
+    end: 218.5,
+    duration: 1.9,
+    vo_line: 'அதுமட்டுமில்ல, இன்னைக்கு நம்ம building கட்ட சிமெண்ட் use பண்றோம்.',
+    env_id: 'ENV_MODERN_CHENNAI',
+    chars: 'CHAR_VIEWER_PROTAG (build)',
+    on_screen_text: 'MODERN BUILDINGS: CEMENT & MORTAR',
+    camera_sfx: 'Z-dolly 1.0->1.06 · room + hammerHit',
+    transOut: { type: 'XRAY_DISSOLVE', target: [960, 540] },
+    draw(g, lt, gt, u) {
+      const m = DK.mood('urbanMorning');
+      const cam = {
+        x: 0,
+        y: 0,
+        z: DK.key(lt, [[0.0, 1.0], [1.9, 1.06]], DK.ease.outCubic),
+        r: 0,
+      };
+
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.backdrop(g, m.sky);
+          FX.clouds(g, { seed: 59, count: 5, y: 160, h: 100, color: '#FFFFFF', a: 0.35, t: gt, speed: 10 });
+        },
+        bgFarDepth: 0.40,
+        bgFarBlur: 4,
+        bgFar: (g) => {
+          FX.skyline(g, { style: 'modern', y: 760, color: '#586882', lit: 0.3, seed: 59 });
+        },
+        mgBackDepth: 0.75,
+        mgBack: (g) => {
+          FX.cityStreet1P(g, { vx: 960, vy: 220, lit: 0.25, mood: 'day' });
+          FX.ground(g, 840, '#4C5266', '#FFF4DC', 0.2, true);
+
+          // Half-Built Modern Red-Brick Wall with Thick Grey Cement Mortar Joints
+          const wallX = 940;
+          const wallY = 840;
+          DK.contactShadow(g, wallX + 120, wallY + 4, 210, 12, 0.35);
+          for (let row = 0; row < 5; row++) {
+            const ry = wallY - (row + 1) * 34;
+            const cols = 5 - Math.floor(row * 0.4);
+            for (let col = 0; col < cols; col++) {
+              const rx = wallX + col * 74 + (row % 2) * 36;
+              // Grey Cement Mortar Bed
+              g.fillStyle = '#94A3B8';
+              g.fillRect(rx - 4, ry - 4, 76, 36);
+              // Red Clay Brick
+              DK.rr(g, rx, ry, 68, 28, 3);
+              g.fillStyle = DK.cylinderGrad(g, rx, ry, rx, ry + 28, '#C94A38', -1);
+              g.fill();
+            }
+          }
+          // Fresh Wet Cement Trowel Heap on Top Brick Row
+          DK.ellipse(g, wallX + 110, wallY - 172, 34, 12, '#94A3B8');
+
+          // Cement Sack on Right
+          DK.rr(g, 1340, 750, 78, 90, 10);
+          g.fillStyle = '#CBD5E1';
+          g.fill();
+          DK.text(g, 'CEMENT', 1379, 795, { size: 15, weight: 900, color: '#1E293B' });
+        },
+        mgHero: (g) => {
+          // Viewer Protagonist Building Modern Brick Wall
+          DK.char(g, {
+            ...THEME.CHARS.CHAR_VIEWER_PROTAG,
+            x: 820,
+            y: 840,
+            s: 1.04,
+            prop: 'hammer',
+            pose: { preset: 'build', speed: 1.25 },
+            eyeMode: 'warm',
+            look: [0.3, 0.1],
+            brows: 'neutral',
+            mouth: 'neutral',
+            lightDir: m.lightDir,
+            t: gt,
+            seed: 59,
+          });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 12,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { seed: 59, count: 10, color: '#FFE094', a: 0.15 });
+        },
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.15,
+        x: 960,
+        y: 170,
+        text: 'MODERN BUILDINGS: CEMENT & MORTAR',
+        border: '#5CE1FF',
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.34, grain: 0.03 });
+    },
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 60: Zero Drops of Cement or Mortar in the Big Temple (218.5s – 223.2s · 4.7s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 60,
+    title: 'Zero Drops of Cement or Mortar in the Big Temple',
+    start: 218.5,
+    end: 223.2,
+    duration: 4.7,
+    vo_line: 'ஆனா தஞ்சை பெரிய கோயில் கட்டுறதுக்கு ஒரு கல்லுக்கும் இன்னொரு கல்லுக்கும் நடுவுல எந்த ஒரு சொட்டு சிமெண்ட்டோ, பசையோ கிடையாது.',
+    env_id: 'ENV_XRAY_BLUEPRINT',
+    chars: 'CHAR_PALLAVA_SCULPTOR (walk, moveX: 420 -> 1280)',
+    on_screen_text: 'ZERO CEMENT · ZERO MORTAR (100% DRY-STONE MASONRY) · 0.00% ADHESIVE OR BINDER',
+    camera_sfx: 'Pan X -40->40, Z 1.0->1.10 · room + blip + footstep + pillBadge',
+    transOut: { type: 'MATCH_CUT_SCALE', target: [960, 540] },
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0.0, -40], [4.7, 40]], DK.ease.inOutCubic),
+        y: 0,
+        z: DK.key(lt, [[0.0, 1.0], [4.7, 1.10]], DK.ease.inOutCubic),
+        r: 0,
+      };
+
+      UI.darkVoidBg(g, gt, { grid: true });
+      FX.molecules(g, gt, { area: [180, 140, 1560, 780], kind: 'o2', density: 28, seed: 60 });
+
+      DK.layer(g, cam, 1.0, (g) => {
+        // Two Massive Dressed Chola Granite Blocks Meeting at a Razor-Sharp Dry Seam (y = 540)
+        const cx = 960;
+        const cy = 540;
+
+        // Lower Granite Block
+        DK.rr(g, cx - 440, cy, 880, 185, 10);
+        g.fillStyle = DK.cylinderGrad(g, cx - 440, cy, cx + 440, cy + 185, '#3E5278', -1);
+        g.fill();
+        g.strokeStyle = '#6892C8';
+        g.lineWidth = 3;
+        g.stroke();
+
+        // Upper Granite Block Locking Precisely onto Lower Block (0.00 mm Gap)
+        const lockOffset = DK.lerp(-18, 0, DK.ease.outCubic(DK.clamp(lt / 0.9, 0, 1)));
+        DK.rr(g, cx - 440, cy - 185 + lockOffset, 880, 185, 10);
+        g.fillStyle = DK.cylinderGrad(g, cx - 440, cy - 185, cx + 440, cy, '#4A628E', -1);
+        g.fill();
+        g.strokeStyle = '#78A8E8';
+        g.lineWidth = 3;
+        g.stroke();
+
+        // Glowing Cyan X-Ray Magnifying Ring (r: 220) Scanning the Dry Seam
+        const scanX = cx + Math.sin(lt * 1.6) * 110;
+        g.save();
+        g.beginPath();
+        g.arc(scanX, cy, 220, 0, Math.PI * 2);
+        g.clip();
+
+        // High-Contrast X-Ray Interior Inside Magnifying Ring
+        g.fillStyle = '#07142E';
+        g.fillRect(scanX - 230, cy - 230, 460, 460);
+
+        // Interlocking Mortise-and-Tenon Micro-Profile Along Seam
+        g.strokeStyle = '#5CE1FF';
+        g.lineWidth = 4;
+        g.beginPath();
+        g.moveTo(cx - 440, cy);
+        g.lineTo(cx - 120, cy);
+        g.lineTo(cx - 120, cy - 28);
+        g.lineTo(cx - 30, cy - 28);
+        g.lineTo(cx - 30, cy);
+        g.lineTo(cx + 50, cy);
+        g.lineTo(cx + 50, cy + 28);
+        g.lineTo(cx + 140, cy + 28);
+        g.lineTo(cx + 140, cy);
+        g.lineTo(cx + 440, cy);
+        g.stroke();
+
+        // Sweeping Vertical Laser Scan Line Inside Ring
+        const laserX = scanX + Math.cos(lt * 3.5) * 180;
+        DK.glow(g, laserX, cy, 90, '#5CE1FF', 0.65);
+        DK.seg(g, [[laserX, cy - 220], [laserX, cy + 220]], 3, '#FFFFFF');
+
+        DK.text(g, 'GAP: 0.00 mm · MORTAR: 0.00%', scanX, cy - 115, {
+          size: 22,
+          font: DK.FONTS.mono,
+          weight: 700,
+          color: '#5CE1FF',
+        });
+        g.restore();
+
+        // Outer Cyan & Gold Diagnostic Bezel of X-Ray Ring
+        DK.ring(g, scanX, cy, 220, 6, '#5CE1FF');
+        DK.ring(g, scanX, cy, 232, 2, 'rgba(255, 213, 79, 0.65)');
+
+        // Chola Master Sculptor Walking Across Foreground Inspecting the Joint
+        DK.char(g, {
+          ...THEME.CHARS.CHAR_PALLAVA_SCULPTOR,
+          moveX: [420, 1280, lt, 4.7],
+          y: 860,
+          s: 0.98,
+          prop: 'hammer',
+          pose: { preset: 'walk', speed: 1.0 },
+          eyeMode: 'warm',
+          look: [0.2, -0.25],
+          brows: 'raised',
+          mouth: 'smile',
+          t: gt,
+          seed: 60,
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        t0: 0.30,
+        x: 960,
+        y: 160,
+        text: 'ZERO CEMENT · ZERO MORTAR (100% DRY-STONE MASONRY)',
+        border: '#5CE1FF',
+      });
+      UI.pillBadge(g, lt, {
+        t0: 2.35,
+        x: 960,
+        y: 800,
+        text: '0.00% ADHESIVE OR BINDER',
+        target: [960, 540],
+        border: '#FFD54F',
+      });
+
+      DK.finishFrame(g, gt, { vignette: 0.38, grain: 0.03 });
+    },
+  },
+];
+
+// ============================================================================
+// SYNCED PROCEDURAL SFX & AMBIENT BEDS ONLY (ZERO BGM)
+// ============================================================================
+function scoreSound(k) {
+  const B0 = SHOTS[0].start; // 186.1s
+
+  // Shot 51 (186.1s – 190.3s)
+  {
+    const gt0 = 186.1 - B0;
+    k.bed('wind', gt0 + 0.0, gt0 + 4.2, { gain: 0.7 });
+    k.play('marchSteps', gt0 + 0.15, { n: 8, rate: 0.44 });
+    k.play('templeBell', gt0 + 2.10, { f: 'C5', gain: 0.9 });
+  }
+
+  // Shot 52 (190.3s – 193.5s)
+  {
+    const gt0 = 190.3 - B0;
+    k.bed('room', gt0 + 0.0, gt0 + 3.2, { gain: 0.65 });
+    k.play('timerChime', gt0 + 0.08, { f: 'A5', gain: 0.9 });
+    k.play('counterTick', gt0 + 0.20, { n: 10, rate: 0.06 });
+  }
+
+  // Shot 53 (193.5s – 197.8s)
+  {
+    const gt0 = 193.5 - B0;
+    k.bed('room', gt0 + 0.0, gt0 + 4.3, { gain: 0.7 });
+    k.play('marchSteps', gt0 + 0.15, { n: 8, rate: 0.44 });
+    k.play('pillBadge', gt0 + 0.30, { f: 'G5', pan: -0.25 });
+    k.play('pillBadge', gt0 + 1.20, { f: 'C6', pan: 0.25 });
+  }
+
+  // Shot 54 (197.8s – 201.7s)
+  {
+    const gt0 = 197.8 - B0;
+    k.bed('wind', gt0 + 0.0, gt0 + 3.9, { gain: 0.65 });
+    k.play('footstep', gt0 + 0.20, { n: 8, rate: 0.42 });
+    k.play('pop', gt0 + 1.95, { f: 640 });
+  }
+
+  // Shot 55 (201.7s – 204.8s)
+  {
+    const gt0 = 201.7 - B0;
+    k.bed('room', gt0 + 0.0, gt0 + 3.1, { gain: 0.65 });
+    k.play('pillBadge', gt0 + 0.25, { f: 'E5', pan: -0.4 });
+    k.play('pillBadge', gt0 + 0.85, { f: 'G5', pan: 0.0 });
+    k.play('pillBadge', gt0 + 1.45, { f: 'B5', pan: 0.4 });
+  }
+
+  // Shot 56 (204.8s – 207.1s)
+  {
+    const gt0 = 204.8 - B0;
+    k.bed('wind', gt0 + 0.0, gt0 + 2.3, { gain: 0.7 });
+    k.play('templeBell', gt0 + 0.15, { f: 'C5', gain: 0.95 });
+  }
+
+  // Shot 57 (207.1s – 209.8s)
+  {
+    const gt0 = 207.1 - B0;
+    k.bed('wind', gt0 + 0.0, gt0 + 2.7, { gain: 0.75 });
+    k.play('footstep', gt0 + 0.20, { n: 5, rate: 0.42 });
+    k.play('pillBadge', gt0 + 0.20, { f: 'G5' });
+  }
+
+  // Shot 58 (209.8s – 216.6s)
+  {
+    const gt0 = 209.8 - B0;
+    k.bed('wind', gt0 + 0.0, gt0 + 6.8, { gain: 0.8 });
+    k.play('marchSteps', gt0 + 0.20, { n: 12, rate: 0.48, pan: -0.1 });
+    k.play('counterTick', gt0 + 0.40, { n: 24, rate: 0.14 });
+    k.play('thud', gt0 + 3.40, { f: 110, gain: 0.75 });
+  }
+
+  // Shot 59 (216.6s – 218.5s)
+  {
+    const gt0 = 216.6 - B0;
+    k.bed('room', gt0 + 0.0, gt0 + 1.9, { gain: 0.65 });
+    k.play('hammerHit', gt0 + 0.20, { n: 3, rate: 0.45 });
+  }
+
+  // Shot 60 (218.5s – 223.2s)
+  {
+    const gt0 = 218.5 - B0;
+    k.bed('room', gt0 + 0.0, gt0 + 4.7, { gain: 0.65 });
+    k.play('blip', gt0 + 0.30, { f: 'E6' });
+    k.play('footstep', gt0 + 0.35, { n: 8, rate: 0.44 });
+    k.play('pillBadge', gt0 + 2.35, { f: 'C6' });
+  }
+
+  // Automatic 2-Phase Boundary Transition SFX
+  if (window.DK && DK.scheduleTransitions) {
+    DK.scheduleTransitions(k, SHOTS, B0, window.THEME);
+  }
+}
+
+// ============================================================================
+// STUDIO PLAYER & DETERMINISTIC HEADLESS RENDER HOOKS
+// ============================================================================
+if (window.DK && DK.linkShotTransitions) DK.linkShotTransitions(SHOTS, window.THEME);
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const BATCH_START = SHOTS[0].start;
+const BATCH_END = SHOTS[SHOTS.length - 1].end;
+const DURATION = BATCH_END - BATCH_START;
+window.BATCH_START = BATCH_START;
+window.BATCH_END = BATCH_END;
+window.DURATION = DURATION;
+window.SHOTS = SHOTS;
+window.scoreSound = scoreSound;
+let currentT = 0;
+let playing = false;
+let rafId = null;
+let lastTs = 0;
+let stopSound = null;
+let activeShotFilter = 'all';
+let voAudio = null;
+
+function findShotAtGlobal(gt) {
+  for (let i = 0; i < SHOTS.length; i++) {
+    if (gt >= SHOTS[i].start && gt <= SHOTS[i].end) return SHOTS[i];
+  }
+  return gt < SHOTS[0].start ? SHOTS[0] : SHOTS[SHOTS.length - 1];
+}
+
+function renderAtLocal(localT) {
+  currentT = DK.clamp(localT, 0, DURATION);
+  const gt = BATCH_START + currentT;
+  const s = findShotAtGlobal(gt);
+  const lt = DK.clamp(gt - s.start, 0, s.duration);
+  const u = s.duration > 0 ? lt / s.duration : 0;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, 1920, 1080);
+  ctx.save();
+  if (window.DK && DK.drawShot) {
+    DK.drawShot(ctx, s, lt, gt, u);
+  } else {
+    s.draw(ctx, lt, gt, u);
+  }
+  ctx.restore();
+  document.getElementById('scrub').value = DURATION > 0 ? currentT / DURATION : 0;
+  document.getElementById('readout').textContent =
+    gt.toFixed(2) + 's (' + currentT.toFixed(2) + 's) · Shot ' + s.shot_number;
+}
+
+window.seek = function (t, opts) {
+  if (playing) pause();
+  const localT = opts && opts.global ? t - BATCH_START : t;
+  renderAtLocal(localT);
+};
+
+function startAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  const mixMode = document.getElementById('mixSelect').value;
+  if (mixMode !== 'mute' && window.SOUND) {
+    stopSound = SOUND.live(scoreSound, currentT, { mixMode: 'sfxOnly' });
+  }
+  if (voAudio) {
+    voAudio.currentTime = BATCH_START + currentT;
+    voAudio.play().catch(() => {});
+  }
+}
+
+function stopAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  if (voAudio) voAudio.pause();
+}
+
+function play() {
+  if (playing) return;
+  playing = true;
+  document.getElementById('playBtn').textContent = 'Pause';
+  lastTs = performance.now();
+  startAudio();
+  const tick = (now) => {
+    if (!playing) return;
+    const dt = (now - lastTs) / 1000;
+    lastTs = now;
+    let nextT = currentT + dt;
+    if (activeShotFilter !== 'all') {
+      const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+      if (s) {
+        const sLocal0 = s.start - BATCH_START;
+        const sLocal1 = s.end - BATCH_START;
+        if (nextT >= sLocal1) { nextT = sLocal0; currentT = nextT; startAudio(); }
+      }
+    } else if (nextT >= DURATION) {
+      nextT = 0; currentT = 0; startAudio();
+    }
+    renderAtLocal(nextT);
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+}
+
+function pause() {
+  playing = false;
+  document.getElementById('playBtn').textContent = 'Play';
+  if (rafId) cancelAnimationFrame(rafId);
+  stopAudio();
+}
+
+const shotSelect = document.getElementById('shotSelect');
+SHOTS.forEach((s) => {
+  const opt = document.createElement('option');
+  opt.value = String(s.shot_number);
+  opt.textContent = 'Shot ' + s.shot_number + ': ' + s.title + ' (' + s.start.toFixed(1) + 's-' + s.end.toFixed(1) + 's)';
+  shotSelect.appendChild(opt);
+});
+
+shotSelect.addEventListener('change', () => {
+  activeShotFilter = shotSelect.value;
+  if (activeShotFilter !== 'all') {
+    const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+    if (s) { renderAtLocal(s.start - BATCH_START); if (playing) startAudio(); }
+  }
+});
+
+document.getElementById('playBtn').addEventListener('click', () => (playing ? pause() : play()));
+document.getElementById('scrub').addEventListener('input', (e) => {
+  renderAtLocal(parseFloat(e.target.value) * DURATION);
+  if (playing) startAudio();
+});
+document.getElementById('mixSelect').addEventListener('change', () => { if (playing) startAudio(); });
+document.getElementById('voInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  voAudio = new Audio(URL.createObjectURL(file));
+});
+document.getElementById('wavBtn').addEventListener('click', async () => {
+  const res = await SOUND.renderOffline(scoreSound, DURATION, 48000, { mixMode: 'sfxOnly' });
+  const blob = SOUND.encodeWAV(res.inter, res.sr);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'batch_sfx_' + SHOTS[0].shot_number + '_' + SHOTS[SHOTS.length - 1].shot_number + '.wav';
+  a.click();
+});
+
+window.addEventListener('DOMContentLoaded', async () => {
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  renderAtLocal(0);
+});
+</script>
+</body></html>
