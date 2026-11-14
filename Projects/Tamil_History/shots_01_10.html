@@ -237,10 +237,10 @@ const THEME = {
       ]
     },
     CHART_IRON_AGE_DATES: {
-      x: 920,
-      y: 550,
+      x: 900,
+      y: 540,
       w: 1120,
-      h: 510,
+      h: 470,
       title: 'EARLIEST IRON AGE SITES IN INDIA (BCE)',
       unit: ' BCE',
       depth3D: 28,
@@ -277,7 +277,11 @@ const THEME = {
 };
 window.THEME = THEME;
 
-// Helper for metallic/forge spark bursts at Mid-Shot Micro-Beats
+// ============================================================================
+// BESPOKE NON-DESTRUCTIVE HUD HELPERS (NEVER WIPES OUT THE 5-PLANE SCENE!)
+// ============================================================================
+
+// 1. Spark burst helper for Mid-Shot Micro-Beats
 function drawSparkBurst(g, x, y, lt, t0, dur, color) {
   const p = DK.prog(lt, t0, t0 + (dur || 0.65));
   if (p <= 0 || p >= 1) return;
@@ -297,6 +301,110 @@ function drawSparkBurst(g, x, y, lt, t0, dur, color) {
   g.restore();
 }
 
+// 2. Non-destructive Grand Title Card Banner (Replaces UI.titleCard fallback bug)
+function drawGrandTitleBanner(g, lt, kicker, mainTitle, subTitle, t0) {
+  const p = DK.pop(lt, t0 || 0.8, 0.45);
+  if (p <= 0.01) return;
+  g.save();
+  g.translate(960, 175);
+  g.scale(p, p);
+
+  // Volumetric dark glass card with golden border
+  g.fillStyle = 'rgba(11, 16, 30, 0.90)';
+  g.strokeStyle = '#FF851B';
+  g.lineWidth = 3;
+  g.shadowColor = 'rgba(0, 0, 0, 0.55)';
+  g.shadowBlur = 28;
+  g.beginPath();
+  g.roundRect(-450, -82, 900, 164, 18);
+  g.fill();
+  g.stroke();
+
+  g.shadowBlur = 0;
+  // Kicker
+  g.fillStyle = '#38BDF8';
+  g.font = '800 16px "Space Mono", monospace';
+  g.textAlign = 'center';
+  g.fillText(kicker, 0, -42);
+
+  // Main Title
+  g.fillStyle = '#FFD54F';
+  g.font = '900 44px "Playfair Display", serif';
+  g.fillText(mainTitle, 0, 10);
+
+  // Subtitle
+  g.fillStyle = '#F8FAFC';
+  g.font = '800 21px "Nunito", sans-serif';
+  g.fillText(subTitle, 0, 52);
+  g.restore();
+}
+
+// 3. Non-destructive Floating Chapter Dial HUD (Never paints over DK.fivePlane!)
+function drawChapterDialHUD(g, lt, gt, eraLabel, yearLabel, t0) {
+  const p = DK.pop(lt, t0 || 0.25, 0.45);
+  if (p <= 0.01) return;
+  g.save();
+  g.translate(960, 130);
+  g.scale(p, p);
+
+  // Pill card background
+  g.fillStyle = 'rgba(12, 20, 38, 0.90)';
+  g.strokeStyle = 'rgba(255, 184, 77, 0.75)';
+  g.lineWidth = 2.5;
+  g.shadowColor = 'rgba(0, 0, 0, 0.5)';
+  g.shadowBlur = 24;
+  g.beginPath();
+  g.roundRect(-340, -56, 680, 112, 56);
+  g.fill();
+  g.stroke();
+  g.shadowBlur = 0;
+
+  // Mini animated horizon dial on left of card (-265, 0)
+  const dx = -265, dy = 0, dr = 40;
+  g.save();
+  g.beginPath();
+  g.arc(dx, dy, dr, 0, Math.PI * 2);
+  g.fillStyle = '#1B2A4A';
+  g.fill();
+  g.strokeStyle = '#FF851B';
+  g.lineWidth = 2.5;
+  g.stroke();
+
+  // Rotating tick marks
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 + gt * 0.35;
+    g.strokeStyle = i % 3 === 0 ? '#FFD54F' : 'rgba(255,255,255,0.35)';
+    g.lineWidth = i % 3 === 0 ? 2 : 1;
+    g.beginPath();
+    g.moveTo(dx + Math.cos(a) * (dr - 7), dy + Math.sin(a) * (dr - 7));
+    g.lineTo(dx + Math.cos(a) * (dr - 2), dy + Math.sin(a) * (dr - 2));
+    g.stroke();
+  }
+
+  // Gopuram silhouette inside mini dial
+  g.fillStyle = '#FFD54F';
+  g.beginPath();
+  g.moveTo(dx - 12, dy + 16);
+  g.lineTo(dx - 6, dy - 16);
+  g.lineTo(dx + 6, dy - 16);
+  g.lineTo(dx + 12, dy + 16);
+  g.closePath();
+  g.fill();
+  g.restore();
+
+  // Era & Year Typography
+  g.textAlign = 'left';
+  g.fillStyle = '#FFB074';
+  g.font = '800 15px "Space Mono", monospace';
+  g.fillText(eraLabel, -195, -12);
+
+  g.fillStyle = '#FFFFFF';
+  g.font = '900 34px "Playfair Display", serif';
+  g.fillText(yearLabel, -195, 28);
+
+  g.restore();
+}
+
 // ============================================================================
 // SHOTS 001 TO 010 (0.0s – 32.2s) WITH ATTACHED sfx(k, bt0)
 // ============================================================================
@@ -312,16 +420,17 @@ const SHOTS = [
     title: '4,200 Years: Iron Age to Modern Chennai',
     vo_line: '4200 வருஷத்துக்கு முன்னாடி இருந்த இரும்பு காலத்துல ஆரம்பிச்சு இன்னைக்கு இருக்குற modern சென்னை வரைக்கும்,',
     env_id: 'ENV_SPLIT_HOOK',
-    chars: 'IRON_SMELTER (x: 420) + HOST_PROTAG (moveX: 1180 -> 1520)',
+    chars: 'IRON_SMELTER (x: 420) + HOST_PROTAG (moveX: 1120 -> 1520)',
     on_screen_text: '2170 BCE IRON AGE → MODERN CHENNAI',
-    camera_sfx: 'Split-screen pan right + zoom · anvilStrike + electricSpark + carHorn',
+    camera_sfx: 'Split-screen zoom · anvilStrike + electricSpark + carHorn',
     transition_out: 'CAMERA_PAN_RIGHT_PARALLAX',
 
     draw(g, lt, gt, u) {
+      // FIXED: cam.x = 0, cam.y = 0 so split-screen at x=960 & ground at y=840 stay 100% locked!
       const cam = {
-        x: DK.key(lt, [[0, 940], [3.7, 980]], DK.ease.inOutSine),
-        y: 540,
-        z: DK.key(lt, [[0, 1.0], [1.85, 1.04], [3.7, 1.08]], DK.ease.outCubic)
+        x: 0,
+        y: 0,
+        z: DK.key(lt, [[0, 1.0], [1.85, 1.03], [3.7, 1.06]], DK.ease.outCubic)
       };
 
       DK.fivePlane(g, cam, {
@@ -370,7 +479,7 @@ const SHOTS = [
           g.restore();
         },
         mgHero: (g) => {
-          // Left Ground: Ancient Earth Path
+          // Left Ground: Ancient Earth Path (y = 840)
           g.save();
           g.beginPath();
           g.rect(0, 0, 960, 1080);
@@ -378,7 +487,7 @@ const SHOTS = [
           FX.storybookGround(g, 840, { style: 'earthPath', baseCol: '#735338', grassCol: '#4B8B4B' });
           g.restore();
 
-          // Right Ground: Modern Cobblestone/Asphalt Promenade
+          // Right Ground: Modern Cobblestone/Asphalt Promenade (y = 840)
           g.save();
           g.beginPath();
           g.rect(960, 0, 960, 1080);
@@ -410,17 +519,17 @@ const SHOTS = [
             seed: 1
           });
 
-          // Right Situational Prop: Modern SUV Car at x: 1380
-          FX.prop3D(g, 1380, 840, 1.0, {
+          // Right Situational Prop: Modern SUV Car at x: 1420
+          FX.prop3D(g, 1420, 840, 1.0, {
             kind: 'suvCar',
             color: '#38BDF8',
             state: 'active',
             t: gt
           });
 
-          // Right Hero: HOST_PROTAG walking across Modern Chennai [1180 -> 1520]
+          // Right Hero: HOST_PROTAG walking across Modern Chennai [1120 -> 1520]
           THEME.drawChar(g, 'HOST_PROTAG', {
-            moveX: [1180, 1520, lt, 3.7],
+            moveX: [1120, 1520, lt, 3.7],
             y: 840,
             s: 1.0,
             prop: 'phone',
@@ -456,7 +565,7 @@ const SHOTS = [
       UI.pillBadge(g, lt, {
         text: '2170 BCE IRON AGE → MODERN CHENNAI',
         x: 960,
-        y: 120,
+        y: 95,
         accent: '#FF851B',
         t0: 0.25
       });
@@ -487,73 +596,54 @@ const SHOTS = [
     duration: 3.4,
     title: 'Strategic Map of Tamil Nadu & Grand Title',
     vo_line: 'தமிழ்நாட்டுல நடந்த மொத்த வரலாற்றையும் இந்த வீடியோல short and sweet-ஆ பாக்க போறோம்.',
-    env_id: 'ENV_TEMPLE_COURTYARD + MAP_TN_OVERVIEW',
-    chars: 'HOST_SWEATER (moveX: 340 -> 620, scholarDesk at x: 715)',
+    env_id: 'MAP_TN_OVERVIEW',
+    chars: 'HOST_SWEATER (moveX: 240 -> 520, scholarDesk at x: 615)',
     on_screen_text: 'HISTORY OF TAMIL NADU · 4,200 YEARS IN 8 MINUTES',
-    camera_sfx: 'Strategic Map Relief + 5 Pins + Title Card · templeBell + impact',
+    camera_sfx: 'Strategic Map Relief + 5 Pins + Title Banner · templeBell + impact',
     transition_out: 'WHIP_ZOOM_IN',
 
     draw(g, lt, gt, u) {
-      const cam = {
-        x: 960,
-        y: 540,
-        z: DK.key(lt, [[0, 1.0], [1.7, 1.05], [3.4, 1.10]], DK.ease.inOutCubic)
-      };
+      // Full-screen unobstructed Strategic Map of Tamil Nadu
+      THEME.drawInfo('MAP_TN_OVERVIEW', g, lt, gt);
 
-      DK.fivePlane(g, cam, {
-        bgSky: (g) => {
-          DK.mood('clearDay')(g);
-        },
-        bgFar: (g) => {
-          // Render Strategic Map of Tamil Nadu with 5 Historical Pins
-          THEME.drawInfo('MAP_TN_OVERVIEW', g, lt, gt);
-        },
-        mgBack: (g) => {
-          // Subtle framing temple colonnade pillars on far edges
-          FX.structure3D(g, 130, 880, 120, 320, { kind: 'mandapam', color: '#C29B61', t: gt });
-          FX.structure3D(g, 1790, 880, 120, 320, { kind: 'mandapam', color: '#C29B61', t: gt });
-        },
-        mgHero: (g) => {
-          // Foreground Stone Terrace Ledge
-          FX.storybookGround(g, 860, { style: 'flagstone', baseCol: '#64748B', grassCol: '#475569' });
+      // Subtle low foreground presenter terrace at y = 980 (does not block map pins)
+      FX.storybookGround(g, 980, { style: 'flagstone', baseCol: '#334155', grassCol: '#475569' });
 
-          // Target Prop: Map Lectern / Scholar Desk at x: 715 (charX + 95px at arrival)
-          FX.interactiveProp(g, {
-            kind: 'scholarDesk',
-            x: 715,
-            y: 860,
-            lt,
-            gt
-          });
-
-          // Foreground Host: HOST_SWEATER walking [340 -> 620] to the lectern
-          THEME.drawChar(g, 'HOST_SWEATER', {
-            moveX: [340, 620, lt, 3.4],
-            y: 860,
-            s: 0.96,
-            prop: 'scroll',
-            eyeMode: 'warm',
-            brows: lt > 1.7 ? 'raised' : 'neutral',
-            mouth: 'smile',
-            pose: { preset: 'walk', speed: 1.1 },
-            t: gt,
-            seed: 3
-          });
-        },
-        fgBokeh: (g) => {
-          FX.bokehOrbs(g, gt, { count: 8, color: '#FFD54F', a: 0.15 });
-        }
+      // Target Prop: Map Lectern / Scholar Desk at x: 615 (charX + 95px at arrival)
+      FX.interactiveProp(g, {
+        kind: 'scholarDesk',
+        x: 615,
+        y: 980,
+        lt,
+        gt
       });
 
-      // Mid-Shot Micro-Beat (lt = 1.70s): Grand Title Card locks at center-top
-      UI.titleCard(g, lt, {
-        title: 'HISTORY OF TAMIL NADU',
-        sub: '4,200 YEARS IN 8 MINUTES',
-        y: 170,
-        t0: 1.5
+      // Foreground Host: HOST_SWEATER walking [240 -> 520] to the lectern
+      THEME.drawChar(g, 'HOST_SWEATER', {
+        moveX: [240, 520, lt, 3.4],
+        y: 980,
+        s: 0.88,
+        prop: 'scroll',
+        eyeMode: 'warm',
+        brows: lt > 1.7 ? 'raised' : 'neutral',
+        mouth: 'smile',
+        pose: { preset: 'walk', speed: 1.1 },
+        t: gt,
+        seed: 3
       });
+
+      // Mid-Shot Micro-Beat (lt = 1.50s): Custom Grand Title Banner (No fallback bug!)
+      drawGrandTitleBanner(
+        g,
+        lt,
+        'CHRONOLOGICAL DOCUMENTARY SPECIAL',
+        'HISTORY OF TAMIL NADU',
+        '4,200 YEARS IN 8 MINUTES (2172 BCE – 2026 CE)',
+        1.45
+      );
+
       UI.citation(g, 'Survey of India & TNSDA Historical Atlas', { align: 'right' });
-      DK.finishFrame(g, gt, { vignette: 0.25, grain: 0.022 });
+      DK.finishFrame(g, gt, { vignette: 0.22, grain: 0.020 });
     },
 
     sfx(k, bt0) {
@@ -561,8 +651,8 @@ const SHOTS = [
       k.play('pop', bt0 + 0.25, { gain: 0.42 });
       k.play('pop', bt0 + 0.65, { gain: 0.42 });
       k.play('pop', bt0 + 1.05, { gain: 0.42 });
-      k.play('impact', bt0 + 1.70, { gain: 0.65 });
-      k.play('templeBell', bt0 + 1.75, { gain: 0.50 });
+      k.play('impact', bt0 + 1.50, { gain: 0.65 });
+      k.play('templeBell', bt0 + 1.65, { gain: 0.50 });
       k.play('pop', bt0 + 2.15, { gain: 0.42 });
       k.play('swish', bt0 + 3.15, { gain: 0.45 });
     }
@@ -585,10 +675,11 @@ const SHOTS = [
     transition_out: 'MATCH_CUT_HORIZON',
 
     draw(g, lt, gt, u) {
+      // FIXED: cam.x pans smoothly from -30 to +30 around 0; cam.y = 0
       const cam = {
-        x: DK.key(lt, [[0, 920], [3.7, 1000]], DK.ease.inOutSine),
-        y: 540,
-        z: DK.key(lt, [[0, 1.0], [3.7, 1.06]], DK.ease.outCubic)
+        x: DK.key(lt, [[0, -30], [3.7, 30]], DK.ease.inOutSine),
+        y: 0,
+        z: DK.key(lt, [[0, 1.0], [3.7, 1.05]], DK.ease.outCubic)
       };
 
       DK.fivePlane(g, cam, {
@@ -648,9 +739,9 @@ const SHOTS = [
             t: gt
           });
 
-          // Right Combat Pair: Warrior 1 (KALABHRA_GEN at x: 1240) vs Warrior 2 (PANDYA_KING at x: 1355, charX + 115px)
+          // Right Combat Pair: Warrior 1 (KALABHRA_GEN at x: 1210) vs Warrior 2 (PANDYA_KING at x: 1325, charX + 115px)
           THEME.drawChar(g, 'KALABHRA_GEN', {
-            x: 1240,
+            x: 1210,
             y: 840,
             s: 1.0,
             prop: 'sword',
@@ -663,7 +754,7 @@ const SHOTS = [
           });
 
           THEME.drawChar(g, 'PANDYA_KING', {
-            x: 1355,
+            x: 1325,
             y: 840,
             s: 1.0,
             flipX: true,
@@ -676,8 +767,8 @@ const SHOTS = [
             seed: 6
           });
 
-          // Mid-Shot Micro-Beat (lt = 1.85s): Sword clash sparks at (1297, 740) & golden coin gleam over spice crates
-          drawSparkBurst(g, 1297, 740, lt, 1.85, 0.65, '#FFFFFF');
+          // Mid-Shot Micro-Beat (lt = 1.85s): Sword clash sparks at (1267, 740) & golden coin gleam over spice crates
+          drawSparkBurst(g, 1267, 740, lt, 1.85, 0.65, '#FFFFFF');
           drawSparkBurst(g, 1540, 760, lt, 2.35, 0.75, '#F7B928');
         },
         fgBokeh: (g) => {
@@ -688,7 +779,7 @@ const SHOTS = [
       UI.pillBadge(g, lt, {
         text: 'KINGS · WARS · GOLDEN MARITIME WEALTH',
         x: 960,
-        y: 120,
+        y: 95,
         accent: '#F7B928',
         t0: 0.25
       });
@@ -719,14 +810,15 @@ const SHOTS = [
     env_id: 'ENV_FARM_CLEARING',
     chars: 'TAMIL_FARMER (moveX: 460 -> 920) + PLOW_BULL (moveX: 565 -> 1025)',
     on_screen_text: '4,200 YEARS OF RESILIENCE · 2170 BCE – 2026 CE',
-    camera_sfx: 'Receding floodwaters + God rays + Era Chapter Dial · thunder + timerChime + templeBell',
+    camera_sfx: 'Receding floodwaters + God rays + Floating Chapter Dial · thunder + timerChime + templeBell',
     transition_out: 'IRIS_ZOOM_TO_MAP',
 
     draw(g, lt, gt, u) {
+      // FIXED: cam.x = 0, cam.y = 0..+15
       const cam = {
-        x: 960,
-        y: DK.key(lt, [[0, 550], [3.4, 525]], DK.ease.outCubic),
-        z: DK.key(lt, [[0, 1.0], [3.4, 1.07]], DK.ease.inOutSine)
+        x: DK.key(lt, [[0, -20], [3.4, 20]], DK.ease.inOutSine),
+        y: DK.key(lt, [[0, 10], [3.4, -10]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.0], [3.4, 1.06]], DK.ease.inOutSine)
       };
 
       DK.fivePlane(g, cam, {
@@ -794,11 +886,9 @@ const SHOTS = [
         }
       });
 
-      // Mid-Shot Micro-Beat (lt = 1.70s): Era Chapter Dial locks onto 2170 BCE – 2026 CE
-      UI.eraChapterDial(g, lt, {
-        era: '4,200 YEARS OF RESILIENCE',
-        year: '2170 BCE – 2026 CE'
-      });
+      // FIXED: Non-destructive Floating Chapter Dial HUD (keeps 100% of scene visible!)
+      drawChapterDialHUD(g, lt, gt, '4,200 YEARS OF RESILIENCE', '2170 BCE – 2026 CE', 0.35);
+
       UI.citation(g, 'Madras Presidency & Tamil Nadu Historical Archives', { align: 'right' });
       DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.022 });
     },
@@ -823,81 +913,60 @@ const SHOTS = [
     duration: 4.2,
     title: 'Where It Begins: Mayiladumparai, Krishnagiri',
     vo_line: 'ஆனா இதுல நம்ம கதை எங்கிருந்து ஆரம்பிக்குதுன்னு கேட்டீங்கன்னா, கிருஷ்ணகிரி பக்கத்துல இருக்குற மயிலாடும்பாறைங்கிற ஒரு இடத்துல இருந்து.',
-    env_id: 'ENV_EXCAVATION_SITE + MAP_MAYILADUMPARAI',
-    chars: 'HOST_SCIENTIST (moveX: 520 -> 830, trenchGrid at x: 915)',
+    env_id: 'MAP_MAYILADUMPARAI',
+    chars: 'HOST_SCIENTIST (moveX: 320 -> 640, trenchGrid at x: 735)',
     on_screen_text: 'MAYILADUMPARAI · Krishnagiri Dist. · 2172 BCE Iron Age Site',
     camera_sfx: 'Strategic Map Zoom to Krishnagiri + Tech Callout · pillBadge + ding + thud',
     transition_out: 'DIVE_INTO_DIORAMA',
 
     draw(g, lt, gt, u) {
-      const cam = {
-        x: DK.key(lt, [[0, 960], [4.2, 920]], DK.ease.inOutCubic),
-        y: 540,
-        z: DK.key(lt, [[0, 1.0], [2.1, 1.06], [4.2, 1.12]], DK.ease.outCubic)
-      };
+      // Unobstructed Full-Screen Map of Mayiladumparai / Krishnagiri
+      THEME.drawInfo('MAP_MAYILADUMPARAI', g, lt, gt);
 
-      DK.fivePlane(g, cam, {
-        bgSky: (g) => {
-          DK.mood('clearDay')(g);
-        },
-        bgFar: (g) => {
-          // Strategic Map zooming into Krishnagiri / Mayiladumparai [78.21, 12.52]
-          THEME.drawInfo('MAP_MAYILADUMPARAI', g, lt, gt);
-        },
-        mgBack: (g) => {
-          FX.tree(g, 145, 860, 0.95, '#3E7A46', 'oak');
-          FX.tree(g, 1785, 860, 0.95, '#3E7A46', 'oak');
-        },
-        mgHero: (g) => {
-          // Foreground Archaeological Ledge
-          FX.storybookGround(g, 850, { style: 'earthPath', baseCol: '#6E523C', grassCol: '#4A8C4A' });
+      // Low foreground archaeological ledge at y = 980
+      FX.storybookGround(g, 980, { style: 'earthPath', baseCol: '#5C4433', grassCol: '#4A8C4A' });
 
-          // Target Prop: Excavation Trench Grid at x: 915 (charX + 85px at arrival)
-          FX.prop3D(g, 915, 850, 1.0, {
-            kind: 'trenchGrid',
-            color: '#FF851B',
-            state: 'active',
-            t: gt
-          });
-
-          // Archaeologist: HOST_SCIENTIST walking [520 -> 830] with telescope/survey marker
-          THEME.drawChar(g, 'HOST_SCIENTIST', {
-            moveX: [520, 830, lt, 4.2],
-            y: 850,
-            s: 0.98,
-            prop: 'telescope',
-            eyeMode: 'warm',
-            brows: lt > 2.1 ? 'raised' : 'neutral',
-            mouth: 'smile',
-            pose: { preset: 'walk', speed: 1.1 },
-            t: gt,
-            seed: 8
-          });
-        },
-        fgBokeh: (g) => {
-          FX.bokehOrbs(g, gt, { count: 8, color: '#FF851B', a: 0.16 });
-        }
+      // Target Prop: Excavation Trench Grid at x: 735 (charX + 95px at arrival)
+      FX.prop3D(g, 735, 980, 0.95, {
+        kind: 'trenchGrid',
+        color: '#FF851B',
+        state: 'active',
+        t: gt
       });
 
-      // Mid-Shot Micro-Beat (lt = 2.10s): Orthogonal leader-line techCallout for MAYILADUMPARAI
+      // Archaeologist: HOST_SCIENTIST walking [320 -> 640] with telescope/survey marker
+      THEME.drawChar(g, 'HOST_SCIENTIST', {
+        moveX: [320, 640, lt, 4.2],
+        y: 980,
+        s: 0.88,
+        prop: 'telescope',
+        eyeMode: 'warm',
+        brows: lt > 2.1 ? 'raised' : 'neutral',
+        mouth: 'smile',
+        pose: { preset: 'walk', speed: 1.1 },
+        t: gt,
+        seed: 8
+      });
+
+      // Mid-Shot Micro-Beat (lt = 1.80s): Orthogonal leader-line techCallout for MAYILADUMPARAI
       UI.techCallout(g, lt, {
-        from: [940, 420],
-        elbow: [1120, 340],
-        to: [1380, 340],
-        title: 'MAYILADUMPARAI',
-        spec: 'Krishnagiri Dist. · 2172 BCE Iron Age Site',
+        from: [960, 480],
+        elbow: [1150, 360],
+        to: [1420, 360],
+        title: 'MAYILADUMPARAI (2172 BCE)',
+        spec: 'Krishnagiri Dist. · Oldest Iron Age Site',
         accent: '#FF851B',
-        t0: 1.8
+        t0: 1.6
       });
       UI.citation(g, 'K. Rajan & R. Sivanantham, TNSDA Mayiladumparai Report (2022)', { align: 'left' });
-      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.022 });
+      DK.finishFrame(g, gt, { vignette: 0.22, grain: 0.020 });
     },
 
     sfx(k, bt0) {
       k.bed('forestMorning', bt0 + 0.0, bt0 + 4.2, { gain: 0.20 });
       k.play('whoosh', bt0 + 0.25, { gain: 0.45 });
       k.play('footstep', bt0 + 1.10, { gain: 0.35 });
-      k.play('pillBadge', bt0 + 1.80, { gain: 0.45 });
+      k.play('pillBadge', bt0 + 1.60, { gain: 0.45 });
       k.play('ding', bt0 + 2.10, { gain: 0.50 });
       k.play('thud', bt0 + 3.60, { gain: 0.48 });
     }
@@ -914,15 +983,16 @@ const SHOTS = [
     title: '2170 BCE: Ancestors at the Iron Furnace',
     vo_line: 'அங்க கி.மு 2170-கள்லயே நம்ம முன்னோர்கள் எல்லாம்',
     env_id: 'ENV_MAYILADUMPARAI_FORGE',
-    chars: 'IRON_SMELTER (moveX: 320 -> 640, push) + IRON_WOODCUTTER (x: 825, pull)',
+    chars: 'IRON_SMELTER (moveX: 380 -> 720, push) + IRON_WOODCUTTER (x: 910, pull)',
     on_screen_text: 'IRON AGE TAMILAKAM · 2172 BCE',
-    camera_sfx: 'Krishnagiri Bloomery Furnace + Era Dial · fireIgnite + steamHiss + timerChime',
+    camera_sfx: 'Krishnagiri Bloomery Furnace + Floating Era Dial · fireIgnite + steamHiss + timerChime',
     transition_out: 'CUT_CLOSEUP_ACTION',
 
     draw(g, lt, gt, u) {
+      // FIXED: cam.x = -20..+20, cam.y = 0
       const cam = {
-        x: 960,
-        y: 540,
+        x: DK.key(lt, [[0, -20], [2.6, 20]], DK.ease.inOutSine),
+        y: 0,
         z: DK.key(lt, [[0, 1.0], [2.6, 1.06]], DK.ease.outCubic)
       };
 
@@ -938,23 +1008,23 @@ const SHOTS = [
         },
         mgBack: (g) => {
           FX.storybookScene(g, gt, { preset: 'ironForge', y: 840, seed: 33 });
-          FX.structure3D(g, 1380, 840, 210, 185, { kind: 'thatchedHut', color: '#B7793F', t: gt });
+          FX.structure3D(g, 1420, 840, 210, 185, { kind: 'thatchedHut', color: '#B7793F', t: gt });
           FX.tree(g, 190, 840, 1.1, '#3B7A47', 'banyan');
           FX.tree(g, 1680, 840, 1.05, '#3B7A47', 'palm');
         },
         mgHero: (g) => {
           FX.storybookGround(g, 840, { style: 'earthPath', baseCol: '#6E523C', grassCol: '#4A8C4A' });
 
-          // Central Target Structure: Bloomery Iron Furnace at x: 730, y: 840
-          FX.structure3D(g, 730, 840, 210, 250, {
+          // Central Target Structure: Bloomery Iron Furnace at x: 815, y: 840
+          FX.structure3D(g, 815, 840, 210, 250, {
             kind: 'furnace',
             color: '#A84832',
             t: gt
           });
 
-          // Ore Pusher: IRON_SMELTER [320 -> 640] pushing iron ore into furnace (charX + 90px at arrival)
+          // Ore Pusher: IRON_SMELTER [380 -> 720] pushing iron ore into furnace (charX + 95px at arrival)
           THEME.drawChar(g, 'IRON_SMELTER', {
-            moveX: [320, 640, lt, 2.6],
+            moveX: [380, 720, lt, 2.6],
             y: 840,
             s: 1.0,
             eyeMode: 'warm',
@@ -965,9 +1035,9 @@ const SHOTS = [
             seed: 9
           });
 
-          // Bellows Operator: IRON_WOODCUTTER at x: 825 (flipX: true, charX - 95px exact contact with furnace)
+          // Bellows Operator: IRON_WOODCUTTER at x: 910 (flipX: true, charX - 95px exact contact with furnace)
           THEME.drawChar(g, 'IRON_WOODCUTTER', {
-            x: 825,
+            x: 910,
             y: 840,
             s: 1.0,
             flipX: true,
@@ -980,18 +1050,16 @@ const SHOTS = [
           });
 
           // Mid-Shot Micro-Beat (lt = 1.30s): Bright orange sparks erupt from furnace chimney
-          drawSparkBurst(g, 730, 595, lt, 1.30, 0.85, '#FF851B');
+          drawSparkBurst(g, 815, 595, lt, 1.30, 0.85, '#FF851B');
         },
         fgBokeh: (g) => {
           FX.bokehOrbs(g, gt, { count: 14, color: '#FF851B', a: 0.22 });
         }
       });
 
-      // Mid-Shot Micro-Beat (lt = 1.30s): Era Chapter Dial locks onto 2172 BCE
-      UI.eraChapterDial(g, lt, {
-        era: 'IRON AGE TAMILAKAM',
-        year: '2172 BCE'
-      });
+      // FIXED: Non-destructive Floating Chapter Dial HUD (keeps 100% of furnace scene visible!)
+      drawChapterDialHUD(g, lt, gt, 'IRON AGE TAMILAKAM', '2172 BCE · MAYILADUMPARAI', 0.25);
+
       UI.citation(g, 'Beta Analytic AMS Radiocarbon Dating (2022)', { align: 'left' });
       DK.finishFrame(g, gt, { vignette: 0.27, grain: 0.024 });
     },
@@ -1016,16 +1084,17 @@ const SHOTS = [
     title: 'Smelting Iron into Weapons',
     vo_line: 'இரும்பை உருக்கி ஆயுதம் செஞ்சிருக்கிறதுக்கான evidence எல்லாம் கிடைச்சிருக்கு.',
     env_id: 'ENV_MAYILADUMPARAI_FORGE',
-    chars: 'IRON_SMELTER (x: 680, build/hammer on forgeAnvil at 765) + TAMIL_FARMER (moveX: 1220 -> 960)',
+    chars: 'IRON_SMELTER (x: 680, build/hammer on forgeAnvil at 765) + TAMIL_FARMER (moveX: 1320 -> 1020)',
     on_screen_text: 'IRON SMELTING EVIDENCE · 2172 BCE',
     camera_sfx: 'Close-up Anvil Quench & Weapon Rack · hammerHit + anvilStrike + steamHiss',
     transition_out: 'CAMERA_PULL_BACK_MAP',
 
     draw(g, lt, gt, u) {
+      // FIXED: cam.x = -15..+15, cam.y = 0
       const cam = {
-        x: 880,
-        y: 550,
-        z: DK.key(lt, [[0, 1.04], [1.3, 1.10], [2.6, 1.12]], DK.ease.outCubic)
+        x: DK.key(lt, [[0, -15], [2.6, 15]], DK.ease.inOutSine),
+        y: 0,
+        z: DK.key(lt, [[0, 1.02], [1.3, 1.06], [2.6, 1.09]], DK.ease.outCubic)
       };
 
       DK.fivePlane(g, cam, {
@@ -1040,16 +1109,16 @@ const SHOTS = [
         },
         mgBack: (g) => {
           FX.storybookScene(g, gt, { preset: 'ironForge', y: 840, seed: 41 });
-          FX.structure3D(g, 420, 840, 200, 240, { kind: 'furnace', color: '#A84832', t: gt });
-          FX.tree(g, 1580, 840, 1.1, '#3B7A47', 'banyan');
+          FX.structure3D(g, 380, 840, 200, 240, { kind: 'furnace', color: '#A84832', t: gt });
+          FX.tree(g, 1620, 840, 1.1, '#3B7A47', 'banyan');
         },
         mgHero: (g) => {
           FX.storybookGround(g, 840, { style: 'earthPath', baseCol: '#6E523C', grassCol: '#4A8C4A' });
 
-          // Weapon Rack / Merchant Stall at x: 875 (charX - 85px from arriving apprentice)
+          // Weapon Rack / Merchant Stall at x: 930 (charX - 90px from arriving apprentice)
           FX.interactiveProp(g, {
             kind: 'merchantStall',
-            x: 875,
+            x: 930,
             y: 840,
             lt,
             gt
@@ -1079,9 +1148,9 @@ const SHOTS = [
             seed: 11
           });
 
-          // Apprentice: TAMIL_FARMER walking [1220 -> 960] carrying forged iron spear (vel) to rack
+          // Apprentice: TAMIL_FARMER walking [1320 -> 1020] carrying forged iron spear (vel) to rack
           THEME.drawChar(g, 'TAMIL_FARMER', {
-            moveX: [1220, 960, lt, 2.6],
+            moveX: [1320, 1020, lt, 2.6],
             y: 840,
             s: 1.0,
             flipX: true,
@@ -1105,9 +1174,9 @@ const SHOTS = [
       UI.pillBadge(g, lt, {
         text: 'IRON SMELTING EVIDENCE · 2172 BCE',
         x: 960,
-        y: 125,
+        y: 95,
         accent: '#FF851B',
-        t0: 1.1
+        t0: 0.35
       });
       UI.citation(g, 'TNSDA Report: Iron Age in Tamil Nadu (2022)', { align: 'right' });
       DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.022 });
@@ -1132,69 +1201,49 @@ const SHOTS = [
     duration: 3.0,
     title: "India's Oldest Iron Age Map",
     vo_line: 'அதுமட்டுமில்லாம இந்தியாவிலேயே பழமையான இரும்பு காலம்ங்கிறது வந்து',
-    env_id: 'ENV_EXCAVATION_SITE + MAP_INDIA_IRON_AGE',
-    chars: 'HOST_PROTAG (moveX: 340 -> 610, radarTable at x: 705)',
+    env_id: 'MAP_INDIA_IRON_AGE',
+    chars: 'HOST_PROTAG (moveX: 280 -> 550, radarTable at x: 645)',
     on_screen_text: 'OLDEST IRON AGE IN INDIA · HALLUR vs MALHAR vs MAYILADUMPARAI',
     camera_sfx: 'India Strategic Map Chronology Comparison · pillBadge + submarineSonar + pop',
     transition_out: 'ZOOM_TO_TAMIL_NADU',
 
     draw(g, lt, gt, u) {
-      const cam = {
-        x: 960,
-        y: 540,
-        z: DK.key(lt, [[0, 1.0], [3.0, 1.07]], DK.ease.inOutSine)
-      };
+      // Unobstructed Strategic Map of India comparing Hallur (1200 BCE), Malhar (1800 BCE), and Mayiladumparai (2172 BCE)
+      THEME.drawInfo('MAP_INDIA_IRON_AGE', g, lt, gt);
 
-      DK.fivePlane(g, cam, {
-        bgSky: (g) => {
-          DK.mood('clearDay')(g);
-        },
-        bgFar: (g) => {
-          // Strategic Map of India comparing Hallur (1200 BCE), Malhar (1800 BCE), and Mayiladumparai (2172 BCE)
-          THEME.drawInfo('MAP_INDIA_IRON_AGE', g, lt, gt);
-        },
-        mgBack: (g) => {
-          FX.structure3D(g, 135, 880, 115, 300, { kind: 'mandapam', color: '#94A3B8', t: gt });
-          FX.structure3D(g, 1785, 880, 115, 300, { kind: 'mandapam', color: '#94A3B8', t: gt });
-        },
-        mgHero: (g) => {
-          FX.storybookGround(g, 860, { style: 'flagstone', baseCol: '#475569', grassCol: '#38A169' });
+      // Low foreground stone ledge at y = 980
+      FX.storybookGround(g, 980, { style: 'flagstone', baseCol: '#334155', grassCol: '#38A169' });
 
-          // Target Prop: Glowing Map Marker Table at x: 705 (charX + 95px at arrival)
-          FX.prop3D(g, 705, 860, 1.0, {
-            kind: 'radarTable',
-            color: '#38C878',
-            state: 'active',
-            t: gt
-          });
+      // Target Prop: Glowing Map Marker Table at x: 645 (charX + 95px at arrival)
+      FX.prop3D(g, 645, 980, 0.92, {
+        kind: 'radarTable',
+        color: '#38C878',
+        state: 'active',
+        t: gt
+      });
 
-          // Map Presenter: HOST_PROTAG walking [340 -> 610]
-          THEME.drawChar(g, 'HOST_PROTAG', {
-            moveX: [340, 610, lt, 3.0],
-            y: 860,
-            s: 0.96,
-            eyeMode: 'warm',
-            brows: lt > 1.5 ? 'raised' : 'neutral',
-            mouth: 'smile',
-            pose: { preset: 'walk', speed: 1.1 },
-            t: gt,
-            seed: 13
-          });
-        },
-        fgBokeh: (g) => {
-          FX.bokehOrbs(g, gt, { count: 8, color: '#38C878', a: 0.16 });
-        }
+      // Map Presenter: HOST_PROTAG walking [280 -> 550]
+      THEME.drawChar(g, 'HOST_PROTAG', {
+        moveX: [280, 550, lt, 3.0],
+        y: 980,
+        s: 0.88,
+        eyeMode: 'warm',
+        brows: lt > 1.5 ? 'raised' : 'neutral',
+        mouth: 'smile',
+        pose: { preset: 'walk', speed: 1.1 },
+        t: gt,
+        seed: 13
       });
 
       UI.pillBadge(g, lt, {
         text: 'OLDEST IRON AGE IN INDIA',
         x: 960,
-        y: 120,
+        y: 95,
         accent: '#38C878',
         t0: 0.3
       });
       UI.citation(g, 'TNSDA Comparative Chronology (2022–2025)', { align: 'left' });
-      DK.finishFrame(g, gt, { vignette: 0.25, grain: 0.022 });
+      DK.finishFrame(g, gt, { vignette: 0.22, grain: 0.020 });
     },
 
     sfx(k, bt0) {
@@ -1217,16 +1266,17 @@ const SHOTS = [
     title: '3D Bar Chart: Tamil Nadu #1 Earliest Iron Age',
     vo_line: 'இதுவரைக்கும் கிடைச்ச evidence-படி தமிழ்நாட்டுல இருந்துதான் ஆரம்பிச்சிருக்கிறதா சொல்லப்படுது.',
     env_id: 'ENV_EXCAVATION_SITE + CHART_IRON_AGE_DATES',
-    chars: 'HOST_SCIENTIST (moveX: 1480 -> 1235, scroll, pedestal at x: 1140)',
+    chars: 'HOST_SCIENTIST (moveX: 1650 -> 1430, scroll, pedestal at x: 1335)',
     on_screen_text: 'EARLIEST IRON AGE SITES IN INDIA: MAYILADUMPARAI (2172 BCE) #1',
     camera_sfx: '3D Bar Chart Surge + Golden Highlight Pulse · counterTick + ding + starShimmer',
     transition_out: 'WHIP_PAN_LEFT',
 
     draw(g, lt, gt, u) {
+      // FIXED: cam.x = 0, cam.y = 0 so the 3D Bar Chart is 100% centered on screen!
       const cam = {
-        x: 960,
-        y: 540,
-        z: DK.key(lt, [[0, 1.0], [2.9, 1.05]], DK.ease.outCubic)
+        x: 0,
+        y: 0,
+        z: DK.key(lt, [[0, 1.0], [2.9, 1.03]], DK.ease.outCubic)
       };
 
       DK.fivePlane(g, cam, {
@@ -1245,21 +1295,21 @@ const SHOTS = [
         mgHero: (g) => {
           FX.storybookGround(g, 850, { style: 'earthPath', baseCol: '#5C4738', grassCol: '#4A8C4A' });
 
-          // 3D Extruded Bar Chart comparing Hallur (1200 BCE), Malhar (1800 BCE), and Mayiladumparai TN (2172 BCE)
+          // 3D Extruded Bar Chart centered cleanly at x: 900, y: 540
           THEME.drawInfo('CHART_IRON_AGE_DATES', g, lt, gt);
 
-          // Target Pedestal Prop at x: 1140 (charX - 95px exact contact at arrival)
+          // Target Pedestal Prop at x: 1335 (charX - 95px exact contact at arrival)
           FX.interactiveProp(g, {
             kind: 'scholarDesk',
-            x: 1140,
+            x: 1335,
             y: 850,
             lt,
             gt
           });
 
-          // Data Analyst: HOST_SCIENTIST walking [1480 -> 1235] up to the #1 Tamil Nadu bar pedestal
+          // Data Analyst: HOST_SCIENTIST walking [1650 -> 1430] up to the #1 Tamil Nadu bar pedestal
           THEME.drawChar(g, 'HOST_SCIENTIST', {
-            moveX: [1480, 1235, lt, 2.9],
+            moveX: [1650, 1430, lt, 2.9],
             y: 850,
             s: 0.98,
             flipX: true,
@@ -1304,16 +1354,17 @@ const SHOTS = [
     title: '4,200 Years Ago Chapter Dial',
     vo_line: 'இப்ப இருந்து சுமாரா ஒரு 4200 வருஷம் முன்னாடி.',
     env_id: 'ENV_FARM_CLEARING',
-    chars: 'HOST_PROTAG (moveX: 1320 -> 860) + IRON_SMELTER (moveX: 420 -> 680) meeting at stone (x: 770)',
+    chars: 'HOST_PROTAG (moveX: 1420 -> 1050) + IRON_SMELTER (moveX: 500 -> 870) meeting at stone (x: 960)',
     on_screen_text: '4,200 YEARS AGO · c. 2172 BCE · IRON AGE DAWN',
-    camera_sfx: 'Horizon Chapter Dial + Megalithic Dolmen Meeting · counterTick + timerChime + thud',
+    camera_sfx: 'Floating Chapter Dial + Megalithic Dolmen Meeting · counterTick + timerChime + thud',
     transition_out: 'CUT_TO_EXCAVATION',
 
     draw(g, lt, gt, u) {
+      // FIXED: cam.x = -15..+15, cam.y = 0
       const cam = {
-        x: 960,
-        y: 540,
-        z: DK.key(lt, [[0, 1.0], [2.7, 1.06]], DK.ease.inOutSine)
+        x: DK.key(lt, [[0, -15], [2.7, 15]], DK.ease.inOutSine),
+        y: 0,
+        z: DK.key(lt, [[0, 1.0], [2.7, 1.05]], DK.ease.inOutSine)
       };
 
       DK.fivePlane(g, cam, {
@@ -1334,19 +1385,19 @@ const SHOTS = [
         mgHero: (g) => {
           FX.storybookGround(g, 840, { style: 'grassland', baseCol: '#6E523C', grassCol: '#4A8C4A' });
 
-          // Central Target Prop: Megalithic Stone Dolmen Marker at x: 770 (charX ± 90px from both characters)
+          // Central Target Prop: Megalithic Stone Dolmen Marker at x: 960 (charX ± 90px from both characters)
           FX.interactiveProp(g, {
             kind: 'crumblingPillar',
-            x: 770,
+            x: 960,
             y: 840,
             cutTime: 99,
             lt,
             gt
           });
 
-          // Left Character: IRON_SMELTER walking [420 -> 680] to meet at the stone (x: 770, charX + 90px)
+          // Left Character: IRON_SMELTER walking [500 -> 870] to meet at the stone (x: 960, charX + 90px)
           THEME.drawChar(g, 'IRON_SMELTER', {
-            moveX: [420, 680, lt, 2.7],
+            moveX: [500, 870, lt, 2.7],
             y: 840,
             s: 1.0,
             prop: 'hammer',
@@ -1358,9 +1409,9 @@ const SHOTS = [
             seed: 15
           });
 
-          // Right Character: HOST_PROTAG walking [1320 -> 860] to meet at the stone (x: 770, charX - 90px)
+          // Right Character: HOST_PROTAG walking [1420 -> 1050] to meet at the stone (x: 960, charX - 90px)
           THEME.drawChar(g, 'HOST_PROTAG', {
-            moveX: [1320, 860, lt, 2.7],
+            moveX: [1420, 1050, lt, 2.7],
             y: 840,
             s: 1.0,
             flipX: true,
@@ -1377,11 +1428,9 @@ const SHOTS = [
         }
       });
 
-      // Mid-Shot Micro-Beat (lt = 1.35s): Horizon Chapter Dial locks onto '4,200 YEARS AGO'
-      UI.horizonChapterDial(g, lt, {
-        title: '4,200 YEARS AGO',
-        sub: 'c. 2172 BCE · IRON AGE DAWN'
-      });
+      // FIXED: Non-destructive Floating Chapter Dial HUD (keeps 100% of scene visible!)
+      drawChapterDialHUD(g, lt, gt, '4,200 YEARS AGO', 'c. 2172 BCE · IRON AGE DAWN', 0.25);
+
       UI.citation(g, 'AMS Carbon-14 Calibration: 2172 BCE', { align: 'right' });
       DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.022 });
     },

@@ -354,9 +354,9 @@ When writing code for Steps 9, 10, 11, 12, 12.1, and 13, use these exact API cal
 <head>
 <meta charset="UTF-8" />
 <title>Lumina 2.5D Storybook Studio (16:9) — Visual Storyboard</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="<https://fonts.googleapis.com>">
+<link rel="preconnect" href="<https://fonts.gstatic.com>" crossorigin>
+<link href="<https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Space+Mono:wght@700&display=swap>" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #0b0e17; color: #e2e8f0; font-family: 'Nunito', sans-serif; padding: 28px; }
@@ -433,9 +433,9 @@ window.addEventListener('DOMContentLoaded', renderStoryboard);
 <head>
 <meta charset="UTF-8" />
 <title>Lumina 2.5D Storybook Studio (16:9) — Studio Player (SFX + Ambient Batch)</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="<https://fonts.googleapis.com>">
+<link rel="preconnect" href="<https://fonts.gstatic.com>" crossorigin>
+<link href="<https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Space+Mono:wght@700&display=swap>" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #05070d; color: #e2e8f0; font-family: 'Nunito', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -620,9 +620,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 <head>
 <meta charset="UTF-8" />
 <title>Lumina Studio — Universal Generative Master BGM (bgm_master.html)</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@600;700;800;900&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="<https://fonts.googleapis.com>">
+<link rel="preconnect" href="<https://fonts.gstatic.com>" crossorigin>
+<link href="<https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@600;700;800;900&family=Space+Mono:wght@700&display=swap>" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #080b14; color: #e2e8f0; font-family: 'Nunito', sans-serif; padding: 32px; max-width: 1360px; margin: 0 auto; }
@@ -874,37 +874,33 @@ Copy and paste these prompts one step at a time.
 
 ### STEP 1: Ideation, CTR Packaging & Thumbnail Blueprints
 
-> **Prompt to Give Me:**
-> 
-> 
-> ```
-> Do Step 1 for the topic: "[INSERT YOUR TOPIC IDEA HERE]".
-> Give me:
-> 1. The Concept Name & 1-Sentence Core Promise.
-> 2. 6–9 Bilingual (Tamil/Tanglish + English) High-CTR Title Options across 3 viral angles.
-> 3. 3–4 Thumbnail Blueprints following the "Rule of 3" + ready-to-paste Google Flow Image Prompts locked to the Lumina 2.5D soft-volumetric 3D-parallax art style (No HTML yet).
-> 4. 3–4 Sub-10-Second Visceral Second-Person ("நீங்க" / "நம்ம") Hook options.
-> ```
-> 
+**Prompt to Give Me:**
+
+```
+Do Step 1 for the topic: "[INSERT YOUR TOPIC IDEA HERE]".
+Give me:
+1. The Concept Name & 1-Sentence Core Promise.
+2. 6–9 Bilingual (Tamil/Tanglish + English) High-CTR Title Options across 3 viral angles.
+3. 3–4 Thumbnail Blueprints following the "Rule of 3" + ready-to-paste Google Flow Image Prompts locked to the Lumina 2.5D soft-volumetric 3D-parallax art style (No HTML yet).
+4. 3–4 Sub-10-Second Visceral Second-Person ("நீங்க" / "நம்ம") Hook options.
+```
 
 ---
 
 ### STEP 2: Direct Tamil / Tanglish Script — Draft 1 (Pure Narrative Script)
 
-> **Prompt to Give Me:**
-> 
-> 
-> ```
-> Do Step 2. Write Draft 1 of the Direct Conversational Tamil / Tanglish Script using Hook Option [#] and Title [#].
-> Follow all Universal Scripting Laws:
-> - Pure Narrative Script ONLY (No Shot List yet).
-> - Target Video Length: [e.g., 8 to 10 minutes].
-> - Write in natural spoken Tamil/Tanglish (பேச்சு வழக்கு) with 6–10 word teleprompter breath-groups and micro-pauses (...).
-> - Sub-10s Hook (0:00–0:09) in visceral second-person ("நீங்க" / "நம்ம") + Intro (0:10–1:00) + 5 to 7 Milestones connected strictly by "ஆனா (But) / அதனால (Therefore)" causal loops (never "அப்புறம்").
-> - Include relatable everyday Tamil comparisons, voiced OverSimplified-style deadpan visual gags, [CUTAWAY: ...] markers for Hardware Teardowns / Strategic Maps / 3D Charts / X-Rays / Physics, and [DIEGETIC SILENCE 0.00 + SFX] markers on shocks and punchlines.
-> - Deliver the full Climax & Resolution FIRST, and end with a tight 5-second Single-Video Curiosity Bridge CTA.
-> ```
-> 
+**Prompt to Give Me:**
+
+```
+Do Step 2. Write Draft 1 of the Direct Conversational Tamil / Tanglish Script using Hook Option [#] and Title [#].
+Follow all Universal Scripting Laws:
+- Pure Narrative Script ONLY (No Shot List yet).
+- Target Video Length: [e.g., 8 to 10 minutes].
+- Write in natural spoken Tamil/Tanglish (பேச்சு வழக்கு) with 6–10 word teleprompter breath-groups and micro-pauses (...).
+- Sub-10s Hook (0:00–0:09) in visceral second-person ("நீங்க" / "நம்ம") + Intro (0:10–1:00) + 5 to 7 Milestones connected strictly by "ஆனா (But) / அதனால (Therefore)" causal loops (never "அப்புறம்").
+- Include relatable everyday Tamil comparisons, voiced OverSimplified-style deadpan visual gags, [CUTAWAY: ...] markers for Hardware Teardowns / Strategic Maps / 3D Charts / X-Rays / Physics, and [DIEGETIC SILENCE 0.00 + SFX] markers on shocks and punchlines.
+- Deliver the full Climax & Resolution FIRST, and end with a tight 5-second Single-Video Curiosity Bridge CTA.
+```
 
 *(Note: In Step 2, you can ask me for revisions until you love the script 100%.)*
 
@@ -912,30 +908,26 @@ Copy and paste these prompts one step at a time.
 
 ### STEP 3: "Professor-Grade" Research & Fact-Checking Audit
 
-> **Prompt to Give Me:**
-> 
-> 
-> ```
-> Do Step 3. Perform a "Professor-Grade" line-by-line Research & Fact-Checking Audit of the approved Step 2 script against primary academic, engineering, historical, and institutional sources.
-> Output:
-> - PART 1: Line-by-Line / Section Claim Audit ([✅ VERIFIED], [⚠️ NUANCE TWEAK NEEDED], or [❌ INACCURATE — MUST FIX]) with exact corrections and locked `UI.citation` strings for every technical/historical claim.
-> - PART 2: Master Bibliography of primary sources.
-> ```
-> 
+**Prompt to Give Me:**
+
+```
+Do Step 3. Perform a "Professor-Grade" line-by-line Research & Fact-Checking Audit of the approved Step 2 script against primary academic, engineering, historical, and institutional sources.
+Output:
+- PART 1: Line-by-Line / Section Claim Audit ([✅ VERIFIED], [⚠️ NUANCE TWEAK NEEDED], or [❌ INACCURATE — MUST FIX]) with exact corrections and locked `UI.citation` strings for every technical/historical claim.
+- PART 2: Master Bibliography of primary sources.
+```
 
 ---
 
 ### STEP 4: Final Polished Teleprompter Script + Pre-Production Shot List (Draft 2)
 
-> **Prompt to Give Me:**
-> 
-> 
-> ```
-> Do Step 4. Incorporate all fact-check corrections from Step 3 and generate:
-> - PART 1: The Pre-Production Screenplay & Shot List (Shot #, Est. Duration, Spoken Line, Spatial Archetype from the 8 Universal Archetypes, Environment/Map/Teardown/Chart/Physics spec, Active Character Choreography + Target Prop + Anti-Treadmill `moveX`, Action-Synced Audio & BGM DNA Design, and `TRANSITION_ID`).
-> - PART 2: The Final Clean Teleprompter Script in 6–10 word breath-groups with [தமிழ் உச்சரிப்பு] phonetic pronunciation guides for tricky English/scientific/historical terms and delivery cues.
-> ```
-> 
+**Prompt to Give Me:**
+
+```
+Do Step 4. Incorporate all fact-check corrections from Step 3 and generate:
+- PART 1: The Pre-Production Screenplay & Shot List (Shot #, Est. Duration, Spoken Line, Spatial Archetype from the 8 Universal Archetypes, Environment/Map/Teardown/Chart/Physics spec, Active Character Choreography + Target Prop + Anti-Treadmill `moveX`, Action-Synced Audio & BGM DNA Design, and `TRANSITION_ID`).
+- PART 2: The Final Clean Teleprompter Script in 6–10 word breath-groups with [தமிழ் உச்சரிப்பு] phonetic pronunciation guides for tricky English/scientific/historical terms and delivery cues.
+```
 
 ---
 
@@ -949,15 +941,13 @@ Copy and paste these prompts one step at a time.
 
 *(If you give me your audio file or raw transcript with timestamps, use this prompt)*:
 
-> **Prompt to Give Me:**
-> 
-> 
-> ```
-> Do Step 7. Here is my recorded audio / raw transcript:
-> [UPLOAD AUDIO OR PASTE RAW TRANSCRIPT WITH TIMESTAMPS]
-> Transcribe it verbatim word-for-word in colloquial Tamil + English in 2.5s to 4.5s breath-phrase chunks formatted as `[MM:SS.d - MM:SS.d]`, ending with `CHUNK_END: [MM:SS.d]`.
-> ```
-> 
+**Prompt to Give Me:**
+
+```
+Do Step 7. Here is my recorded audio / raw transcript:
+[UPLOAD AUDIO OR PASTE RAW TRANSCRIPT WITH TIMESTAMPS]
+Transcribe it verbatim word-for-word in colloquial Tamil + English in 2.5s to 4.5s breath-phrase chunks formatted as `[MM:SS.d - MM:SS.d]`, ending with `CHUNK_END: [MM:SS.d]`.
+```
 
 *(Note: If you do Step 7 in batches for a long 10-minute video, just say: "Do Step 7 for Chunk 1 (00:00.0 to 03:00.0)", etc.)*
 
@@ -967,37 +957,33 @@ Copy and paste these prompts one step at a time.
 
 *(For a long video with 100+ shots, ask for Step 8 in chunks of ~25–30 shots so the output never gets cut off!)*
 
-> **Prompt to Give Me:**
-> 
-> 
-> ```
-> Do Step 8 for Shots [1 to 25] (covering timestamps [00:00.0 to 01:30.0]) from the Step 7 transcript.
-> Generate the locked Narrative Beat Sheet with:
-> - 100% timeline coverage (every shot 2.5s–4.5s, never >5.0s).
-> - Exact Spatial Archetype (from the 8 Universal Archetypes — zero dark grid voids behind floor-standing characters, zero pyramid roads).
-> - 80/20 Active Full-Body Choreography + Mandatory Cause-and-Effect Target Prop Contact (`charX ± 75..115px`) + Anti-Treadmill `moveX`.
-> - Mid-Shot Micro-Beat at `lt = s.duration * 0.5` for every shot > 3.0s.
-> - Exact HUD badges, `UI.citation` strings, and `TRANSITION_ID`.
-> ```
-> 
+**Prompt to Give Me:**
+
+```
+Do Step 8 for Shots [1 to 25] (covering timestamps [00:00.0 to 01:30.0]) from the Step 7 transcript.
+Generate the locked Narrative Beat Sheet with:
+- 100% timeline coverage (every shot 2.5s–4.5s, never >5.0s).
+- Exact Spatial Archetype (from the 8 Universal Archetypes — zero dark grid voids behind floor-standing characters, zero pyramid roads).
+- 80/20 Active Full-Body Choreography + Mandatory Cause-and-Effect Target Prop Contact (`charX ± 75..115px`) + Anti-Treadmill `moveX`.
+- Mid-Shot Micro-Beat at `lt = s.duration * 0.5` for every shot > 3.0s.
+- Exact HUD badges, `UI.citation` strings, and `TRANSITION_ID`.
+```
 
 ---
 
 ### STEP 9: Master Consistency Bible & Global `THEME` Dictionary Lock
 
-> **Prompt to Give Me:**
-> 
-> 
-> ```
-> Do Step 9 for the entire episode.
-> Create the Master Consistency Bible and output the complete, locked JavaScript `const THEME = { CHARS: {...}, ANIMALS: {...}, ENVS: {...}, INFO: {...}, SHOTS: {...} };` block.
-> Strict Rules:
-> - Zero beards (`beard: false, mustache: false` on all characters).
-> - Default `curlyCloud` protagonist for "நீங்க / நம்ம" scenes + diverse sculpted era hairstyles for historical/crowd characters.
-> - Reusable 5-Plane Storybook & Infographic 2.5D environments in `ENVS`.
-> - All universal maps (`UI.strategicMap` / `UI.satelliteBriefing` / `UI.globeToMap` / `UI.geoGlobe`), hardware teardowns (`UI.hardwareTeardown`), 3D charts (`UI.chartBar3D` / `UI.chartLine`), and physics sims (`PHY.*`) cataloged cleanly in `INFO`.
-> ```
-> 
+**Prompt to Give Me:**
+
+```
+Do Step 9 for the entire episode.
+Create the Master Consistency Bible and output the complete, locked JavaScript `const THEME = { CHARS: {...}, ANIMALS: {...}, ENVS: {...}, INFO: {...}, SHOTS: {...} };` block.
+Strict Rules:
+- Zero beards (`beard: false, mustache: false` on all characters).
+- Default `curlyCloud` protagonist for "நீங்க / நம்ம" scenes + diverse sculpted era hairstyles for historical/crowd characters.
+- Reusable 5-Plane Storybook & Infographic 2.5D environments in `ENVS`.
+- All universal maps (`UI.strategicMap` / `UI.satelliteBriefing` / `UI.globeToMap` / `UI.geoGlobe`), hardware teardowns (`UI.hardwareTeardown`), 3D charts (`UI.chartBar3D` / `UI.chartLine`), and physics sims (`PHY.*`) cataloged cleanly in `INFO`.
+```
 
 ---
 
@@ -1005,21 +991,19 @@ Copy and paste these prompts one step at a time.
 
 *(Request Step 10 in batches of 15–20 shots for maximum coordinate & keyframe precision, and ask for `BGM_SCORE` on the final batch)*:
 
-> **Prompt to Give Me (Batches):**
-> 
-> 
-> ```
-> Do Step 10 for Shots [1 to 15].
-> Give me the complete Technical Screenplay & Shot List grouped under 5-Shot Batch headers (`BATCH 01: SHOTS 01–05`, etc.) with exact 1920x1080 coordinates, 5-plane camera keyframes (`cam.x, cam.y, cam.z`), `DK.char` poses, `moveX: [startX, endX, lt, s.duration]`, target interactive props at `charX ± 75..115px`, Mid-Shot Micro-Beats, and transitions.
-> CRITICAL ORDERING RULE: Attach each shot's exact `sfx(k, bt0)` code (`k.bed`, `k.play`, `PHY.scheduleImpacts` using shot-local offsets `bt0 + lt`, NO BGM in shot batches) DIRECTLY inside that shot's entry. DO NOT separate or dump `scoreSound(k)` functions into a separate Part 2 at the bottom!
-> ```
-> 
-> **Prompt to Give Me (On the Final Batch of Step 10):**
-> 
-> ```
-> Do Step 10 for the final Shots [X to Y] (with each shot's `sfx(k, bt0)` attached directly inside its shot entry), and at the bottom output the complete Episode-Wide Universal Generative Master BGM Cue Sheet (`const BGM_SCORE = { total_duration: ..., cues: [...], volume_automation: [...] };`) with full musical DNA (`situation`, `mood`, `scale`, `progression`, `lead`, `counter`, `pad`, `bass`, `perc`, `tension`, `valence`, `bpm`), including `0.18` VO bed, `0.55` swells, and `0.00` `DIEGETIC_SILENCE` drops on shocks and deadpan punchlines.
-> ```
-> 
+**Prompt to Give Me (Batches):**
+
+```
+Do Step 10 for Shots [1 to 15].
+Give me the complete Technical Screenplay & Shot List grouped under 5-Shot Batch headers (`BATCH 01: SHOTS 01–05`, etc.) with exact 1920x1080 coordinates, 5-plane camera keyframes (`cam.x, cam.y, cam.z`), `DK.char` poses, `moveX: [startX, endX, lt, s.duration]`, target interactive props at `charX ± 75..115px`, Mid-Shot Micro-Beats, and transitions.
+CRITICAL ORDERING RULE: Attach each shot's exact `sfx(k, bt0)` code (`k.bed`, `k.play`, `PHY.scheduleImpacts` using shot-local offsets `bt0 + lt`, NO BGM in shot batches) DIRECTLY inside that shot's entry. DO NOT separate or dump `scoreSound(k)` functions into a separate Part 2 at the bottom!
+```
+
+**Prompt to Give Me (On the Final Batch of Step 10):**
+
+```
+Do Step 10 for the final Shots [X to Y] (with each shot's `sfx(k, bt0)` attached directly inside its shot entry), and at the bottom output the complete Episode-Wide Universal Generative Master BGM Cue Sheet (`const BGM_SCORE = { total_duration: ..., cues: [...], volume_automation: [...] };`) with full musical DNA (`situation`, `mood`, `scale`, `progression`, `lead`, `counter`, `pad`, `bass`, `perc`, `tension`, `valence`, `bpm`), including `0.18` VO bed, `0.55` swells, and `0.00` `DIEGETIC_SILENCE` drops on shocks and deadpan punchlines.
+```
 
 ---
 
@@ -1027,16 +1011,15 @@ Copy and paste these prompts one step at a time.
 
 *(If your video has up to ~30 shots, you can generate `storyboard.html` in one go. If it has 100+ shots, you can either generate `storyboard_part1.html`, `storyboard_part2.html` OR go straight to Step 12 5-shot batches).*
 
-> **Prompt to Give Me:**
-> 
-> 
-> ```
-> Do Step 11 for Shots [1 to 25].
-> Output the complete `storyboard.html` file using the 16:9 Widescreen Storyboard Boilerplate.
-> - Load the engine externally via `<script src="../../engine.js"></script>` (DO NOT inline engine code).
-> - Include the locked `THEME` object and `SHOTS` array so every card renders its midpoint keyframe (`midLt`, `midGt`) at 1920x1080 scaled to 16:9 cards.
-> ```
-> 
+**Prompt to Give Me:**
+
+```
+Do Step 11 for Shots [1 to 25].
+Output the complete `storyboard.html` file using the 16:9 Widescreen Storyboard Boilerplate.
+- Load the engine externally via `<script src="../../engine.js"></script>` (DO NOT inline engine code).
+- Include the locked `THEME` object and `SHOTS` array so every card renders its midpoint keyframe (`midLt`, `midGt`) at 1920x1080 scaled to 16:9 cards.
+```
+
 - **Where to Save:** Save as `Lumina\projects\<project_name>\storyboard.html` and double-click it to inspect all shots visually in Chrome!
 
 ---
@@ -1045,18 +1028,21 @@ Copy and paste these prompts one step at a time.
 
 *(Always request **5 shots per batch** so 100% of the token budget goes into rich 5-plane scenery, props, teardowns, maps, and choreography!)*
 
-> **Prompt to Give Me:**
-> 
-> 
-> ```
-> Do Step 12 for Shots [1 to 5] (`shots_01_05.html`).
-> Output the complete, self-contained HTML file using the Step 12 Studio Player Boilerplate.
-> Strict Rules:
-> 1. Load `<script src="../../engine.js"></script>` externally (NEVER inline engine code).
-> 2. Paste the required `THEME` definitions and the 5 `SHOTS`, where EVERY shot object in `SHOTS` contains both its `draw(g, lt, gt, u)` method AND its attached `sfx(k, bt0)` method (`bt0 = s.start - BATCH_START`, using shot-local offsets `bt0 + lt`), auto-triggered by `scoreSound(k)`. Never separate SFX from its shot object!
-> 3. Enforce 5-plane parallax environments (`DK.fivePlane` / `FX.infographicEnv`), Cause-and-Effect target props (`charX ± 75..115px`), Anti-Treadmill `moveX`, zero beards, Mid-Shot Micro-Beats, and frame-accurate `k.play` / `k.bed` / `PHY.scheduleImpacts`.
-> ```
-> 
+**Prompt to Give Me:**
+
+```
+Do Step 12 for Shots [1 to 5] (`shots_01_05.html`).
+Output the complete, self-contained HTML file using the Step 12 Studio Player Boilerplate.
+Strict Rules:
+1. Load `<script src="../../engine.js"></script>` externally (NEVER inline engine code).
+2. Paste the required `THEME` definitions and the `SHOTS` array, where EVERY shot object contains both `draw(g, lt, gt, u)` AND its attached `sfx(k, bt0)` method (`bt0 = s.start - BATCH_START`).
+3. CRITICAL CAMERA ORIGIN LAW: In `DK.fivePlane(g, cam, ...)`, `cam.x = 0, cam.y = 0` is the centered camera! NEVER set `cam.x = 960` or `cam.y = 540`. Keep `cam.x` within `35..+35` for pans, `cam.y` within `15..+15`, and `cam.x = 0, cam.y = 0` on split-screen or 3D chart shots.
+4. CRITICAL MAP & CHART VISIBILITY LAW: Never place `UI.strategicMap` or `UI.satelliteBriefing` inside `bgFar` behind a `y = 840` `FX.storybookGround` dirt wall! Render maps unobstructed across the canvas, and if a presenter character is included on a map shot, place a low foreground terrace at `y = 980`.
+5. CRITICAL HUD OVERLAY LAW: Never let `UI.eraChapterDial`, `UI.horizonChapterDial`, or `UI.titleCard` paint a full-screen background over a `DK.fivePlane` scene—always render them as non-destructive floating HUD banners at `y = 110..175`.
+
+https://github.com/vaishnavaa1997/Lumina
+```
+
 - **Where to Save:**
     - Shots 1–5 → Save as `Lumina\projects\<project_name>\shots_01_05.html`
     - Shots 6–10 → Save as `Lumina\projects\<project_name>\shots_06_10.html`
@@ -1067,14 +1053,13 @@ Copy and paste these prompts one step at a time.
 
 ### STEP 12.1: Continuous Universal Generative Master BGM (`bgm_master.html`)
 
-> **Prompt to Give Me:**
-> 
-> 
-> ```
-> Do Step 12.1 (`bgm_master.html`).
-> Output the complete standalone HTML file using the Step 12.1 Boilerplate loading `<script src="../../engine.js"></script>` and containing the locked episode-wide `BGM_SCORE` object from Step 10 so I can preview and export `bgm_master.wav`.
-> ```
-> 
+**Prompt to Give Me:**
+
+```
+Do Step 12.1 (`bgm_master.html`).
+Output the complete standalone HTML file using the Step 12.1 Boilerplate loading `<script src="../../engine.js"></script>` and containing the locked episode-wide `BGM_SCORE` object from Step 10 so I can preview and export `bgm_master.wav`.
+```
+
 - **Where to Save:** Save as `Lumina\projects\<project_name>\bgm_master.html`.
 
 ---
@@ -1083,15 +1068,13 @@ Copy and paste these prompts one step at a time.
 
 If you spot a visual mistake, a crash on Shot 56, or want to make a specific shot richer:
 
-> **Prompt to Give Me:**
-> 
-> 
-> ```
-> Do Step 13 for Shot [56] (inside `shots_56_60.html`).
-> Issue to fix / upgrade: "[Describe what you want changed or paste the Console error]".
-> Keep the exact `start`, `end`, `duration`, `lt`, `gt`, and attached `sfx(k, bt0)` (`bt0 = s.start - BATCH_START`) timing locked inside the shot object, and give me the updated `shots_56_60.html` (or standalone `shot_56.html`) loading `<script src="../../engine.js"></script>`.
-> ```
-> 
+**Prompt to Give Me:**
+
+```
+Do Step 13 for Shot [56] (inside `shots_56_60.html`).
+Issue to fix / upgrade: "[Describe what you want changed or paste the Console error]".
+Keep the exact `start`, `end`, `duration`, `lt`, `gt`, and attached `sfx(k, bt0)` (`bt0 = s.start - BATCH_START`) timing locked inside the shot object, and give me the updated `shots_56_60.html` (or standalone `shot_56.html`) loading `<script src="../../engine.js"></script>`.
+```
 
 ---
 

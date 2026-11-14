@@ -8129,3 +8129,145 @@ DK.scheduleTransitions = H.scheduleTransitions = SOUND.scheduleTransitions = sch
     return callable;
   };
 })();
+
+// ============================================================================
+// LUMINA STUDIO — RUNTIME AUTO-GUARDRAIL (PREVENTS CAMERA & HUD BUGS FOREVER)
+// Paste at the very bottom of engine/lumina_base.js
+// ============================================================================
+(function installLuminaGuardrails() {
+  if (!window.DK || !window.UI) return;
+
+  // 1. AUTO-FIX CAMERA OFFSET BUG (Converts cam.x ~ 960, cam.y ~ 540 -> 0, 0)
+  const _origFivePlane = DK.fivePlane;
+  if (typeof _origFivePlane === 'function') {
+    DK.fivePlane = function (g, cam, planes) {
+      let safeCam = { x: 0, y: 0, z: 1, rot: 0 };
+      if (cam && typeof cam === 'object') {
+        let cx = Number(cam.x) || 0;
+        let cy = Number(cam.y) || 0;
+        // If LLM passed screen center (~960, ~540) instead of pan offset (0, 0), normalize it!
+        if (Math.abs(cx - 960) <= 360 && Math.abs(cy - 540) <= 260) {
+          cx -= 960;
+          cy -= 540;
+        } else if (Math.abs(cy - 540) <= 180 && Math.abs(cx) <= 300) {
+          cy -= 540;
+        }
+        safeCam = Object.assign({}, cam, { x: cx, y: cy });
+      }
+      return _origFivePlane.call(this, g, safeCam, planes);
+    };
+  }
+
+  // 2. AUTO-FIX UI.titleCard FALLBACK TEXT BUG (Never prints "LAST PERSON ON EARTH")
+  UI.titleCard = function (g, lt, opts) {
+    opts = opts || {};
+    const t0 = opts.t0 !== undefined ? opts.t0 : 0.4;
+    const p = DK.pop(lt, t0, 0.45);
+    if (p <= 0.01) return;
+
+    const kicker = opts.kicker || opts.top || 'CHRONOLOGICAL DOCUMENTARY';
+    const mainTitle = opts.title || [opts.line1, opts.line2].filter(Boolean).join(' ') || 'LUMINA STUDIO';
+    const subTitle = opts.sub || opts.subTitle || opts.tag || '';
+    const cy = opts.y !== undefined ? opts.y : 175;
+
+    g.save();
+    g.translate(opts.x !== undefined ? opts.x : 960, cy);
+    g.scale(p, p);
+
+    g.fillStyle = 'rgba(11, 16, 30, 0.90)';
+    g.strokeStyle = opts.accent || '#FF851B';
+    g.lineWidth = 3;
+    g.shadowColor = 'rgba(0, 0, 0, 0.55)';
+    g.shadowBlur = 28;
+    g.beginPath();
+    g.roundRect(-460, -82, 920, 164, 18);
+    g.fill();
+    g.stroke();
+    g.shadowBlur = 0;
+
+    g.fillStyle = '#38BDF8';
+    g.font = '800 16px "Space Mono", monospace';
+    g.textAlign = 'center';
+    g.fillText(String(kicker).toUpperCase(), 0, -42);
+
+    g.fillStyle = '#FFD54F';
+    g.font = '900 42px "Playfair Display", serif';
+    g.fillText(String(mainTitle), 0, 10);
+
+    if (subTitle) {
+      g.fillStyle = '#F8FAFC';
+      g.font = '800 20px "Nunito", sans-serif';
+      g.fillText(String(subTitle), 0, 52);
+    }
+    g.restore();
+  };
+
+  // 3. AUTO-FIX UI.eraChapterDial & UI.horizonChapterDial (Non-Destructive Floating HUD!)
+  function renderFloatingChapterDial(g, lt, opts) {
+    opts = opts || {};
+    const t0 = opts.t0 !== undefined ? opts.t0 : 0.25;
+    const p = DK.pop(lt, t0, 0.45);
+    if (p <= 0.01) return;
+
+    const eraLabel = opts.era || opts.kicker || opts.sub || 'HISTORICAL ERA';
+    const yearLabel = opts.year || opts.title || 'TIMELINE MILESTONE';
+
+    g.save();
+    g.translate(opts.x !== undefined ? opts.x : 960, opts.y !== undefined ? opts.y : 130);
+    g.scale(p, p);
+
+    g.fillStyle = 'rgba(12, 20, 38, 0.90)';
+    g.strokeStyle = 'rgba(255, 184, 77, 0.78)';
+    g.lineWidth = 2.5;
+    g.shadowColor = 'rgba(0, 0, 0, 0.5)';
+    g.shadowBlur = 24;
+    g.beginPath();
+    g.roundRect(-350, -56, 700, 112, 56);
+    g.fill();
+    g.stroke();
+    g.shadowBlur = 0;
+
+    const dx = -275, dy = 0, dr = 40;
+    g.save();
+    g.beginPath();
+    g.arc(dx, dy, dr, 0, Math.PI * 2);
+    g.fillStyle = '#1B2A4A';
+    g.fill();
+    g.strokeStyle = '#FF851B';
+    g.lineWidth = 2.5;
+    g.stroke();
+
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2 + lt * 0.45;
+      g.strokeStyle = i % 3 === 0 ? '#FFD54F' : 'rgba(255,255,255,0.35)';
+      g.lineWidth = i % 3 === 0 ? 2 : 1;
+      g.beginPath();
+      g.moveTo(dx + Math.cos(a) * (dr - 7), dy + Math.sin(a) * (dr - 7));
+      g.lineTo(dx + Math.cos(a) * (dr - 2), dy + Math.sin(a) * (dr - 2));
+      g.stroke();
+    }
+
+    g.fillStyle = '#FFD54F';
+    g.beginPath();
+    g.moveTo(dx - 12, dy + 16);
+    g.lineTo(dx - 6, dy - 16);
+    g.lineTo(dx + 6, dy - 16);
+    g.lineTo(dx + 12, dy + 16);
+    g.closePath();
+    g.fill();
+    g.restore();
+
+    g.textAlign = 'left';
+    g.fillStyle = '#FFB074';
+    g.font = '800 15px "Space Mono", monospace';
+    g.fillText(String(eraLabel).toUpperCase(), -205, -12);
+
+    g.fillStyle = '#FFFFFF';
+    g.font = '900 32px "Playfair Display", serif';
+    g.fillText(String(yearLabel), -205, 28);
+    g.restore();
+  }
+
+  UI.eraChapterDial = renderFloatingChapterDial;
+  UI.horizonChapterDial = renderFloatingChapterDial;
+})();
