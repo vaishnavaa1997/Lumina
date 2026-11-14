@@ -4944,917 +4944,1900 @@ DK.chapterHeader = H.chapterHeader = chapterHeader;
 
 
 // ============================================================================
-// MODULE 4: LUMINA_SOUND (lib/lumina_sound.js) — Generative Situational &
-// Cultural Audio Engine (Tension/Valence/Culture/Tempo-Adaptive Multi-Stem
-// Score Synthesizer) + Prehistoric, Historical, Combat, Construction, Science,
-// Aviation & Urban Foley Synthesizer.
-// Supports live browser playback & offline 48kHz stereo WAV rendering.
-// Clean Track Separation Modes (opts.mixMode):
-//   - 'sfxOnly' : Heavy (0.75) + Foley/UI (0.45) + Ambient (0.20), ZERO BGM
-//   - 'bgmOnly' : Continuous VO-Ducked Situational BGM (0.18 / 0.55 / 0.00)
-//   - 'bgmFull' : Continuous Unducked Situational BGM (0.42 / 0.55 / 0.00)
+// MODULE 4: LUMINA_SOUND (engine/lumina_sound.js) — 100% UNIVERSAL GENERATIVE
+// MUSIC COMPOSER, MULTI-LAYER AMBIENCE & ACTION-SYNCED FOLEY/SFX ENGINE
+// - Zero hardcoded loop repetition: composes unique, phrase-structured 4-bar
+//   motifs, counter-melodies, Euclidean rhythms, and dynamic chord progressions
+//   for ANY situation, mood, era, culture, or free-form description.
+// - 24 World & Cinematic Scales + 16 Harmonic Topologies + 30 Studio Voices
+//   with stereo ping-pong delay & lush algorithmic hall reverb.
+// - 100+ Action-Synced Foley/SFX Presets + Universal Semantic SFX Synthesizer
+//   (synthesizes ANY custom sound string on the fly at frame-accurate time t).
+// - Supports live browser playback & offline 48kHz stereo WAV rendering.
+// - Clean Track Separation Modes (opts.mixMode):
+//     * 'sfxOnly' : Heavy (0.75) + Foley/UI (0.45) + Ambient (0.20), ZERO BGM
+//     * 'bgmOnly' : Continuous VO-Ducked Situational BGM (0.18 / 0.55 / 0.00)
+//     * 'bgmFull' : Continuous Unducked Situational BGM (0.42 / 0.55 / 0.00)
 // ============================================================================
 (function () {
-'use strict';
+  'use strict';
 
-const SOUND = (window.SOUND = window.SOUND || {});
-const DK = (window.DK = window.DK || {});
-const H = (window.H = window.H || DK);
-DK.sound = H.sound = SOUND;
+  const SOUND = (window.SOUND = window.SOUND || {});
+  const DK = (window.DK = window.DK || {});
+  const H = (window.H = window.H || DK);
+  DK.sound = H.sound = SOUND;
 
-const TINY = 1e-4;
+  const TINY = 1e-4;
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+  const lerp = (a, b, k) => a + (b - a) * clamp(k, 0, 1);
 
-// Exact Calibrated Mixing Levels
-const MIX = (SOUND.MIX = {
-HEAVY_IMPACT: 0.75, // decompressionBang, thunder, impact, shatter, powerDown, boltSnap, volcanoRumble, dinoRoar
-BGM_SWELL: 0.55,    // Title Cards, Era/Horizon Chapter Dials, Radial Timers, Cosmic/Heroic/Historical Swells
-UI_FOLEY: 0.45,     // swordClash, hammerHit, horseGallop, templeBell, coinClink, liquidBubble, alarmBeep, etc.
-AMBIENT_LOOP: 0.20, // cabinHum, supersonicWind, citySilence, fountainWater, rain, ocean, volcanoLava
-BGM_VO_BED: 0.18,   // Active narration bed
-BGM_STOP: 0.00,     // DIEGETIC_SILENCE & deadpan comedic punchlines
-});
+  // Exact Calibrated Broadcast Mixing Levels
+  const MIX = (SOUND.MIX = {
+    HEAVY_IMPACT: 0.75, // decompressionBang, explosion, thunder, impact, shatter, powerDown, boltSnap, volcanoRumble, dinoRoar
+    BGM_SWELL: 0.55,    // Title Cards, Era/Horizon Chapter Dials, Radial Timers, Cosmic/Heroic/Historical Swells
+    UI_FOLEY: 0.45,     // swordClash, hammerHit, horseGallop, templeBell, coinClink, recordScratch, alarmBeep, etc.
+    AMBIENT_LOOP: 0.20, // cabinHum, supersonicWind, ancientHarbor, monsoonRain, scienceLab, bazaarMarket, ocean
+    BGM_VO_BED: 0.18,   // Active narration bed
+    BGM_STOP: 0.00,     // DIEGETIC_SILENCE & deadpan comedic punchlines
+  });
 
-// Deterministic PRNG for procedural audio textures
-function rand(key) {
-let h = 2166136261;
-const str = String(key);
-for (let i = 0; i < str.length; i++) {
-h ^= str.charCodeAt(i);
-h = Math.imul(h, 16777619);
-}
-let a = h >>> 0 || 1;
-return () => {
-a = (a + 0x6d2b79f5) | 0;
-let t = Math.imul(a ^ (a >>> 15), 1 | a);
-t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-};
-}
-
-// Scientific Pitch Notation -> Hz ('C4' -> 261.63, 'Eb3', 'F#5', etc.) or MIDI offset
-const STEP = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-function noteToMidi(n) {
-if (typeof n === 'number') return n;
-const m = /^([A-G])([#b]?)(-?\d)$/.exec(String(n || 'C4').trim());
-if (!m) return 60;
-return (
-(Number(m[3]) + 1) * 12 +
-STEP[m[1]] +
-(m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0)
-);
-}
-function midiToHz(midi) {
-return 440 * Math.pow(2, (midi - 69) / 12);
-}
-function hz(n) {
-if (typeof n === 'number') return n;
-if (!n || n === 'REST') return 0;
-return midiToHz(noteToMidi(n));
-}
-SOUND.hz = hz;
-
-function parseRootMidi(keyStr = 'D Minor') {
-const m = /^([A-G][#b]?)/.exec(String(keyStr).trim());
-const rootName = m ? m[1] : 'D';
-return noteToMidi(rootName + '2');
-}
-
-// Build adaptive chord progression & melody scale based on Valence, Tension & Culture
-function buildSituationalHarmony(keyStr, valence = 0, tension = 0.5, culture = 'modernCinematic') {
-const root2 = parseRootMidi(keyStr);
-let scaleOffsets;
-let chordDegrees;
-
-
-if (culture === 'indianClassical') {
-  // Carnatic / Hindustani Ragas: Mayamalavagowla (mystical/ancient) vs. Kalyani/Mohanam (bright/grand)
-  scaleOffsets =
-    valence < -0.1
-      ? [0, 1, 4, 5, 7, 8, 11, 12]
-      : [0, 2, 4, 6, 7, 9, 11, 12];
-  chordDegrees = [
-    [0, 7, 12, 16],
-    [0, 5, 12, 17],
-    [0, 7, 12, 19],
-    [0, 7, 12, 16],
-  ];
-} else if (culture === 'eastAsian') {
-  // Hirajoshi Pentatonic (minor/tense) vs. Major Pentatonic (serene/grand)
-  scaleOffsets =
-    valence < 0
-      ? [0, 2, 3, 7, 8, 12, 14, 15]
-      : [0, 2, 4, 7, 9, 12, 14, 16];
-  chordDegrees = [
-    [0, 7, 12, 14],
-    [-3, 4, 9, 12],
-    [5, 12, 17, 19],
-    [0, 7, 12, 16],
-  ];
-} else if (valence < -0.25) {
-  scaleOffsets = tension > 0.7 ? [0, 1, 3, 5, 7, 8, 10, 12] : [0, 2, 3, 5, 7, 8, 10, 12];
-  chordDegrees = [
-    [0, 7, 12, 15],
-    [-4, 3, 8, 12],
-    [-2, 5, 10, 14],
-    [0, 7, 12, tension > 0.6 ? 13 : 15],
-  ];
-} else if (valence <= 0.35) {
-  scaleOffsets = [0, 2, 3, 5, 7, 9, 10, 12];
-  chordDegrees = [
-    [0, 7, 12, 15, 19],
-    [5, 12, 17, 21],
-    [-2, 5, 10, 14],
-    [0, 7, 14, 15],
-  ];
-} else {
-  scaleOffsets = [0, 2, 4, 6, 7, 9, 11, 12];
-  chordDegrees = [
-    [0, 7, 12, 16, 19],
-    [7, 14, 19, 23],
-    [9, 16, 21, 24],
-    [5, 12, 17, 21, 24],
-  ];
-}
-
-const chords = chordDegrees.map((deg) => deg.map((d) => midiToHz(root2 + 12 + d)));
-const scaleHz = scaleOffsets.map((s) => midiToHz(root2 + 24 + s));
-const subHz = chordDegrees.map((deg) => midiToHz(root2 + deg[0]));
-return { chords, scaleHz, subHz };
-
-
-}
-
-// ---------- Main Synthesizer Kit Factory ----------
-SOUND.kit = function (ctx, opts) {
-const o = opts || {};
-const mixMode = o.mixMode || (o.voiceover === false ? 'full' : 'sfxOnly');
-const isBgmOnly = mixMode === 'bgmOnly' || mixMode === 'bgmFull';
-const isSfxOnly = mixMode === 'sfxOnly';
-const VO = mixMode === 'vo' || mixMode === 'bgmOnly';
-
-
-const T0 = (o.start || 0) - 0;
-const base = ctx.currentTime + (o.delay || 0);
-const SR = ctx.sampleRate;
-const at = (t) => (Math.round((base + (t - T0)) * SR) + 0.25) / SR;
-
-const master = ctx.createGain();
-master.gain.value = o.master == null ? 0.92 : o.master;
-const comp = ctx.createDynamicsCompressor();
-comp.threshold.value = -14;
-comp.knee.value = 8;
-comp.ratio.value = 3.2;
-comp.attack.value = 0.004;
-comp.release.value = 0.16;
-comp.connect(master);
-master.connect(o.dest || ctx.destination);
-
-const bus = {
-  heavy: ctx.createGain(),
-  sfx: ctx.createGain(),
-  amb: ctx.createGain(),
-  music: ctx.createGain(),
-};
-bus.heavy.gain.value = isBgmOnly ? 0 : MIX.HEAVY_IMPACT;
-bus.sfx.gain.value = isBgmOnly ? 0 : MIX.UI_FOLEY;
-bus.amb.gain.value = isBgmOnly ? 0 : MIX.AMBIENT_LOOP;
-bus.music.gain.value = isSfxOnly ? 0 : VO ? MIX.BGM_VO_BED : 0.42;
-
-Object.values(bus).forEach((b) => b.connect(comp));
-
-const verb = ctx.createConvolver();
-{
-  const secs = 2.1;
-  const len = Math.floor(secs * SR);
-  const ir = ctx.createBuffer(2, len, SR);
-  for (let c = 0; c < 2; c++) {
-    const r = rand('lumina-verb-' + c);
-    const d = ir.getChannelData(c);
-    let lp = 0;
-    for (let i = 0; i < len; i++) {
-      const u = i / len;
-      lp += (0.54 - 0.38 * u) * (r() * 2 - 1 - lp);
-      d[i] = lp * Math.pow(1 - u, 2.6);
+  // ---------- 1. Deterministic PRNG & Euclidean Rhythm Math ----------
+  function rand(key) {
+    let h = 2166136261;
+    const str = String(key || 'lumina');
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
     }
+    let a = h >>> 0 || 1;
+    return () => {
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
   }
-  verb.buffer = ir;
-}
-const verbIn = ctx.createGain();
-verbIn.gain.value = 0.88;
-verbIn.connect(verb);
-verb.connect(comp);
 
-const noiseBuf = {};
-{
-  const len = Math.floor(2.5 * SR);
-  for (const kind of ['white', 'pink', 'brown']) {
-    const b = ctx.createBuffer(1, len, SR);
-    const d = b.getChannelData(0);
-    const r = rand('lumina-noise-' + kind);
-    let p0 = 0, p1 = 0, p2 = 0, br = 0;
-    for (let i = 0; i < len; i++) {
-      const w = r() * 2 - 1;
-      if (kind === 'white') d[i] = w;
-      else if (kind === 'pink') {
-        p0 = 0.997 * p0 + 0.029 * w;
-        p1 = 0.985 * p1 + 0.032 * w;
-        p2 = 0.95 * p2 + 0.048 * w;
-        d[i] = (p0 + p1 + p2 + w * 0.05) * 2.2;
-      } else {
-        br = (br + 0.02 * w) / 1.02;
-        d[i] = br * 3.2;
+  // Bjorklund / Euclidean Rhythm Generator: distributes k pulses evenly across n steps
+  function euclideanRhythm(k, n, rotation = 0) {
+    k = clamp(Math.round(k), 1, n);
+    const pattern = new Array(n).fill(0);
+    for (let i = 0; i < n; i++) {
+      if (Math.floor((i * k) / n) !== Math.floor(((i - 1) * k) / n)) {
+        pattern[(i + rotation) % n] = 1;
       }
     }
-    noiseBuf[kind] = b;
+    pattern[0] = 1; // Always anchor downbeat 1 for musical lock
+    return pattern;
   }
-}
 
-function sweep(param, v, t) {
-  if (!Array.isArray(v)) {
-    param.setValueAtTime(Math.max(TINY, v), t);
-    return;
+  // ---------- 2. Universal Pitch, 24 World/Cinematic Scales & 16 Chord Topologies ----------
+  const STEP = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+
+  function noteToMidi(n) {
+    if (typeof n === 'number') return n;
+    const m = /^([A-G])([#b]?)(-?\d)$/.exec(String(n || 'C4').trim());
+    if (!m) return 60;
+    return (
+      (Number(m[3]) + 1) * 12 +
+      STEP[m[1]] +
+      (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0)
+    );
   }
-  param.setValueAtTime(Math.max(TINY, v[0][1]), t + v[0][0]);
-  for (let i = 1; i < v.length; i++) {
-    param.exponentialRampToValueAtTime(Math.max(1, v[i][1]), t + v[i][0]);
+
+  function midiToHz(midi) {
+    return 440 * Math.pow(2, (midi - 69) / 12);
   }
-}
 
-function shape(param, t, gain, dur, a, hold) {
-  a = Math.min(a == null ? 0.004 : a, dur * 0.9);
-  hold = Math.min(hold || 0, dur - a);
-  param.setValueAtTime(0, t);
-  param.linearRampToValueAtTime(Math.max(TINY, gain), t + a);
-  if (hold > 0) param.setValueAtTime(Math.max(TINY, gain), t + a + hold);
-  param.exponentialRampToValueAtTime(TINY, t + dur);
-  param.setValueAtTime(0, t + dur + 0.001);
-}
-
-function out(node, p) {
-  const pan = ctx.createStereoPanner();
-  pan.pan.value = Math.max(-1, Math.min(1, p.pan || 0));
-  node.connect(pan);
-  const targetBus = bus[p.bus || 'sfx'] || bus.sfx;
-  pan.connect(targetBus);
-  if (p.verb) {
-    const s = ctx.createGain();
-    s.gain.value = p.verb;
-    pan.connect(s);
-    s.connect(verbIn);
+  function hz(n) {
+    if (typeof n === 'number') return n;
+    if (!n || n === 'REST') return 0;
+    return midiToHz(noteToMidi(n));
   }
-}
+  SOUND.hz = hz;
 
-function tone(time, p) {
-  const dur = p.dur || 0.2;
-  const t = at(time);
-  if (t + dur < ctx.currentTime || (time < T0 - 0.001 && dur < 1.5)) return;
-  const freq = Array.isArray(p.f) ? p.f.map(([d, v]) => [d, hz(v)]) : hz(p.f || 440);
-  if (!Array.isArray(freq) && freq <= 0) return;
-  const osc = ctx.createOscillator();
-  osc.type = p.type || 'sine';
-  sweep(osc.frequency, freq, t);
-  if (p.detune) osc.detune.value = p.detune;
-  const g = ctx.createGain();
-  shape(g.gain, t, p.gain == null ? 0.35 : p.gain, dur, p.a, p.hold);
-  let node = osc;
-  if (p.filter) {
-    const f = ctx.createBiquadFilter();
-    f.type = p.filter;
-    f.Q.value = p.q == null ? 0.8 : p.q;
-    sweep(f.frequency, p.f2 || 2000, t);
-    osc.connect(f);
-    node = f;
+  function parseRootMidi(keyStr = 'D Minor') {
+    const m = /^([A-G][#b]?)/.exec(String(keyStr || 'D').trim());
+    const rootName = m ? m[1] : 'D';
+    return noteToMidi(rootName + '2');
   }
-  node.connect(g);
-  out(g, p);
-  osc.start(t);
-  osc.stop(t + dur + 0.02);
-}
 
-function noise(time, p) {
-  const dur = p.dur || 0.2;
-  const t = at(time);
-  if (t + dur < ctx.currentTime || (time < T0 - 0.001 && dur < 1.5)) return;
-  const src = ctx.createBufferSource();
-  src.buffer = noiseBuf[p.color || 'white'];
-  src.loop = true;
-  if (p.rate) src.playbackRate.value = p.rate;
-  const g = ctx.createGain();
-  shape(g.gain, t, p.gain == null ? 0.35 : p.gain, dur, p.a, p.hold);
-  if (p.filter) {
-    const f = ctx.createBiquadFilter();
-    f.type = p.filter;
-    f.Q.value = p.q == null ? 1.0 : p.q;
-    sweep(f.frequency, p.f == null ? 1000 : p.f, t);
-    src.connect(f);
-    f.connect(g);
-  } else {
-    src.connect(g);
-  }
-  out(g, p);
-  const off = rand('off-' + time + '-' + (p.f || ''))() * 2;
-  src.start(t, off);
-  src.stop(t + dur + 0.02);
-}
+  // 24 Universal Scales & World Ragas (Semitone offsets across 2 octaves)
+  const SCALES = (SOUND.SCALES = {
+    aeolian:                  [0, 2, 3, 5, 7, 8, 10, 12, 14, 15, 17, 19, 20, 22, 24], // Natural Minor (Drama, History, Survival)
+    dorian:                   [0, 2, 3, 5, 7, 9, 10, 12, 14, 15, 17, 19, 21, 22, 24], // Kurzgesagt / Science / Tech / Hopeful Minor
+    harmonicMinor:            [0, 2, 3, 5, 7, 8, 11, 12, 14, 15, 17, 19, 20, 23, 24], // Mystery, Investigation, Classical Tension
+    melodicMinor:             [0, 2, 3, 5, 7, 9, 11, 12, 14, 15, 17, 19, 21, 23, 24], // Noir, Deep Thought, Detective
+    phrygian:                 [0, 1, 3, 5, 7, 8, 10, 12, 13, 15, 17, 19, 20, 22, 24], // Dark Tension, Cyber, Crisis
+    phrygianDominant:         [0, 1, 4, 5, 7, 8, 10, 12, 13, 16, 17, 19, 20, 22, 24], // Ancient Desert, Conquest, Intense History
+    lydian:                   [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24], // Cosmic Wonder, Space, Eureka Discovery
+    mixolydian:               [0, 2, 4, 5, 7, 9, 10, 12, 14, 16, 17, 19, 21, 22, 24], // Adventure, Exploration, Momentum
+    ionian:                   [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24], // Warm Major, Triumph, Resolution
+    pentatonicMinor:          [0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24, 27],           // Clean Modern Explainer Groove
+    pentatonicMajor:          [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26],            // Pastoral, Morning, Peaceful Village
+    carnaticMayamalavagowla:  [0, 1, 4, 5, 7, 8, 11, 12, 13, 16, 17, 19, 20, 23, 24], // Ancient Tamilakam, Sacred Temple, Keeladi
+    carnaticMohanam:          [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26],            // Chola Golden Era, Auspicious Grandeur
+    carnaticCharukesi:        [0, 2, 4, 5, 7, 8, 10, 12, 14, 16, 17, 19, 20, 22, 24], // Deep Emotional South Indian Pathos
+    carnaticSivaranjani:      [0, 2, 3, 7, 9, 12, 14, 15, 19, 21, 24],                // Solemn Classical Melancholy
+    carnaticHamsadhwani:      [0, 2, 4, 7, 11, 12, 14, 16, 19, 23, 24],               // Bright Indian Discovery / Celebration
+    hindustaniBhairavi:       [0, 1, 3, 5, 7, 8, 10, 12, 13, 15, 17, 19, 20, 22, 24], // Timeless Subcontinent Epic
+    japaneseHirajoshi:        [0, 2, 3, 7, 8, 12, 14, 15, 19, 20, 24],                // Feudal Japan, Samurai, Edo Mystery
+    japaneseInSen:            [0, 1, 5, 7, 10, 12, 13, 17, 19, 22, 24],               // Zen, Shinobi, East Asian Tension
+    chinesePentatonic:        [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24],                // Imperial Dynasty, Silk Road
+    arabicHijaz:              [0, 1, 4, 5, 7, 8, 11, 12, 13, 16, 17, 19, 20, 23, 24], // Middle East, Trade Caravan
+    wholeTone:                [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24],        // Quantum Physics, Time Paradox, Dream
+    octatonicDiminished:      [0, 1, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 21],  // Espionage, Ticking Bomb, Thriller
+    bluesHexatonic:           [0, 3, 5, 6, 7, 10, 12, 15, 17, 18, 19, 22, 24],        // Quirky Satire, Heist, Deadpan Comedy
+  });
 
-// ---------- 1. Universal Multi-Era, Geological, Combat, Science & Aviation SFX ----------
-const S = {
-  // --- Heavy Impacts (Routed to bus: 'heavy' @ 0.75) ---
-  decompressionBang: (t, o) => {
-    tone(t, { f: [[0, 190], [0.22, 34]], dur: 0.35, gain: 0.85 * o.g, bus: 'heavy', pan: o.pan });
-    noise(t, { dur: 0.14, color: 'white', filter: 'bandpass', f: 2200, q: 0.9, gain: 0.75 * o.g, a: 0.001, bus: 'heavy', verb: 0.25, pan: o.pan });
-    noise(t + 0.03, { dur: 0.85, color: 'pink', filter: 'bandpass', f: [[0, 2800], [0.85, 580]], q: 0.8, gain: 0.55 * o.g, a: 0.01, bus: 'heavy', verb: 0.35, pan: o.pan });
-  },
-  volcanoRumble: (t, o) => {
-    const d = o.dur || 1.8;
-    tone(t, { f: [[0, 95], [d, 28]], type: 'sawtooth', filter: 'lowpass', f2: 180, dur: d, gain: 0.75 * o.g, a: 0.04, bus: 'heavy', verb: 0.4, pan: o.pan });
-    noise(t, { dur: d, color: 'brown', filter: 'lowpass', f: 380, gain: 0.7 * o.g, a: 0.04, hold: d * 0.4, bus: 'heavy', verb: 0.45, pan: o.pan });
-  },
-  dinoRoar: (t, o) => {
-    const d = o.dur || 1.2;
-    tone(t, { f: [[0, 160], [d * 0.3, 240], [d, 72]], type: 'sawtooth', filter: 'bandpass', f2: [[0, 420], [d, 180]], q: 2.2, dur: d, gain: 0.72 * o.g, a: 0.05, bus: 'heavy', verb: 0.45, pan: o.pan });
-    noise(t, { dur: d, color: 'pink', filter: 'bandpass', f: [[0, 650], [d, 260]], q: 1.4, gain: 0.52 * o.g, a: 0.05, bus: 'heavy', verb: 0.35, pan: o.pan });
-  },
-  powerDown: (t, o) => {
-    const d = o.dur || 0.95;
-    tone(t, { f: [[0, 260], [d, 38]], type: 'sawtooth', filter: 'lowpass', f2: [[0, 900], [d, 90]], dur: d, gain: 0.55 * o.g, a: 0.01, bus: 'heavy', verb: 0.3, pan: o.pan });
-    noise(t, { dur: 0.04, filter: 'bandpass', f: 1600, q: 2, gain: 0.4 * o.g, bus: 'heavy', pan: o.pan });
-  },
-  boltSnap: (t, o) => {
-    tone(t, { f: [[0, 1850], [0.08, 620]], type: 'triangle', dur: 0.12, gain: 0.6 * o.g, bus: 'heavy', verb: 0.25, pan: o.pan });
-    noise(t, { dur: 0.03, filter: 'highpass', f: 2800, gain: 0.55 * o.g, bus: 'heavy', pan: o.pan });
-  },
-  shatter: (t, o) => {
-    const r = rand('shatter' + t);
-    noise(t, { dur: 0.15, filter: 'highpass', f: 2200, gain: 0.5 * o.g, bus: 'heavy', pan: o.pan });
-    for (let i = 0; i < 9; i++) {
-      tone(t + i * 0.025 + r() * 0.015, { f: 1800 + r() * 3200, dur: 0.09, gain: 0.22 * o.g, bus: 'heavy', verb: 0.2, pan: (r() - 0.5) * 0.6 });
-    }
-  },
-  thud: (t, o) => {
-    tone(t, { f: [[0, o.f || 135], [0.16, 42]], dur: 0.26, gain: 0.65 * o.g, bus: 'heavy', pan: o.pan });
-    noise(t, { dur: 0.09, color: 'brown', filter: 'lowpass', f: 500, gain: 0.4 * o.g, bus: 'heavy', pan: o.pan });
-  },
-  impact: (t, o) => {
-    S.thud(t, o);
-    noise(t, { dur: 0.65, color: 'pink', filter: 'lowpass', f: [[0, 2400], [0.6, 280]], gain: 0.42 * o.g, bus: 'heavy', verb: 0.35, pan: o.pan });
-  },
-  thunder: (t, o) => {
-    const d = o.dur || 1.8;
-    noise(t, { dur: d, color: 'brown', filter: 'lowpass', f: [[0, 480], [d, 90]], gain: 0.75 * o.g, a: 0.03, hold: 0.2, bus: 'heavy', verb: 0.45, pan: o.pan });
-  },
-  teleportPop: (t, o) => {
-    tone(t, { f: [[0, 320], [0.09, 58]], dur: 0.14, gain: 0.65 * o.g, bus: 'heavy', pan: o.pan });
-  },
-
-  // --- Universal Historical, Combat, Construction, Science & Aviation Foley (bus: 'sfx' @ 0.45) ---
-  swordClash: (t, o) => {
-    // Metallic blade clash + high harmonic ring
-    noise(t, { dur: 0.06, filter: 'bandpass', f: 3600, q: 2.5, gain: 0.55 * o.g, pan: o.pan });
-    tone(t, { f: [[0, 2840], [0.35, 2790]], type: 'sine', dur: 0.38, gain: 0.35 * o.g, verb: 0.35, pan: o.pan });
-    tone(t, { f: 4120, type: 'triangle', dur: 0.24, gain: 0.24 * o.g, verb: 0.3, pan: o.pan });
-  },
-  hammerHit: (t, o) => {
-    const n = o.n || 1;
-    const rate = o.rate || 0.42;
-    for (let i = 0; i < n; i++) {
-      const ti = t + i * rate;
-      tone(ti, { f: [[0, 1480], [0.08, 620]], type: 'triangle', dur: 0.11, gain: 0.45 * o.g, verb: 0.2, pan: o.pan });
-      noise(ti, { dur: 0.035, filter: 'bandpass', f: 2400, q: 2.0, gain: 0.42 * o.g, pan: o.pan });
-    }
-  },
-  horseGallop: (t, o) => {
-    const n = o.n || 4;
-    for (let i = 0; i < n; i++) {
-      const b = t + i * 0.36;
-      [0, 0.08, 0.17].forEach((off, k) => {
-        tone(b + off, { f: [[0, 260 + k * 35], [0.04, 95]], dur: 0.05, gain: 0.34 * o.g, pan: o.pan });
-        noise(b + off, { dur: 0.035, color: 'brown', filter: 'bandpass', f: 1100 + k * 200, q: 2.2, gain: 0.3 * o.g, pan: o.pan });
-      });
-    }
-  },
-  marchSteps: (t, o) => {
-    const n = o.n || 4;
-    const rate = o.rate || 0.42;
-    for (let i = 0; i < n; i++) {
-      const ti = t + i * rate;
-      tone(ti, { f: [[0, 155], [0.08, 48]], dur: 0.1, gain: 0.45 * o.g, pan: o.pan });
-      noise(ti, { dur: 0.06, color: 'pink', filter: 'bandpass', f: 950, q: 1.5, gain: 0.38 * o.g, verb: 0.18, pan: o.pan });
-    }
-  },
-  templeBell: (t, o) => {
-    // Deep resonant bronze bell with sacred harmonic partials
-    const f0 = hz(o.f || 'C5');
-    tone(t, { f: f0, type: 'sine', dur: 2.2, gain: 0.42 * o.g, a: 0.003, verb: 0.65, pan: o.pan });
-    tone(t, { f: f0 * 2.0, type: 'sine', dur: 1.4, gain: 0.2 * o.g, a: 0.002, verb: 0.55, pan: o.pan });
-    tone(t, { f: f0 * 2.76, type: 'sine', dur: 0.85, gain: 0.14 * o.g, a: 0.002, verb: 0.45, pan: o.pan });
-  },
-  steamWhistle: (t, o) => {
-    const d = o.dur || 0.85;
-    tone(t, { f: 587.33, type: 'sawtooth', filter: 'lowpass', f2: 1800, dur: d, gain: 0.28 * o.g, a: 0.06, hold: d * 0.6, verb: 0.35, pan: o.pan });
-    tone(t, { f: 739.99, type: 'sawtooth', filter: 'lowpass', f2: 1800, dur: d, gain: 0.24 * o.g, a: 0.06, hold: d * 0.6, verb: 0.35, pan: o.pan });
-    noise(t, { dur: d, color: 'white', filter: 'bandpass', f: 2400, q: 1.8, gain: 0.25 * o.g, a: 0.04, pan: o.pan });
-  },
-  coinClink: (t, o) => {
-    const n = o.n || 3;
-    for (let i = 0; i < n; i++) {
-      const ti = t + i * 0.075;
-      tone(ti, { f: 3400 + (i % 2) * 520, type: 'sine', dur: 0.18, gain: 0.32 * o.g, a: 0.001, verb: 0.25, pan: o.pan });
-      tone(ti, { f: 5100 + i * 310, type: 'sine', dur: 0.09, gain: 0.18 * o.g, a: 0.001, pan: o.pan });
-    }
-  },
-  liquidBubble: (t, o) => {
-    const n = o.n || 5;
-    const r = rand('bub' + t);
-    for (let i = 0; i < n; i++) {
-      const ti = t + i * 0.08 + r() * 0.03;
-      const f0 = 380 + r() * 420;
-      tone(ti, { f: [[0, f0], [0.065, f0 * 2.1]], type: 'sine', dur: 0.075, gain: 0.28 * o.g, pan: o.pan });
-    }
-  },
-  alarmBeep: (t, o) => {
-    const n = o.n || 3;
-    for (let i = 0; i < n; i++) {
-      const ti = t + i * 0.48;
-      tone(ti, { f: 2048, type: 'square', filter: 'bandpass', f2: 2048, q: 4, dur: 0.08, gain: 0.32 * o.g, a: 0.002, pan: o.pan });
-      tone(ti + 0.11, { f: 2048, type: 'square', filter: 'bandpass', f2: 2048, q: 4, dur: 0.08, gain: 0.32 * o.g, a: 0.002, pan: o.pan });
-    }
-  },
-  timerChime: (t, o) => {
-    const f0 = hz(o.f || 'A5');
-    tone(t, { f: f0, type: 'sine', dur: 0.65, gain: 0.38 * o.g, a: 0.002, verb: 0.4, pan: o.pan });
-    tone(t, { f: f0 * 1.5, type: 'triangle', dur: 0.35, gain: 0.16 * o.g, a: 0.002, verb: 0.35, pan: o.pan });
-    noise(t, { dur: 0.015, filter: 'bandpass', f: 3800, q: 3, gain: 0.2 * o.g, pan: o.pan });
-  },
-  maskDrop: (t, o) => {
-    noise(t, { dur: 0.035, filter: 'bandpass', f: 1800, q: 1.8, gain: 0.42 * o.g, pan: o.pan });
-    noise(t + 0.04, { dur: 0.22, filter: 'highpass', f: [[0, 1200], [0.22, 3600]], gain: 0.24 * o.g, pan: o.pan });
-    tone(t + 0.24, { f: [[0, 420], [0.06, 210]], dur: 0.08, gain: 0.28 * o.g, pan: o.pan });
-  },
-  seatbeltClick: (t, o) => {
-    noise(t, { dur: 0.018, filter: 'bandpass', f: 3400, q: 2.5, gain: 0.45 * o.g, pan: o.pan });
-    tone(t + 0.01, { f: 1920, dur: 0.04, gain: 0.25 * o.g, pan: o.pan });
-    noise(t + 0.045, { dur: 0.025, filter: 'bandpass', f: 2200, q: 2.0, gain: 0.38 * o.g, pan: o.pan });
-  },
-  engineSpoolDown: (t, o) => {
-    const d = o.dur || 1.4;
-    tone(t, { f: [[0, 480], [d, 110]], type: 'sawtooth', filter: 'bandpass', f2: [[0, 1200], [d, 260]], dur: d, gain: 0.34 * o.g, a: 0.05, verb: 0.25, pan: o.pan });
-  },
-  paperTear: (t, o) => {
-    const d = o.dur || 0.35;
-    noise(t, { dur: d, color: 'white', filter: 'bandpass', f: [[0, 1800], [d, 4200]], q: 1.4, gain: 0.38 * o.g, a: 0.02, pan: o.pan });
-  },
-  phoneDial: (t, o) => {
-    tone(t, { f: 440, dur: 0.8, gain: 0.22 * o.g, a: 0.01, hold: 0.7, pan: o.pan });
-    tone(t, { f: 480, dur: 0.8, gain: 0.22 * o.g, a: 0.01, hold: 0.7, pan: o.pan });
-  },
-  heartbeatSub: (t, o) => {
-    tone(t, { f: [[0, 82], [0.11, 38]], dur: 0.16, gain: 0.62 * o.g, pan: o.pan });
-    tone(t + 0.21, { f: [[0, 74], [0.14, 34]], dur: 0.18, gain: 0.48 * o.g, pan: o.pan });
-  },
-  starShimmer: (t, o) => {
-    const notes = ['C5', 'E5', 'G5', 'B5', 'D6', 'E6', 'G6', 'B6'];
-    notes.forEach((n, idx) => {
-      tone(t + idx * 0.055, { f: n, type: 'sine', dur: 0.85, gain: 0.22 * o.g, a: 0.003, verb: 0.55, pan: (idx - 3.5) * 0.18 });
-    });
-  },
-  birdSong: (t, o) => {
-    tone(t, { f: [[0, 2400], [0.09, 3200], [0.18, 2800]], dur: 0.2, gain: 0.25 * o.g, verb: 0.3, pan: o.pan });
-    tone(t + 0.24, { f: [[0, 2900], [0.12, 3600]], dur: 0.15, gain: 0.25 * o.g, verb: 0.3, pan: o.pan });
-  },
-  dogWhimper: (t, o) => {
-    const d = o.dur || 0.42;
-    tone(t, { f: [[0, 680], [d * 0.4, 820], [d, 490]], type: 'triangle', dur: d, gain: 0.24 * o.g, a: 0.03, verb: 0.2, pan: o.pan });
-  },
-  toasterPop: (t, o) => {
-    noise(t, { dur: 0.03, filter: 'bandpass', f: 1600, q: 1.5, gain: 0.4 * o.g, pan: o.pan });
-    tone(t + 0.01, { f: [[0, 320], [0.08, 580]], dur: 0.09, gain: 0.32 * o.g, pan: o.pan });
-  },
-  seismographScratch: (t, o) => {
-    S.penScratch(t, o);
-  },
-  pillBadge: (t, o) => {
-    const f0 = hz(o.f || 'G5');
-    tone(t, { f: f0, type: 'triangle', dur: 0.09, gain: 0.36 * o.g, a: 0.002, verb: 0.18, pan: o.pan });
-    tone(t + 0.035, { f: f0 * 1.498, type: 'sine', dur: 0.14, gain: 0.3 * o.g, a: 0.002, verb: 0.22, pan: o.pan });
-  },
-  counterTick: (t, o) => {
-    const n = o.n || 1;
-    const rate = o.rate || 0.055;
-    for (let i = 0; i < n; i++) {
-      const ti = t + i * rate;
-      const pitch = (o.f || 2400) * (1 + (i / Math.max(1, n)) * 0.25);
-      noise(ti, { dur: 0.016, filter: 'bandpass', f: pitch, q: 3.0, gain: 0.32 * o.g, pan: o.pan });
-    }
-  },
-  pop: (t, o) => {
-    tone(t, { f: [[0, o.f || 620], [0.07, (o.f || 620) * 0.45]], dur: 0.1, gain: 0.42 * o.g, pan: o.pan });
-  },
-  whoosh: (t, o) => {
-    const d = o.dur || 0.38;
-    noise(t, { dur: d, color: 'pink', filter: 'bandpass', f: [[0, 320], [d * 0.55, o.top || 2200], [d, 580]], q: 0.9, gain: 0.42 * o.g, a: d * 0.45, pan: o.pan, verb: 0.15 });
-  },
-  swish: (t, o) => {
-    const d = o.dur || 0.18;
-    noise(t, { dur: d, filter: 'highpass', f: [[0, 1800], [d, 5200]], q: 0.7, gain: 0.28 * o.g, a: d * 0.35, pan: o.pan });
-  },
-  footstep: (t, o) => {
-    const n = o.n || 1;
-    const stepRate = o.rate || 0.38;
-    for (let i = 0; i < n; i++) {
-      const ti = t + i * stepRate;
-      tone(ti, { f: [[0, 140], [0.06, 55]], dur: 0.08, gain: 0.32 * o.g, pan: o.pan });
-      noise(ti, { dur: 0.045, color: 'brown', filter: 'bandpass', f: 900 + (i % 2) * 180, q: 1.4, gain: 0.28 * o.g, pan: o.pan });
-    }
-  },
-  penScratch: (t, o) => {
-    const d = o.dur || 0.45;
-    const r = rand('pen' + t);
-    for (let x = 0; x < d; x += 0.038 + r() * 0.035) {
-      const gd = 0.032 + r() * 0.025;
-      noise(t + x, { dur: gd, filter: 'bandpass', f: 3400 + r() * 1400, q: 1.6, gain: 0.24 * o.g, a: gd * 0.3, pan: o.pan });
-    }
-  },
-  ding: (t, o) => {
-    const f = hz(o.f || 'E6');
-    tone(t, { f, dur: 1.1, gain: 0.28 * o.g, verb: 0.3, pan: o.pan });
-  },
-  sparkle: (t, o) => {
-    S.starShimmer(t, o);
-  },
-  blip: (t, o) => {
-    tone(t, { f: o.f || 'E6', type: 'triangle', dur: 0.07, gain: 0.22 * o.g, a: 0.002, pan: o.pan });
-  },
-  tick: (t, o) => {
-    noise(t, { dur: 0.016, filter: 'bandpass', f: o.f || 4200, q: 2.8, gain: 0.3 * o.g, pan: o.pan });
-  },
-};
-
-function play(name, t, opts) {
-  if (isBgmOnly) return;
-  const fn = S[name] || S.pop;
-  const o2 = Object.assign({}, opts);
-  o2.g = o2.gain == null ? 1 : o2.gain;
-  fn(t, o2);
-}
-
-// ---------- 2. Ambient Environment Beds (Routed to bus: 'amb' @ 0.20) ----------
-function bed(name, t0, t1, p) {
-  if (isBgmOnly) return;
-  p = p || {};
-  const g = p.gain == null ? 1 : p.gain;
-  const d = Math.max(0.1, t1 - t0);
-  const fade = Math.min(0.4, d / 4);
-  const long = (q) => Object.assign({ dur: d, a: fade, hold: Math.max(0, d - fade * 2), bus: 'amb' }, q);
-
-  if (name === 'cabinHum') {
-    noise(t0, long({ color: 'brown', filter: 'lowpass', f: 240, gain: 0.48 * g }));
-    tone(t0, long({ f: 92, type: 'sine', gain: 0.16 * g }));
-  } else if (name === 'supersonicWind' || name === 'cabinRoar') {
-    noise(t0, long({ color: 'pink', filter: 'bandpass', f: 1150, q: 0.55, gain: 0.58 * g }));
-    noise(t0, long({ color: 'brown', filter: 'lowpass', f: 360, gain: 0.45 * g }));
-  } else if (name === 'volcanoLava') {
-    noise(t0, long({ color: 'brown', filter: 'lowpass', f: 190, gain: 0.55 * g }));
-  } else if (name === 'fountainWater') {
-    noise(t0, long({ color: 'pink', filter: 'bandpass', f: 1850, q: 0.6, gain: 0.32 * g }));
-  } else if (name === 'rain') {
-    noise(t0, long({ color: 'pink', filter: 'bandpass', f: 2400, q: 0.45, gain: 0.35 * g }));
-  } else if (name === 'ocean') {
-    noise(t0, long({ color: 'brown', filter: 'lowpass', f: 420, gain: 0.45 * g }));
-  } else if (name === 'wind' || name === 'citySilence') {
-    noise(t0, long({ color: 'pink', filter: 'bandpass', f: 480, q: 1.2, gain: 0.28 * g }));
-  } else {
-    noise(t0, long({ color: 'brown', filter: 'lowpass', f: 280, gain: 0.26 * g }));
-  }
-}
-
-// ---------- 3. Generative Situational & Cultural Audio Engine (Stems & Voices) ----------
-const VOICES = {
-  subPedal: (t, f, dur, g = 1) => {
-    if (!f) return;
-    tone(t, { f, type: 'sine', dur: dur + 0.15, gain: 0.38 * g, a: Math.min(0.18, dur * 0.25), hold: dur * 0.55, bus: 'music' });
-    tone(t, { f: f * 2, type: 'triangle', dur: dur, gain: 0.12 * g, a: 0.1, filter: 'lowpass', f2: 260, bus: 'music' });
-  },
-  tanpuraDrone: (t, f, dur, g = 1) => {
-    if (!f) return;
-    tone(t, { f: f * 2, type: 'sawtooth', dur: dur + 0.2, gain: 0.14 * g, a: 0.3, hold: dur * 0.6, filter: 'bandpass', f2: f * 4, q: 2.2, bus: 'music', verb: 0.45, pan: -0.25 });
-    tone(t, { f: f * 3, type: 'sawtooth', dur: dur + 0.2, gain: 0.11 * g, a: 0.3, hold: dur * 0.6, filter: 'bandpass', f2: f * 6, q: 2.2, bus: 'music', verb: 0.45, pan: 0.25 });
-  },
-  pulseOstinato: (t, f, dur, cutoff, g = 1, pan = 0) => {
-    if (!f) return;
-    tone(t, { f, type: 'sawtooth', dur, gain: 0.28 * g, a: 0.005, filter: 'lowpass', f2: cutoff, q: 1.8, bus: 'music', verb: 0.18, pan });
-  },
-  analogPad: (t, chordHz, dur, cutoff, g = 1) => {
-    chordHz.forEach((f, idx) => {
-      if (!f) return;
-      const pan = (idx - (chordHz.length - 1) / 2) * 0.32;
-      tone(t, { f, type: 'sawtooth', detune: -6, dur: dur + 0.35, gain: 0.13 * g, a: Math.min(0.5, dur * 0.35), hold: Math.max(0.1, dur - 0.55), filter: 'lowpass', f2: cutoff, bus: 'music', verb: 0.52, pan });
-      tone(t, { f, type: 'triangle', detune: 6, dur: dur + 0.35, gain: 0.14 * g, a: Math.min(0.5, dur * 0.35), hold: Math.max(0.1, dur - 0.55), filter: 'lowpass', f2: cutoff, bus: 'music', verb: 0.45, pan: -pan });
-    });
-  },
-  sitarVeena: (t, f, dur = 0.65, g = 1, pan = 0) => {
-    if (!f) return;
-    // Plucked string with bridge buzz (jawari) & sympathetic resonance
-    tone(t, { f: [[0, f * 1.015], [0.06, f]], type: 'sawtooth', dur, gain: 0.28 * g, a: 0.003, filter: 'bandpass', f2: [[0, f * 5], [dur, f * 1.8]], q: 2.0, bus: 'music', verb: 0.42, pan });
-    tone(t, { f: f * 2, type: 'triangle', dur: dur * 0.7, gain: 0.12 * g, a: 0.002, bus: 'music', verb: 0.48, pan: -pan * 0.5 });
-  },
-  kotoPluck: (t, f, dur = 0.55, g = 1, pan = 0) => {
-    if (!f) return;
-    tone(t, { f, type: 'triangle', dur, gain: 0.32 * g, a: 0.002, filter: 'lowpass', f2: [[0, f * 4], [dur, f * 1.2]], bus: 'music', verb: 0.45, pan });
-    noise(t, { dur: 0.012, filter: 'bandpass', f: 3200, q: 3, gain: 0.14 * g, bus: 'music', pan });
-  },
-  bambooFlute: (t, f, dur = 1.2, g = 1, pan = 0) => {
-    if (!f) return;
-    tone(t, { f: [[0, f * 0.985], [0.12, f]], type: 'sine', dur, gain: 0.26 * g, a: 0.08, hold: dur * 0.5, bus: 'music', verb: 0.5, pan });
-    noise(t, { dur: dur * 0.8, color: 'pink', filter: 'bandpass', f: f * 2, q: 3.5, gain: 0.08 * g, a: 0.06, bus: 'music', verb: 0.4, pan });
-  },
-  harpsichordStrings: (t, f, dur = 0.75, g = 1, pan = 0) => {
-    if (!f) return;
-    tone(t, { f, type: 'sawtooth', dur, gain: 0.24 * g, a: 0.004, filter: 'lowpass', f2: f * 3.2, bus: 'music', verb: 0.38, pan });
-  },
-  feltPiano: (t, f, dur = 1.4, g = 1, pan = 0) => {
-    if (!f) return;
-    tone(t, { f, type: 'triangle', dur, gain: 0.32 * g, a: 0.01, hold: dur * 0.18, filter: 'lowpass', f2: f * 2.4, bus: 'music', verb: 0.42, pan });
-    tone(t, { f: f * 2, type: 'sine', dur: dur * 0.45, gain: 0.07 * g, a: 0.008, bus: 'music', verb: 0.35, pan });
-  },
-  kalimbaMarimba: (t, f, dur = 0.34, g = 1, pan = 0) => {
-    if (!f) return;
-    tone(t, { f, type: 'sine', dur, gain: 0.34 * g, a: 0.002, bus: 'music', verb: 0.3, pan });
-    tone(t, { f: f * 4, type: 'sine', dur: 0.04, gain: 0.1 * g, a: 0.001, bus: 'music', pan });
-  },
-  celestaHarp: (t, f, dur = 0.85, g = 1, pan = 0) => {
-    if (!f) return;
-    tone(t, { f, type: 'sine', dur, gain: 0.24 * g, a: 0.003, bus: 'music', verb: 0.55, pan });
-    tone(t, { f: f * 3, type: 'sine', dur: 0.22, gain: 0.06 * g, a: 0.002, bus: 'music', pan });
-  },
-  clockEscapement: (t, isAccent, g = 1, pan = 0) => {
-    const pitch = isAccent ? 4200 : 3100;
-    noise(t, { dur: 0.015, filter: 'bandpass', f: pitch, q: 3.5, gain: (isAccent ? 0.22 : 0.13) * g, bus: 'music', verb: 0.12, pan });
-  },
-  mridangamTabla: (t, isDownbeat, g = 1, pan = 0) => {
-    const f0 = isDownbeat ? 146.8 : 293.6;
-    tone(t, { f: [[0, f0 * 1.12], [0.05, f0]], type: 'sine', dur: 0.24, gain: 0.32 * g, a: 0.002, bus: 'music', verb: 0.22, pan });
-    noise(t, { dur: 0.022, filter: 'bandpass', f: 1800, q: 2.5, gain: 0.18 * g, bus: 'music', pan });
-  },
-  cinematicTom: (t, isDownbeat, g = 1) => {
-    const f0 = isDownbeat ? 115 : 88;
-    tone(t, { f: [[0, f0], [0.14, 42]], dur: 0.22, gain: (isDownbeat ? 0.34 : 0.22) * g, bus: 'music', verb: 0.28 });
-  },
-  brushShaker: (t, isAccent, g = 1, pan = 0) => {
-    noise(t, { dur: 0.045, filter: 'highpass', f: 4800, gain: (isAccent ? 0.14 : 0.08) * g, a: 0.005, bus: 'music', pan });
-  },
-};
-
-function situationalCue(c) {
-  if (isSfxOnly || !c) return;
-  const sit = String(c.situation || c.archetype || 'SCIENTIFIC_INQUIRY').toUpperCase();
-  const culture = c.culture || 'modernCinematic';
-  const t0 = c.start_time !== undefined ? c.start_time : 0;
-  const t1 = c.end_time !== undefined ? c.end_time : t0 + 10;
-  if (sit === 'DIEGETIC_SILENCE' || sit === 'HARD_STOP' || t1 <= t0) return;
-
-  const tension = clamp(c.tension !== undefined ? c.tension : 0.5, 0, 1);
-  const valence = clamp(c.valence !== undefined ? c.valence : 0.0, -1, 1);
-  const baseBpm = c.bpm || (sit === 'TICKING_SURVIVAL' ? 120 : sit === 'SOLEMN_TRAGEDY' ? 76 : 104);
-  const g = c.gain == null ? 1 : c.gain;
-
-  const { chords, scaleHz, subHz } = buildSituationalHarmony(c.key || 'D Minor', valence, tension, culture);
-
-  const defaultStems = {
-    sub: sit !== 'EERIE_ISOLATION',
-    pulse: sit === 'TICKING_SURVIVAL' || sit === 'HEROIC_RESCUE' || sit === 'PLAYFUL_FREEDOM' || tension > 0.6,
-    pad: sit !== 'PLAYFUL_FREEDOM',
-    melody: true,
-    perc: sit === 'PLAYFUL_FREEDOM' || sit === 'HEROIC_RESCUE' || sit === 'HISTORICAL_GRANDEUR' || (sit === 'TICKING_SURVIVAL' && tension > 0.75),
-    clock: sit === 'TICKING_SURVIVAL' || (sit === 'SCIENTIFIC_INQUIRY' && tension > 0.45),
+  // 16 Chord Progression Topologies (Scale degree indices [0..6] + rich extensions)
+  const PROGRESSIONS = {
+    cinematicMinor:   [[0, 2, 4, 7], [5, 7, 9, 12], [2, 4, 6, 9], [6, 8, 10, 13]], // i - VI - III - VII (Hans Zimmer / Epic)
+    kurzgesagtDorian: [[0, 2, 4, 6], [3, 5, 7, 9], [4, 6, 8, 11], [0, 2, 4, 9]],   // i7 - IV7 - v7 - i(add6) (Science / Synth)
+    mysteryInquire:   [[0, 2, 4, 7], [1, 3, 5, 8], [4, 6, 8, 11], [0, 2, 4, 7]],   // i - ii° - v - i (Investigation / Lemmino)
+    tickingSurvival:  [[0, 4, 7],    [0, 5, 8],    [0, 4, 7],     [6, 9, 13]],     // Pedal i - bVI/i - i - VII (Urgent Crisis)
+    darkDread:        [[0, 4, 7],    [1, 4, 8],    [0, 4, 7],     [4, 6, 11]],     // i - bII(Phrygian) - i - V (Catastrophe)
+    solemnTragedy:    [[0, 2, 4, 7], [6, 8, 10],   [5, 7, 9, 12], [4, 6, 8]],      // i - VII - VI - v (Andalucian Lament)
+    cosmicLydian:     [[0, 2, 4, 6], [1, 3, 5, 8], [5, 7, 9, 12], [0, 2, 4, 9]],   // I(maj7) - II - vi - I(add9) (Space / Awe)
+    heroicTriumph:    [[0, 2, 4, 7], [4, 6, 8, 11],[5, 7, 9, 12], [3, 5, 7, 10]],  // I - V - vi - IV (Uplifting Resolution)
+    royalGrandeur:    [[0, 2, 4, 7], [6, 8, 10],   [3, 5, 7, 10], [0, 2, 4, 7]],   // I - bVII - IV - I (Imperial / Chola / Epic)
+    carnaticPedal:    [[0, 4, 7],    [0, 3, 7],    [0, 4, 9],     [0, 4, 7]],      // Shadja-Panchama Raga Drone Harmony
+    eastAsianModal:   [[0, 4, 7],    [2, 5, 9],    [3, 7, 10],    [0, 4, 7]],      // Suspended Pentatonic Quartal Harmony
+    quirkyComedy:     [[0, 2, 4],    [3, 5, 7],    [4, 6, 8],     [0, 2, 4]],      // Bouncy i - iv - V - i (OverSimplified Skit)
+    heistGroove:      [[0, 2, 4, 6], [2, 4, 6, 9], [3, 5, 7, 9],  [4, 6, 8, 10]],  // Funky Minor 7th Climb
+    eerieIsolation:   [[0, 4, 9],    [5, 9, 12],   [3, 7, 11],    [0, 4, 7]],      // Sparse Wide Open 5ths & 9ths
+    industrialPulse:  [[0, 7],       [0, 8],       [0, 7],        [5, 12]],        // Power Octaves & Fifths (Hardware / War)
+    dreamFloat:       [[0, 2, 4, 6], [3, 5, 7, 9], [0, 2, 4, 6],  [4, 6, 8, 11]],  // Alternating Maj7/Min7 Float
   };
-  const stems = Object.assign(defaultStems, c.layerStems || {});
 
-  if (c.timerChime || c.chapter_chime) {
-    if (culture === 'indianClassical' || culture === 'eastAsian') {
-      S.templeBell(t0, { f: scaleHz[0] || 523.25, g: 0.9 * g });
+  function buildUniversalHarmony(rootMidi2, scaleName, progName) {
+    const scale = SCALES[scaleName] || SCALES.dorian;
+    const prog = PROGRESSIONS[progName] || PROGRESSIONS.kurzgesagtDorian;
+
+    const getScaleToneMidi = (degIdx) => {
+      const len = 7; // 7-note octave core or scale length
+      const baseLen = Math.min(7, scale.length - 1);
+      const oct = Math.floor(degIdx / baseLen);
+      const idx = ((degIdx % baseLen) + baseLen) % baseLen;
+      return rootMidi2 + 12 + oct * 12 + scale[idx];
+    };
+
+    const chords = prog.map((degArr) => degArr.map((d) => midiToHz(getScaleToneMidi(d))));
+    const subHz = prog.map((degArr) => midiToHz(getScaleToneMidi(degArr[0]) - 12));
+    const scaleHz = scale.map((semi) => midiToHz(rootMidi2 + 24 + semi));
+    const lowScaleHz = scale.map((semi) => midiToHz(rootMidi2 + 12 + semi));
+
+    return { chords, subHz, scaleHz, lowScaleHz, scale };
+  }
+
+  // ---------- 3. Semantic Natural-Language Situation & Mood Analyzer ----------
+  // Reads ANY combination of situation, mood, culture, genre, desc, and parameters
+  // and outputs a bespoke Musical DNA profile so no two scenes sound identical!
+  function analyzeCueDNA(c = {}) {
+    const rawSit = String(c.situation || c.archetype || '').toUpperCase();
+    const textBlob = [
+      c.situation,
+      c.archetype,
+      c.mood,
+      c.genre,
+      c.culture,
+      c.era,
+      c.desc,
+      c.title,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    // Check explicit silence first
+    if (
+      rawSit === 'DIEGETIC_SILENCE' ||
+      rawSit === 'HARD_STOP' ||
+      /\b(diegetic_silence|hard_stop|total_silence|mute_bgm)\b/.test(textBlob)
+    ) {
+      return { silent: true };
+    }
+
+    // Defaults
+    let tension = c.tension !== undefined ? Number(c.tension) : 0.45;
+    let valence = c.valence !== undefined ? Number(c.valence) : 0.05;
+    let energy = c.energy !== undefined ? Number(c.energy) : 0.55;
+    let quirk = c.quirk !== undefined ? Number(c.quirk) : 0.0;
+    let grandeur = c.grandeur !== undefined ? Number(c.grandeur) : 0.4;
+    let bpm = c.bpm || 104;
+
+    let scaleName = c.scale || 'dorian';
+    let progName = c.progression || 'kurzgesagtDorian';
+    let leadVoice = c.lead || 'kurzgesagtPluck';
+    let counterVoice = c.counter || 'celestaHarp';
+    let padVoice = c.pad || 'analogPad';
+    let bassVoice = c.bass || 'subPedal';
+    let percStyle = c.perc || 'cinematic';
+    let rhythmPulses = c.pulses || 5;
+    let rhythmSteps = c.steps || 8;
+
+    // 1. Cultural & Historical Era Detection
+    const isTamilIndian =
+      c.culture === 'indianClassical' ||
+      /\b(tamil|chola|pandya|chera|keeladi|sangam|thanjavur|madurai|india|indian|vedic|mughal|temple|carnatic|raga|sitar|veena|mridangam|kaveri|vaigai)\b/.test(
+        textBlob
+      );
+    const isEastAsian =
+      c.culture === 'eastAsian' ||
+      /\b(japan|samurai|edo|shogun|ninja|tokyo|kyoto|china|dynasty|ming|han|mongol|korea|koto|shakuhachi|taiko)\b/.test(
+        textBlob
+      );
+    const isMiddleEastern =
+      c.culture === 'middleEastern' ||
+      /\b(arab|persia|ottoman|egypt|pharaoh|pyramid|mesopotamia|babylon|desert|silk road|caravan|suez|oud|duduk)\b/.test(
+        textBlob
+      );
+    const isEuropeanHistorical =
+      c.culture === 'victorianClassical' ||
+      /\b(roman|rome|medieval|knight|victorian|colonial|british|renaissance|french|napoleon|1700s|1800s|1900s|baroque|classical|empire|king|queen|palace)\b/.test(
+        textBlob
+      );
+
+    // 2. Emotional & Narrative Situation Detection
+    const isComedyQuirk =
+      rawSit === 'PLAYFUL_FREEDOM' ||
+      /\b(comedy|funny|joke|gag|deadpan|quirk|satire|silly|absurd|skit|oversimplified| awkward|ironic|playful|bizarre|weird|cartoon)\b/.test(
+        textBlob
+      );
+    const isCrisisSurvival =
+      rawSit === 'TICKING_SURVIVAL' ||
+      /\b(survival|crisis|panic|emergency|explosion|decompression|crash|meltdown|radiation|chernobyl|virus|pandemic|war|battle|attack|combat|invasion|bomb|countdown|danger|escape|fire|earthquake|volcano|tsunami|storm|hurricane)\b/.test(
+        textBlob
+      );
+    const isTragedySolemn =
+      rawSit === 'SOLEMN_TRAGEDY' ||
+      /\b(tragedy|tragic|sad|death|extinction|famine|loss|grief|memorial|ruins|collapse|aftermath|victim|solemn|dark|sorrow|Elegy|abandoned)\b/.test(
+        textBlob
+      );
+    const isEerieIsolation =
+      rawSit === 'EERIE_ISOLATION' ||
+      /\b(eerie|isolation|alone|void|blackout|underground|subterranean|deep sea|submarine|abyss|creepy|haunted|radiation|toxic|vacuum|silent|mystery|secret|conspiracy|shadow)\b/.test(
+        textBlob
+      );
+    const isCosmicAwe =
+      rawSit === 'COSMIC_AWE' ||
+      /\b(cosmic|space|universe|galaxy|planet|star|nebula|orbit|astronaut|quantum|atom|future|wonder|awe|breathtaking|miracle|infinity|transcend|climax|grand reveal)\b/.test(
+        textBlob
+      );
+    const isHeroicGrandeur =
+      rawSit === 'HEROIC_RESCUE' ||
+      rawSit === 'HISTORICAL_GRANDEUR' ||
+      /\b(hero|heroic|rescue|victory|triumph|golden age|coronation|monument|architecture|great|empire|revolution|freedom|independence|breakthrough|success|champion)\b/.test(
+        textBlob
+      );
+    const isTechHardware =
+      /\b(hardware|teardown|microchip|silicon|transistor|cpu|gpu|smartphone|battery|engine|circuit|data|cyber|ai|algorithm|factory|engineering|supply chain|economics|market|finance|stock)\b/.test(
+        textBlob
+      );
+
+    // 3. Configure Musical DNA Based on Detected Context
+    if (isComedyQuirk) {
+      quirk = Math.max(quirk, 0.85);
+      valence = c.valence !== undefined ? valence : 0.45;
+      tension = c.tension !== undefined ? tension : 0.3;
+      bpm = c.bpm || 116;
+      scaleName = c.scale || 'bluesHexatonic';
+      progName = c.progression || 'quirkyComedy';
+      leadVoice = c.lead || 'pizzicatoStrings';
+      counterVoice = c.counter || 'quirkyOboeBassoon';
+      padVoice = c.pad || 'rhodesEP';
+      bassVoice = c.bass || 'uprightBassPizz';
+      percStyle = c.perc || 'quirkyWoodblock';
+      rhythmPulses = 5;
+      rhythmSteps = 8;
+    } else if (isCrisisSurvival) {
+      tension = c.tension !== undefined ? Math.max(0.72, tension) : 0.85;
+      valence = c.valence !== undefined ? valence : -0.55;
+      energy = Math.max(energy, 0.85);
+      bpm = c.bpm || 126;
+      scaleName = c.scale || (tension > 0.88 ? 'phrygian' : 'aeolian');
+      progName = c.progression || (tension > 0.85 ? 'darkDread' : 'tickingSurvival');
+      leadVoice = c.lead || 'pulseOstinato';
+      counterVoice = c.counter || 'feltPiano';
+      padVoice = c.pad || 'warmStringSection';
+      bassVoice = c.bass || 'moogBass';
+      percStyle = c.perc || (/\b(war|battle|army|sword|march)\b/.test(textBlob) ? 'warMarch' : 'tickingThriller');
+      rhythmPulses = 7;
+      rhythmSteps = 16;
+    } else if (isTragedySolemn) {
+      tension = c.tension !== undefined ? tension : 0.35;
+      valence = c.valence !== undefined ? valence : -0.65;
+      energy = c.energy !== undefined ? energy : 0.32;
+      bpm = c.bpm || 74;
+      scaleName = c.scale || (isTamilIndian ? 'carnaticSivaranjani' : 'aeolian');
+      progName = c.progression || 'solemnTragedy';
+      leadVoice = c.lead || (isTamilIndian ? 'bansuriFlute' : 'soloCello');
+      counterVoice = c.counter || 'feltPiano';
+      padVoice = c.pad || 'warmStringSection';
+      bassVoice = c.bass || 'subPedal';
+      percStyle = c.perc || 'none';
+      rhythmPulses = 3;
+      rhythmSteps = 8;
+    } else if (isEerieIsolation) {
+      tension = c.tension !== undefined ? tension : 0.62;
+      valence = c.valence !== undefined ? valence : -0.4;
+      energy = c.energy !== undefined ? energy : 0.28;
+      bpm = c.bpm || 82;
+      scaleName = c.scale || (/\b(quantum|paradox|time)\b/.test(textBlob) ? 'wholeTone' : 'harmonicMinor');
+      progName = c.progression || 'eerieIsolation';
+      leadVoice = c.lead || 'vibraphone';
+      counterVoice = c.counter || 'feltPiano';
+      padVoice = c.pad || 'glassPad';
+      bassVoice = c.bass || 'darkDreadDrone';
+      percStyle = c.perc || 'minimalClock';
+      rhythmPulses = 3;
+      rhythmSteps = 12;
+    } else if (isCosmicAwe) {
+      tension = c.tension !== undefined ? tension : 0.45;
+      valence = c.valence !== undefined ? valence : 0.85;
+      grandeur = Math.max(grandeur, 0.9);
+      bpm = c.bpm || 96;
+      scaleName = c.scale || 'lydian';
+      progName = c.progression || 'cosmicLydian';
+      leadVoice = c.lead || 'celestaHarp';
+      counterVoice = c.counter || 'kurzgesagtPluck';
+      padVoice = c.pad || 'glassPad';
+      bassVoice = c.bass || 'subPedal';
+      percStyle = c.perc || 'cinematicSlow';
+      rhythmPulses = 6;
+      rhythmSteps = 12;
+    } else if (isHeroicGrandeur) {
+      tension = c.tension !== undefined ? tension : 0.65;
+      valence = c.valence !== undefined ? valence : 0.75;
+      grandeur = Math.max(grandeur, 0.85);
+      energy = Math.max(energy, 0.78);
+      bpm = c.bpm || 112;
+      scaleName = c.scale || (valence > 0.4 ? 'mixolydian' : 'aeolian');
+      progName = c.progression || (valence > 0.4 ? 'heroicTriumph' : 'cinematicMinor');
+      leadVoice = c.lead || 'brassHornSwell';
+      counterVoice = c.counter || 'grandPiano';
+      padVoice = c.pad || 'warmStringSection';
+      bassVoice = c.bass || 'subPedal';
+      percStyle = c.perc || 'epicDrums';
+      rhythmPulses = 5;
+      rhythmSteps = 8;
+    } else if (isTechHardware) {
+      tension = c.tension !== undefined ? tension : 0.5;
+      valence = c.valence !== undefined ? valence : 0.15;
+      energy = Math.max(energy, 0.65);
+      bpm = c.bpm || 114;
+      scaleName = c.scale || 'dorian';
+      progName = c.progression || 'kurzgesagtDorian';
+      leadVoice = c.lead || 'kurzgesagtPluck';
+      counterVoice = c.counter || 'kalimbaMarimba';
+      padVoice = c.pad || 'analogPad';
+      bassVoice = c.bass || 'moogBass';
+      percStyle = c.perc || 'techGroove';
+      rhythmPulses = 5;
+      rhythmSteps = 16;
     } else {
-      VOICES.celestaHarp(t0, scaleHz[4] || 587.33, 1.2, 1.15 * g, -0.15);
-      VOICES.kalimbaMarimba(t0 + 0.08, scaleHz[7] || 880, 0.6, 1.05 * g, 0.15);
-    }
-  }
-
-  const filterCutoff = lerp(480, 3200, Math.pow(tension, 1.3));
-  const r = rand('sit-cue-' + t0 + '-' + sit + '-' + culture);
-
-  let tb = t0;
-  let barIdx = 0;
-  while (tb < t1 - 0.04) {
-    const uCue = clamp((tb - t0) / Math.max(0.1, t1 - t0), 0, 1);
-    const curBpm = Array.isArray(c.tempoCurve)
-      ? lerp(c.tempoCurve[0][1], c.tempoCurve[c.tempoCurve.length - 1][1], uCue)
-      : baseBpm;
-    const beat = 60 / clamp(curBpm, 48, 180);
-    const bar = beat * 4;
-    const barLen = Math.min(bar, t1 - tb);
-
-    const ch = chords[barIdx % chords.length];
-    const rootSub = subHz[barIdx % subHz.length];
-
-    if (stems.sub) {
-      VOICES.subPedal(tb, rootSub, barLen, g * (sit === 'COSMIC_AWE' ? 1.15 : 0.9));
-      if (culture === 'indianClassical') {
-        VOICES.tanpuraDrone(tb, rootSub, barLen, g * 0.85);
-      }
+      // Default High-Curiosity Scientific / Historical Inquiry (Kurzgesagt / Fern style)
+      scaleName = c.scale || (valence < -0.15 ? 'harmonicMinor' : 'dorian');
+      progName = c.progression || (valence < -0.15 ? 'mysteryInquire' : 'kurzgesagtDorian');
+      leadVoice = c.lead || 'kalimbaMarimba';
+      counterVoice = c.counter || 'feltPiano';
+      padVoice = c.pad || 'analogPad';
+      bassVoice = c.bass || 'subPedal';
+      percStyle = c.perc || (tension > 0.45 ? 'minimalClock' : 'softShaker');
+      rhythmPulses = 5;
+      rhythmSteps = 8;
     }
 
-    if (stems.pad) {
-      const padGain = sit === 'COSMIC_AWE' || sit === 'SOLEMN_TRAGEDY' ? 1.2 : 0.78;
-      VOICES.analogPad(tb, ch, barLen, filterCutoff, g * padGain);
-    }
-
-    if (stems.pulse) {
-      const subDiv = tension > 0.55 || sit === 'TICKING_SURVIVAL' ? 16 : 8;
-      const stepDur = bar / subDiv;
-      for (let s = 0; s < subDiv && tb + s * stepDur < t1 - 0.02; s++) {
-        const ts = tb + s * stepDur;
-        const noteF = ch[s % ch.length] * 0.5;
-        const accent = s % 4 === 0 ? 1.0 : 0.62;
-        VOICES.pulseOstinato(ts, noteF, stepDur * 0.85, filterCutoff, g * accent * 0.85, ((s % 2) - 0.5) * 0.25);
-      }
-    }
-
-    if (stems.clock) {
-      for (let s = 0; s < 8 && tb + s * (beat / 2) < t1 - 0.02; s++) {
-        const ts = tb + s * (beat / 2);
-        VOICES.clockEscapement(ts, s % 2 === 0, g * (0.65 + tension * 0.4), (s % 2 === 0 ? -1 : 1) * 0.3);
-      }
-    }
-
-    if (stems.perc) {
-      for (let b = 0; b < 4 && tb + b * beat < t1 - 0.02; b++) {
-        const tBeat = tb + b * beat;
-        if (culture === 'indianClassical') {
-          VOICES.mridangamTabla(tBeat, b === 0 || b === 2, g, -0.15);
-          if (tension > 0.45 && tBeat + beat * 0.5 < t1) {
-            VOICES.mridangamTabla(tBeat + beat * 0.5, false, g * 0.75, 0.15);
-          }
-        } else if (sit === 'PLAYFUL_FREEDOM') {
-          VOICES.brushShaker(tBeat, b % 2 === 0, g, -0.2);
-          VOICES.brushShaker(tBeat + beat * 0.5, false, g, 0.2);
-        } else {
-          VOICES.cinematicTom(tBeat, b === 0 || b === 2, g * (0.7 + tension * 0.35));
-        }
-      }
-    }
-
-    if (stems.melody) {
-      if (sit === 'EERIE_ISOLATION') {
-        const dropBeat = (barIdx % 2 === 0 ? 0.5 : 1.5) * beat;
-        if (tb + dropBeat < t1 - 0.05) {
-          const fNote = scaleHz[(barIdx * 3 + 2) % scaleHz.length];
-          if (culture === 'eastAsian') VOICES.bambooFlute(tb + dropBeat, fNote, beat * 2.0, g * 0.9, 0);
-          else VOICES.feltPiano(tb + dropBeat, fNote, beat * 2.2, g * 0.9, (r() - 0.5) * 0.4);
-        }
-      } else if (sit === 'SOLEMN_TRAGEDY') {
-        for (let b = 0; b < 4 && tb + b * beat < t1 - 0.05; b += 2) {
-          const fNote = ch[b % ch.length] * 2;
-          VOICES.feltPiano(tb + b * beat, fNote, beat * 1.9, g * 0.88, (b - 1) * 0.2);
-        }
-      } else if (sit === 'COSMIC_AWE') {
-        for (let s = 0; s < 8 && tb + s * (beat / 2) < t1 - 0.02; s++) {
-          const fNote = scaleHz[(barIdx * 2 + s) % scaleHz.length];
-          VOICES.celestaHarp(tb + s * (beat / 2), fNote, beat * 1.2, g * 0.92, ((s % 4) - 1.5) * 0.28);
-        }
+    // 4. Overlay Cultural Instrumentation & Modal Scales When Applicable
+    if (isTamilIndian && !c.scale) {
+      if (isTragedySolemn) {
+        scaleName = 'carnaticSivaranjani';
+        leadVoice = c.lead || 'bansuriFlute';
+      } else if (isHeroicGrandeur) {
+        scaleName = 'carnaticMohanam';
+        progName = 'royalGrandeur';
+        leadVoice = c.lead || 'nadaswaramShehnai';
+        counterVoice = c.counter || 'sitarVeena';
+      } else if (valence >= 0.25) {
+        scaleName = 'carnaticHamsadhwani';
+        leadVoice = c.lead || 'sitarVeena';
+        counterVoice = c.counter || 'bansuriFlute';
       } else {
-        const steps = sit === 'SCIENTIFIC_INQUIRY' ? 12 : 8;
-        const stepDur = bar / steps;
-        for (let s = 0; s < steps && tb + s * stepDur < t1 - 0.02; s++) {
-          if (sit === 'TICKING_SURVIVAL' && s % 3 === 2) continue;
-          const fNote = scaleHz[(s * 2 + barIdx) % scaleHz.length];
-          const pan = Math.sin(s * 1.3) * 0.35;
-          if (culture === 'indianClassical') {
-            VOICES.sitarVeena(tb + s * stepDur, fNote, stepDur * 1.35, g * (s % 4 === 0 ? 0.95 : 0.65), pan);
-          } else if (culture === 'eastAsian') {
-            VOICES.kotoPluck(tb + s * stepDur, fNote, stepDur * 1.35, g * (s % 4 === 0 ? 0.95 : 0.65), pan);
-          } else if (culture === 'victorianClassical') {
-            VOICES.harpsichordStrings(tb + s * stepDur, fNote, stepDur * 1.25, g * (s % 4 === 0 ? 0.9 : 0.6), pan);
+        scaleName = 'carnaticMayamalavagowla';
+        progName = 'carnaticPedal';
+        leadVoice = c.lead || 'sitarVeena';
+        counterVoice = c.counter || 'bansuriFlute';
+      }
+      bassVoice = c.bass || 'tanpuraDrone';
+      if (!isTragedySolemn && !c.perc) percStyle = 'indianPerc';
+    } else if (isEastAsian && !c.scale) {
+      scaleName = valence < 0 ? 'japaneseHirajoshi' : 'chinesePentatonic';
+      progName = 'eastAsianModal';
+      leadVoice = c.lead || 'kotoGuzheng';
+      counterVoice = c.counter || 'shakuhachi';
+      if (isCrisisSurvival || isHeroicGrandeur) percStyle = 'taikoPerc';
+    } else if (isMiddleEastern && !c.scale) {
+      scaleName = 'arabicHijaz';
+      progName = 'carnaticPedal';
+      leadVoice = c.lead || 'oudLute';
+      counterVoice = c.counter || 'dudukReed';
+      if (!isTragedySolemn && !c.perc) percStyle = 'indianPerc';
+    } else if (isEuropeanHistorical && !c.scale) {
+      scaleName = valence < 0 ? 'harmonicMinor' : 'ionian';
+      leadVoice = c.lead || 'harpsichordStrings';
+      counterVoice = c.counter || 'soloCello';
+      padVoice = c.pad || 'warmStringSection';
+    }
+
+    // Allow explicit instrument array override: c.instruments = ['sitarVeena', 'bansuriFlute', 'warmStringSection']
+    if (Array.isArray(c.instruments) && c.instruments.length > 0) {
+      leadVoice = c.instruments[0] || leadVoice;
+      if (c.instruments[1]) counterVoice = c.instruments[1];
+      if (c.instruments[2]) padVoice = c.instruments[2];
+    }
+
+    return {
+      silent: false,
+      tension: clamp(tension, 0, 1),
+      valence: clamp(valence, -1, 1),
+      energy: clamp(energy, 0.1, 1),
+      quirk: clamp(quirk, 0, 1),
+      grandeur: clamp(grandeur, 0, 1),
+      bpm: clamp(bpm, 52, 168),
+      key: c.key || (valence > 0.35 ? 'C Major' : 'D Minor'),
+      scaleName,
+      progName,
+      leadVoice,
+      counterVoice,
+      padVoice,
+      bassVoice,
+      percStyle,
+      rhythmPulses,
+      rhythmSteps,
+      seedStr: String(c.cue_id || '') + '|' + textBlob + '|' + (c.start_time || 0),
+    };
+  }
+  SOUND.analyzeCueDNA = analyzeCueDNA;
+
+  // ---------- 4. Phrase-Based Melodic Motif Composer ----------
+  // Generates a memorable, human-sounding 2-bar motif with Call & Response phrasing
+  function composeSeededMotif(dna, scaleLen = 12) {
+    const r = rand('motif-' + dna.seedStr);
+    const steps = dna.rhythmSteps || 8;
+    const pulses = clamp(
+      Math.round(dna.rhythmPulses * (0.75 + dna.energy * 0.45)),
+      2,
+      steps
+    );
+    const gatePattern = euclideanRhythm(pulses, steps, Math.floor(r() * 3));
+
+    // Chord-tone anchors (0 = root, 2 = 3rd, 4 = 5th, 6 = 7th, 7 = octave)
+    const anchors = [0, 2, 4, 7, 4, 2];
+    const bar1Notes = [];
+    const bar2Notes = [];
+
+    let curDeg = anchors[Math.floor(r() * 3)]; // Start on root, 3rd, or 5th
+    for (let s = 0; s < steps; s++) {
+      if (!gatePattern[s]) {
+        bar1Notes.push(null);
+        bar2Notes.push(null);
+        continue;
+      }
+      // Strong beats gravitate to consonant chord intervals; offbeats walk stepwise
+      if (s === 0) {
+        curDeg = anchors[0];
+      } else if (s === Math.floor(steps / 2)) {
+        curDeg = anchors[2]; // 5th on mid-bar
+      } else {
+        const stepChoices = dna.quirk > 0.5 ? [-3, -1, 1, 2, 4] : [-2, -1, 1, 2];
+        curDeg = clamp(
+          curDeg + stepChoices[Math.floor(r() * stepChoices.length)],
+          0,
+          Math.min(10, scaleLen - 1)
+        );
+      }
+      bar1Notes.push(curDeg);
+
+      // Bar 2 (Response): variation on the second half of the bar
+      if (s < steps / 2) {
+        bar2Notes.push(curDeg);
+      } else if (s === steps - 1) {
+        // Resolve toward root (0) or fifth (4)
+        bar2Notes.push(r() > 0.4 ? 0 : 4);
+      } else {
+        bar2Notes.push(clamp(curDeg + (r() > 0.5 ? 1 : -1), 0, Math.min(10, scaleLen - 1)));
+      }
+    }
+
+    return { steps, gatePattern, bar1Notes, bar2Notes };
+  }
+
+  // ---------- 5. Main Synthesizer Kit Factory ----------
+  SOUND.kit = function (ctx, opts) {
+    const o = opts || {};
+    const mixMode = o.mixMode || (o.voiceover === false ? 'full' : 'sfxOnly');
+    const isBgmOnly = mixMode === 'bgmOnly' || mixMode === 'bgmFull';
+    const isSfxOnly = mixMode === 'sfxOnly';
+    const VO = mixMode === 'vo' || mixMode === 'bgmOnly';
+
+    const T0 = (o.start || 0) - 0;
+    const base = ctx.currentTime + (o.delay || 0);
+    const SR = ctx.sampleRate;
+    const at = (t) => (Math.round((base + (t - T0)) * SR) + 0.25) / SR;
+
+    // Master Chain: Warm Soft-Clipper -> Dynamics Compressor -> Master Gain
+    const master = ctx.createGain();
+    master.gain.value = o.master == null ? 0.92 : o.master;
+
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -14;
+    comp.knee.value = 10;
+    comp.ratio.value = 3.0;
+    comp.attack.value = 0.005;
+    comp.release.value = 0.18;
+    comp.connect(master);
+    master.connect(o.dest || ctx.destination);
+
+    const bus = {
+      heavy: ctx.createGain(),
+      sfx: ctx.createGain(),
+      amb: ctx.createGain(),
+      music: ctx.createGain(),
+    };
+    bus.heavy.gain.value = isBgmOnly ? 0 : MIX.HEAVY_IMPACT;
+    bus.sfx.gain.value = isBgmOnly ? 0 : MIX.UI_FOLEY;
+    bus.amb.gain.value = isBgmOnly ? 0 : MIX.AMBIENT_LOOP;
+    bus.music.gain.value = isSfxOnly ? 0 : VO ? MIX.BGM_VO_BED : 0.42;
+
+    Object.values(bus).forEach((b) => b.connect(comp));
+
+    // Lush Stereo Hall Convolver (2.4s warm exponentially damped concert hall)
+    const verb = ctx.createConvolver();
+    {
+      const secs = 2.4;
+      const len = Math.floor(secs * SR);
+      const ir = ctx.createBuffer(2, len, SR);
+      for (let c = 0; c < 2; c++) {
+        const r = rand('lumina-hall-v2-' + c);
+        const d = ir.getChannelData(c);
+        let lp = 0;
+        for (let i = 0; i < len; i++) {
+          const u = i / len;
+          const early = i < SR * 0.06 && i % Math.floor(SR * 0.009) === 0 ? 0.45 : 0;
+          lp += (0.48 - 0.34 * u) * ((r() * 2 - 1) + early - lp);
+          d[i] = lp * Math.pow(1 - u, 2.4);
+        }
+      }
+      verb.buffer = ir;
+    }
+    const verbIn = ctx.createGain();
+    verbIn.gain.value = 0.85;
+    verbIn.connect(verb);
+    verb.connect(comp);
+
+    // Stereo Warm Tape Delay Network (for Kurzgesagt plucks, bells, flutes & arps)
+    const delayL = ctx.createDelay(1.0);
+    const delayR = ctx.createDelay(1.0);
+    delayL.delayTime.value = 0.27;
+    delayR.delayTime.value = 0.36;
+    const delayFb = ctx.createGain();
+    delayFb.gain.value = 0.28;
+    const delayFilter = ctx.createBiquadFilter();
+    delayFilter.type = 'lowpass';
+    delayFilter.frequency.value = 2100;
+    const delayPanL = ctx.createStereoPanner();
+    const delayPanR = ctx.createStereoPanner();
+    delayPanL.pan.value = -0.55;
+    delayPanR.pan.value = 0.55;
+    const delayIn = ctx.createGain();
+    delayIn.gain.value = 0.75;
+
+    delayIn.connect(delayFilter);
+    delayFilter.connect(delayL);
+    delayL.connect(delayPanL);
+    delayL.connect(delayR);
+    delayR.connect(delayPanR);
+    delayR.connect(delayFb);
+    delayFb.connect(delayFilter);
+    delayPanL.connect(bus.music);
+    delayPanR.connect(bus.music);
+
+    // Pre-Computed White, Pink & Brown Noise Buffers
+    const noiseBuf = {};
+    {
+      const len = Math.floor(2.8 * SR);
+      for (const kind of ['white', 'pink', 'brown']) {
+        const b = ctx.createBuffer(1, len, SR);
+        const d = b.getChannelData(0);
+        const r = rand('lumina-noise-' + kind);
+        let p0 = 0, p1 = 0, p2 = 0, br = 0;
+        for (let i = 0; i < len; i++) {
+          const w = r() * 2 - 1;
+          if (kind === 'white') d[i] = w;
+          else if (kind === 'pink') {
+            p0 = 0.997 * p0 + 0.029 * w;
+            p1 = 0.985 * p1 + 0.032 * w;
+            p2 = 0.95 * p2 + 0.048 * w;
+            d[i] = (p0 + p1 + p2 + w * 0.05) * 2.2;
           } else {
-            VOICES.kalimbaMarimba(tb + s * stepDur, fNote, stepDur * 1.1, g * (s % 4 === 0 ? 0.9 : 0.6), pan);
+            br = (br + 0.02 * w) / 1.02;
+            d[i] = br * 3.2;
+          }
+        }
+        noiseBuf[kind] = b;
+      }
+    }
+
+    function sweep(param, v, t) {
+      if (!Array.isArray(v)) {
+        param.setValueAtTime(Math.max(TINY, v), t);
+        return;
+      }
+      param.setValueAtTime(Math.max(TINY, v[0][1]), t + v[0][0]);
+      for (let i = 1; i < v.length; i++) {
+        param.exponentialRampToValueAtTime(Math.max(1, v[i][1]), t + v[i][0]);
+      }
+    }
+
+    function shape(param, t, gain, dur, a, hold) {
+      a = Math.min(a == null ? 0.004 : a, dur * 0.9);
+      hold = Math.min(hold || 0, dur - a);
+      param.setValueAtTime(0, t);
+      param.linearRampToValueAtTime(Math.max(TINY, gain), t + a);
+      if (hold > 0) param.setValueAtTime(Math.max(TINY, gain), t + a + hold);
+      param.exponentialRampToValueAtTime(TINY, t + dur);
+      param.setValueAtTime(0, t + dur + 0.001);
+    }
+
+    function out(node, p) {
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = clamp(p.pan || 0, -1, 1);
+      node.connect(pan);
+      const targetBus = bus[p.bus || 'sfx'] || bus.sfx;
+      pan.connect(targetBus);
+      if (p.verb) {
+        const s = ctx.createGain();
+        s.gain.value = p.verb;
+        pan.connect(s);
+        s.connect(verbIn);
+      }
+      if (p.delay && !isSfxOnly) {
+        const dSend = ctx.createGain();
+        dSend.gain.value = p.delay;
+        pan.connect(dSend);
+        dSend.connect(delayIn);
+      }
+    }
+
+    // Standard Subtractive Oscillator Voice
+    function tone(time, p) {
+      const dur = p.dur || 0.2;
+      const t = at(time);
+      if (t + dur < ctx.currentTime || (time < T0 - 0.001 && dur < 1.5)) return;
+      const freq = Array.isArray(p.f) ? p.f.map(([d, v]) => [d, hz(v)]) : hz(p.f || 440);
+      if (!Array.isArray(freq) && freq <= 0) return;
+
+      const osc = ctx.createOscillator();
+      osc.type = p.type || 'sine';
+      sweep(osc.frequency, freq, t);
+      if (p.detune) osc.detune.value = p.detune;
+
+      // Optional Vibrato LFO for expressive strings/winds
+      if (p.vibDepth && p.vibRate) {
+        const lfo = ctx.createOscillator();
+        const lfoG = ctx.createGain();
+        lfo.frequency.value = p.vibRate;
+        lfoG.gain.value = p.vibDepth;
+        lfo.connect(lfoG);
+        lfoG.connect(osc.frequency);
+        lfo.start(t);
+        lfo.stop(t + dur + 0.02);
+      }
+
+      const g = ctx.createGain();
+      shape(g.gain, t, p.gain == null ? 0.35 : p.gain, dur, p.a, p.hold);
+
+      let node = osc;
+      if (p.filter) {
+        const f = ctx.createBiquadFilter();
+        f.type = p.filter;
+        f.Q.value = p.q == null ? 0.8 : p.q;
+        sweep(f.frequency, p.f2 || 2000, t);
+        osc.connect(f);
+        node = f;
+      }
+      node.connect(g);
+      out(g, p);
+      osc.start(t);
+      osc.stop(t + dur + 0.02);
+    }
+
+    // 2-Operator FM Synthesis Voice (for rich bells, Rhodes, marimba, sitar jawari, metallic clang)
+    function fmTone(time, p) {
+      const dur = p.dur || 0.35;
+      const t = at(time);
+      if (t + dur < ctx.currentTime || (time < T0 - 0.001 && dur < 1.5)) return;
+      const f0 = hz(p.f || 440);
+      if (f0 <= 0) return;
+
+      const car = ctx.createOscillator();
+      const mod = ctx.createOscillator();
+      const modGain = ctx.createGain();
+
+      car.type = p.carType || 'sine';
+      mod.type = p.modType || 'sine';
+      car.frequency.setValueAtTime(f0, t);
+      mod.frequency.setValueAtTime(f0 * (p.ratio || 2.0), t);
+
+      const indexHz = f0 * (p.modIndex || 1.5);
+      modGain.gain.setValueAtTime(Math.max(1, indexHz), t);
+      modGain.gain.exponentialRampToValueAtTime(
+        Math.max(1, indexHz * (p.modEnd || 0.08)),
+        t + Math.min(dur, p.modDecay || dur * 0.7)
+      );
+
+      mod.connect(modGain);
+      modGain.connect(car.frequency);
+
+      const g = ctx.createGain();
+      shape(g.gain, t, p.gain == null ? 0.28 : p.gain, dur, p.a || 0.003, p.hold || 0);
+
+      let node = car;
+      if (p.filter) {
+        const flt = ctx.createBiquadFilter();
+        flt.type = p.filter;
+        flt.Q.value = p.q || 0.9;
+        sweep(flt.frequency, p.f2 || f0 * 4, t);
+        car.connect(flt);
+        node = flt;
+      }
+      node.connect(g);
+      out(g, p);
+
+      car.start(t);
+      mod.start(t);
+      car.stop(t + dur + 0.02);
+      mod.stop(t + dur + 0.02);
+    }
+
+    // Filtered Noise Voice
+    function noise(time, p) {
+      const dur = p.dur || 0.2;
+      const t = at(time);
+      if (t + dur < ctx.currentTime || (time < T0 - 0.001 && dur < 1.5)) return;
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuf[p.color || 'white'];
+      src.loop = true;
+      if (p.rate) src.playbackRate.value = p.rate;
+      const g = ctx.createGain();
+      shape(g.gain, t, p.gain == null ? 0.35 : p.gain, dur, p.a, p.hold);
+      if (p.filter) {
+        const f = ctx.createBiquadFilter();
+        f.type = p.filter;
+        f.Q.value = p.q == null ? 1.0 : p.q;
+        sweep(f.frequency, p.f == null ? 1000 : p.f, t);
+        src.connect(f);
+        f.connect(g);
+      } else {
+        src.connect(g);
+      }
+      out(g, p);
+      const off = rand('off-' + time + '-' + (p.f || ''))() * 2;
+      src.start(t, off);
+      src.stop(t + dur + 0.02);
+    }
+
+    // =========================================================================
+    // 6. 30 STUDIO-GRADE PROCEDURAL INSTRUMENTS (VOICES)
+    // =========================================================================
+    const VOICES = {
+      // --- Bass & Drones ---
+      subPedal: (t, f, dur, g = 1) => {
+        if (!f) return;
+        tone(t, { f, type: 'sine', dur: dur + 0.18, gain: 0.36 * g, a: Math.min(0.18, dur * 0.25), hold: dur * 0.55, bus: 'music' });
+        tone(t, { f: f * 2, type: 'triangle', dur, gain: 0.11 * g, a: 0.1, filter: 'lowpass', f2: 240, bus: 'music' });
+      },
+      moogBass: (t, f, dur, g = 1, pan = 0) => {
+        if (!f) return;
+        tone(t, { f, type: 'sawtooth', detune: -5, dur, gain: 0.26 * g, a: 0.006, filter: 'lowpass', f2: [[0, f * 6.5], [dur * 0.75, f * 1.6]], q: 2.2, bus: 'music', pan });
+        tone(t, { f, type: 'square', detune: 5, dur, gain: 0.14 * g, a: 0.006, filter: 'lowpass', f2: f * 3, bus: 'music', pan });
+      },
+      uprightBassPizz: (t, f, dur = 0.42, g = 1, pan = 0) => {
+        if (!f) return;
+        fmTone(t, { f, ratio: 1.0, modIndex: 1.8, modEnd: 0.1, dur, gain: 0.34 * g, a: 0.004, filter: 'lowpass', f2: f * 3.5, bus: 'music', verb: 0.15, pan });
+      },
+      tanpuraDrone: (t, f, dur, g = 1) => {
+        if (!f) return;
+        fmTone(t, { f: f * 1.5, ratio: 2.0, modIndex: 1.2, modEnd: 0.8, dur: dur + 0.25, gain: 0.11 * g, a: 0.35, hold: dur * 0.55, filter: 'bandpass', f2: f * 4.5, q: 1.8, bus: 'music', verb: 0.5, pan: -0.28 });
+        fmTone(t, { f: f * 2.0, ratio: 3.0, modIndex: 1.1, modEnd: 0.7, dur: dur + 0.25, gain: 0.10 * g, a: 0.35, hold: dur * 0.55, filter: 'bandpass', f2: f * 6.0, q: 1.8, bus: 'music', verb: 0.5, pan: 0.28 });
+      },
+      darkDreadDrone: (t, f, dur, g = 1) => {
+        if (!f) return;
+        tone(t, { f, type: 'sawtooth', detune: -9, dur: dur + 0.3, gain: 0.22 * g, a: 0.35, hold: dur * 0.5, filter: 'lowpass', f2: 190, bus: 'music', verb: 0.55, pan: -0.2 });
+        tone(t, { f: f * 1.01, type: 'sawtooth', detune: 9, dur: dur + 0.3, gain: 0.22 * g, a: 0.35, hold: dur * 0.5, filter: 'lowpass', f2: 190, bus: 'music', verb: 0.55, pan: 0.2 });
+      },
+
+      // --- Lush Pads & Ensembles ---
+      analogPad: (t, chordHz, dur, cutoff = 1600, g = 1) => {
+        chordHz.forEach((f, idx) => {
+          if (!f) return;
+          const pan = (idx - (chordHz.length - 1) / 2) * 0.32;
+          tone(t, { f, type: 'sawtooth', detune: -7, dur: dur + 0.35, gain: 0.12 * g, a: Math.min(0.45, dur * 0.35), hold: Math.max(0.1, dur - 0.55), filter: 'lowpass', f2: cutoff, bus: 'music', verb: 0.52, pan });
+          tone(t, { f, type: 'triangle', detune: 7, dur: dur + 0.35, gain: 0.13 * g, a: Math.min(0.45, dur * 0.35), hold: Math.max(0.1, dur - 0.55), filter: 'lowpass', f2: cutoff, bus: 'music', verb: 0.45, pan: -pan });
+        });
+      },
+      warmStringSection: (t, chordHz, dur, cutoff = 2200, g = 1) => {
+        chordHz.forEach((f, idx) => {
+          if (!f) return;
+          const pan = (idx - (chordHz.length - 1) / 2) * 0.38;
+          tone(t, { f, type: 'sawtooth', detune: -10, vibRate: 4.8, vibDepth: f * 0.004, dur: dur + 0.4, gain: 0.12 * g, a: Math.min(0.55, dur * 0.38), hold: Math.max(0.1, dur - 0.6), filter: 'lowpass', f2: cutoff, bus: 'music', verb: 0.6, pan });
+          tone(t, { f, type: 'sawtooth', detune: 10, vibRate: 5.1, vibDepth: f * 0.004, dur: dur + 0.4, gain: 0.12 * g, a: Math.min(0.55, dur * 0.38), hold: Math.max(0.1, dur - 0.6), filter: 'lowpass', f2: cutoff, bus: 'music', verb: 0.6, pan: -pan * 0.7 });
+        });
+      },
+      glassPad: (t, chordHz, dur, cutoff = 2800, g = 1) => {
+        chordHz.forEach((f, idx) => {
+          if (!f) return;
+          const pan = (idx - (chordHz.length - 1) / 2) * 0.35;
+          fmTone(t, { f, ratio: 3.0, modIndex: 0.75, modEnd: 0.25, dur: dur + 0.35, gain: 0.13 * g, a: Math.min(0.45, dur * 0.35), hold: dur * 0.45, filter: 'lowpass', f2: cutoff, bus: 'music', verb: 0.65, pan });
+        });
+      },
+
+      // --- Pianos, Keys, Synths & Mallets ---
+      feltPiano: (t, f, dur = 1.4, g = 1, pan = 0) => {
+        if (!f) return;
+        fmTone(t, { f, ratio: 1.0, modIndex: 0.85, modEnd: 0.05, modDecay: 0.18, dur, gain: 0.31 * g, a: 0.008, hold: dur * 0.15, filter: 'lowpass', f2: [[0, f * 3.4], [dur, f * 1.1]], bus: 'music', verb: 0.46, pan });
+        tone(t, { f: f * 2, type: 'sine', dur: dur * 0.4, gain: 0.06 * g, a: 0.006, bus: 'music', verb: 0.38, pan });
+      },
+      grandPiano: (t, f, dur = 1.3, g = 1, pan = 0) => {
+        if (!f) return;
+        fmTone(t, { f, ratio: 1.0, modIndex: 1.45, modEnd: 0.1, modDecay: 0.25, dur, gain: 0.32 * g, a: 0.004, hold: dur * 0.15, filter: 'lowpass', f2: [[0, f * 6.0], [dur, f * 1.5]], bus: 'music', verb: 0.42, pan });
+      },
+      rhodesEP: (t, f, dur = 1.1, g = 1, pan = 0) => {
+        if (!f) return;
+        fmTone(t, { f, ratio: 1.0, modIndex: 1.2, modEnd: 0.15, dur, gain: 0.28 * g, a: 0.005, bus: 'music', verb: 0.38, delay: 0.15, pan });
+        fmTone(t, { f, ratio: 7.0, modIndex: 0.25, modEnd: 0.01, dur: 0.18, gain: 0.09 * g, a: 0.002, bus: 'music', pan });
+      },
+      kurzgesagtPluck: (t, f, dur = 0.42, g = 1, pan = 0) => {
+        if (!f) return;
+        tone(t, { f, type: 'sawtooth', detune: -6, dur, gain: 0.24 * g, a: 0.003, filter: 'lowpass', f2: [[0, f * 7.5], [dur * 0.65, f * 1.4]], q: 1.8, bus: 'music', verb: 0.34, delay: 0.28, pan });
+        tone(t, { f, type: 'triangle', detune: 6, dur: dur * 1.1, gain: 0.18 * g, a: 0.003, bus: 'music', verb: 0.3, delay: 0.22, pan: -pan * 0.5 });
+      },
+      kalimbaMarimba: (t, f, dur = 0.36, g = 1, pan = 0) => {
+        if (!f) return;
+        fmTone(t, { f, ratio: 4.0, modIndex: 1.1, modEnd: 0.02, modDecay: 0.06, dur, gain: 0.32 * g, a: 0.002, bus: 'music', verb: 0.34, delay: 0.18, pan });
+      },
+      vibraphone: (t, f, dur = 1.1, g = 1, pan = 0) => {
+        if (!f) return;
+        fmTone(t, { f, ratio: 3.0, modIndex: 0.9, modEnd: 0.08, dur, gain: 0.27 * g, a: 0.004, bus: 'music', verb: 0.52, delay: 0.2, pan });
+      },
+      celestaHarp: (t, f, dur = 0.9, g = 1, pan = 0) => {
+        if (!f) return;
+        fmTone(t, { f, ratio: 2.0, modIndex: 0.85, modEnd: 0.05, dur, gain: 0.24 * g, a: 0.003, bus: 'music', verb: 0.58, delay: 0.24, pan });
+      },
+      harpsichordStrings: (t, f, dur = 0.65, g = 1, pan = 0) => {
+        if (!f) return;
+        fmTone(t, { f, ratio: 2.0, modIndex: 2.2, modEnd: 0.3, dur, gain: 0.24 * g, a: 0.002, filter: 'lowpass', f2: f * 5.0, bus: 'music', verb: 0.38, pan });
+      },
+      pulseOstinato: (t, f, dur = 0.22, cutoff = 1800, g = 1, pan = 0) => {
+        if (!f) return;
+        tone(t, { f, type: 'sawtooth', dur, gain: 0.27 * g, a: 0.004, filter: 'lowpass', f2: [[0, cutoff * 1.4], [dur, cutoff * 0.45]], q: 2.0, bus: 'music', verb: 0.18, delay: 0.14, pan });
+      },
+
+      // --- Bowed & Plucked Strings ---
+      pizzicatoStrings: (t, f, dur = 0.22, g = 1, pan = 0) => {
+        if (!f) return;
+        fmTone(t, { f, ratio: 1.0, modIndex: 1.6, modEnd: 0.05, modDecay: 0.05, dur, gain: 0.32 * g, a: 0.002, filter: 'lowpass', f2: [[0, f * 4.5], [dur, f * 1.2]], bus: 'music', verb: 0.26, pan });
+        noise(t, { dur: 0.015, color: 'pink', filter: 'bandpass', f: f * 3, q: 2.5, gain: 0.12 * g, bus: 'music', pan });
+      },
+      soloCello: (t, f, dur = 1.4, g = 1, pan = 0) => {
+        if (!f) return;
+        tone(t, { f, type: 'sawtooth', vibRate: 5.2, vibDepth: f * 0.006, dur, gain: 0.26 * g, a: Math.min(0.18, dur * 0.28), hold: dur * 0.45, filter: 'lowpass', f2: [[0, f * 3.8], [dur, f * 2.1]], q: 1.1, bus: 'music', verb: 0.52, pan });
+      },
+      sitarVeena: (t, f, dur = 0.72, g = 1, pan = 0) => {
+        if (!f) return;
+        // Plucked string with bridge buzz (jawari) & sympathetic resonance
+        fmTone(t, { f, ratio: 2.0, modIndex: 2.4, modEnd: 0.35, dur, gain: 0.27 * g, a: 0.003, filter: 'bandpass', f2: [[0, f * 5.2], [dur, f * 1.8]], q: 1.8, bus: 'music', verb: 0.45, delay: 0.16, pan });
+        tone(t, { f: f * 2, type: 'triangle', dur: dur * 0.75, gain: 0.11 * g, a: 0.002, bus: 'music', verb: 0.5, pan: -pan * 0.5 });
+      },
+      kotoGuzheng: (t, f, dur = 0.6, g = 1, pan = 0) => {
+        if (!f) return;
+        fmTone(t, { f, ratio: 1.5, modIndex: 1.4, modEnd: 0.05, dur, gain: 0.30 * g, a: 0.002, filter: 'lowpass', f2: [[0, f * 5], [dur, f * 1.3]], bus: 'music', verb: 0.48, delay: 0.2, pan });
+      },
+      oudLute: (t, f, dur = 0.58, g = 1, pan = 0) => {
+        if (!f) return;
+        fmTone(t, { f, ratio: 1.0, modIndex: 1.8, modEnd: 0.12, dur, gain: 0.29 * g, a: 0.003, filter: 'lowpass', f2: [[0, f * 4.2], [dur, f * 1.4]], bus: 'music', verb: 0.42, pan });
+      },
+
+      // --- World & Orchestral Winds / Brass ---
+      bansuriFlute: (t, f, dur = 1.1, g = 1, pan = 0) => {
+        if (!f) return;
+        tone(t, { f: [[0, f * 0.985], [0.1, f]], type: 'sine', vibRate: 4.8, vibDepth: f * 0.005, dur, gain: 0.26 * g, a: 0.075, hold: dur * 0.5, bus: 'music', verb: 0.52, delay: 0.18, pan });
+        noise(t, { dur: dur * 0.85, color: 'pink', filter: 'bandpass', f: f * 2, q: 3.8, gain: 0.075 * g, a: 0.06, bus: 'music', verb: 0.4, pan });
+      },
+      shakuhachi: (t, f, dur = 1.15, g = 1, pan = 0) => {
+        if (!f) return;
+        tone(t, { f: [[0, f * 0.97], [0.14, f]], type: 'triangle', vibRate: 4.5, vibDepth: f * 0.006, dur, gain: 0.24 * g, a: 0.08, hold: dur * 0.45, filter: 'lowpass', f2: f * 2.5, bus: 'music', verb: 0.55, pan });
+        noise(t, { dur: 0.18, color: 'white', filter: 'bandpass', f: f * 2.5, q: 3.0, gain: 0.11 * g, a: 0.02, bus: 'music', pan });
+      },
+      dudukReed: (t, f, dur = 1.25, g = 1, pan = 0) => {
+        if (!f) return;
+        tone(t, { f: [[0, f * 0.98], [0.12, f]], type: 'square', vibRate: 5.0, vibDepth: f * 0.006, dur, gain: 0.22 * g, a: 0.09, hold: dur * 0.5, filter: 'bandpass', f2: f * 1.8, q: 2.2, bus: 'music', verb: 0.55, pan });
+      },
+      nadaswaramShehnai: (t, f, dur = 0.95, g = 1, pan = 0) => {
+        if (!f) return;
+        tone(t, { f: [[0, f * 0.975], [0.09, f]], type: 'sawtooth', vibRate: 5.5, vibDepth: f * 0.007, dur, gain: 0.23 * g, a: 0.04, hold: dur * 0.45, filter: 'bandpass', f2: f * 2.6, q: 1.8, bus: 'music', verb: 0.48, pan });
+      },
+      brassHornSwell: (t, f, dur = 1.1, g = 1, pan = 0) => {
+        if (!f) return;
+        tone(t, { f, type: 'sawtooth', detune: -5, dur, gain: 0.24 * g, a: Math.min(0.18, dur * 0.3), hold: dur * 0.45, filter: 'lowpass', f2: [[0, f * 1.8], [dur * 0.4, f * 4.8], [dur, f * 2.2]], q: 1.4, bus: 'music', verb: 0.5, pan });
+      },
+      quirkyOboeBassoon: (t, f, dur = 0.28, g = 1, pan = 0) => {
+        if (!f) return;
+        fmTone(t, { f, ratio: 2.0, modIndex: 1.7, modEnd: 0.9, dur, gain: 0.24 * g, a: 0.008, filter: 'bandpass', f2: f * 2.4, q: 2.0, bus: 'music', verb: 0.22, pan });
+      },
+
+      // --- World & Cinematic Percussion ---
+      mridangamTabla: (t, isDownbeat, g = 1, pan = 0) => {
+        const f0 = isDownbeat ? 146.8 : 293.6;
+        tone(t, { f: [[0, f0 * 1.14], [0.05, f0]], type: 'sine', dur: 0.25, gain: 0.32 * g, a: 0.002, bus: 'music', verb: 0.22, pan });
+        noise(t, { dur: 0.022, filter: 'bandpass', f: 1850, q: 2.5, gain: 0.17 * g, bus: 'music', pan });
+      },
+      taikoWarDrum: (t, isDownbeat, g = 1, pan = 0) => {
+        const f0 = isDownbeat ? 92 : 138;
+        tone(t, { f: [[0, f0 * 1.35], [0.18, f0 * 0.55]], type: 'sine', dur: 0.38, gain: (isDownbeat ? 0.42 : 0.28) * g, a: 0.003, bus: 'music', verb: 0.42, pan });
+        noise(t, { dur: 0.04, color: 'brown', filter: 'bandpass', f: 900, q: 1.8, gain: 0.22 * g, bus: 'music', pan });
+      },
+      cinematicTom: (t, isDownbeat, g = 1) => {
+        const f0 = isDownbeat ? 112 : 84;
+        tone(t, { f: [[0, f0], [0.15, 40]], dur: 0.24, gain: (isDownbeat ? 0.34 : 0.22) * g, bus: 'music', verb: 0.3 });
+      },
+      militarySnare: (t, isAccent, g = 1, pan = 0) => {
+        tone(t, { f: [[0, 210], [0.06, 115]], dur: 0.08, gain: (isAccent ? 0.24 : 0.14) * g, bus: 'music', pan });
+        noise(t, { dur: isAccent ? 0.12 : 0.07, color: 'white', filter: 'highpass', f: 1400, gain: (isAccent ? 0.24 : 0.14) * g, a: 0.002, bus: 'music', verb: 0.22, pan });
+      },
+      woodblockTick: (t, isAccent, g = 1, pan = 0) => {
+        const f0 = isAccent ? 980 : 740;
+        fmTone(t, { f: f0, ratio: 2.4, modIndex: 1.2, modEnd: 0.05, dur: 0.065, gain: (isAccent ? 0.26 : 0.16) * g, a: 0.001, bus: 'music', verb: 0.14, pan });
+      },
+      clockEscapement: (t, isAccent, g = 1, pan = 0) => {
+        const pitch = isAccent ? 4200 : 3100;
+        noise(t, { dur: 0.015, filter: 'bandpass', f: pitch, q: 3.5, gain: (isAccent ? 0.21 : 0.12) * g, bus: 'music', verb: 0.12, pan });
+      },
+      brushShaker: (t, isAccent, g = 1, pan = 0) => {
+        noise(t, { dur: 0.045, filter: 'highpass', f: 4800, gain: (isAccent ? 0.13 : 0.075) * g, a: 0.005, bus: 'music', pan });
+      },
+      cymbalSwell: (t, dur = 1.2, g = 1) => {
+        noise(t, { dur, color: 'white', filter: 'bandpass', f: [[0, 1200], [dur, 6200]], q: 1.1, gain: 0.22 * g, a: dur * 0.85, bus: 'music', verb: 0.55 });
+      },
+    };
+
+    // =========================================================================
+    // 7. 100+ ACTION-SYNCED UNIVERSAL SFX PRESETS + SEMANTIC SYNTHESIZER
+    // =========================================================================
+    const S = {
+      // --- Heavy Impacts, Disasters & Geological Forces (bus: 'heavy' @ 0.75) ---
+      decompressionBang: (t, o) => {
+        tone(t, { f: [[0, 195], [0.24, 32]], dur: 0.38, gain: 0.85 * o.g, bus: 'heavy', pan: o.pan });
+        noise(t, { dur: 0.15, color: 'white', filter: 'bandpass', f: 2200, q: 0.9, gain: 0.75 * o.g, a: 0.001, bus: 'heavy', verb: 0.25, pan: o.pan });
+        noise(t + 0.03, { dur: 0.88, color: 'pink', filter: 'bandpass', f: [[0, 2900], [0.85, 520]], q: 0.8, gain: 0.55 * o.g, a: 0.01, bus: 'heavy', verb: 0.35, pan: o.pan });
+      },
+      explosion: (t, o) => {
+        const d = o.dur || 1.4;
+        tone(t, { f: [[0, 160], [0.35, 28]], dur: 0.55, gain: 0.88 * o.g, bus: 'heavy', pan: o.pan });
+        noise(t, { dur: d, color: 'brown', filter: 'lowpass', f: [[0, 1800], [d, 140]], gain: 0.8 * o.g, a: 0.003, hold: 0.12, bus: 'heavy', verb: 0.45, pan: o.pan });
+        noise(t + 0.02, { dur: d * 0.6, color: 'white', filter: 'bandpass', f: 2400, q: 0.8, gain: 0.5 * o.g, bus: 'heavy', pan: o.pan });
+      },
+      volcanoRumble: (t, o) => {
+        const d = o.dur || 1.8;
+        tone(t, { f: [[0, 95], [d, 28]], type: 'sawtooth', filter: 'lowpass', f2: 180, dur: d, gain: 0.75 * o.g, a: 0.04, bus: 'heavy', verb: 0.4, pan: o.pan });
+        noise(t, { dur: d, color: 'brown', filter: 'lowpass', f: 380, gain: 0.7 * o.g, a: 0.04, hold: d * 0.4, bus: 'heavy', verb: 0.45, pan: o.pan });
+      },
+      earthquakeSub: (t, o) => {
+        const d = o.dur || 2.0;
+        tone(t, { f: [[0, 68], [d * 0.5, 42], [d, 26]], type: 'triangle', dur: d, gain: 0.82 * o.g, a: 0.08, hold: d * 0.5, bus: 'heavy', pan: o.pan });
+        noise(t, { dur: d, color: 'brown', filter: 'lowpass', f: 240, gain: 0.68 * o.g, a: 0.08, bus: 'heavy', verb: 0.4, pan: o.pan });
+      },
+      dinoRoar: (t, o) => {
+        const d = o.dur || 1.2;
+        tone(t, { f: [[0, 160], [d * 0.3, 240], [d, 72]], type: 'sawtooth', filter: 'bandpass', f2: [[0, 420], [d, 180]], q: 2.2, dur: d, gain: 0.72 * o.g, a: 0.05, bus: 'heavy', verb: 0.45, pan: o.pan });
+        noise(t, { dur: d, color: 'pink', filter: 'bandpass', f: [[0, 650], [d, 260]], q: 1.4, gain: 0.52 * o.g, a: 0.05, bus: 'heavy', verb: 0.35, pan: o.pan });
+      },
+      powerDown: (t, o) => {
+        const d = o.dur || 0.95;
+        tone(t, { f: [[0, 260], [d, 38]], type: 'sawtooth', filter: 'lowpass', f2: [[0, 900], [d, 90]], dur: d, gain: 0.58 * o.g, a: 0.01, bus: 'heavy', verb: 0.3, pan: o.pan });
+        noise(t, { dur: 0.04, filter: 'bandpass', f: 1600, q: 2, gain: 0.4 * o.g, bus: 'heavy', pan: o.pan });
+      },
+      powerUp: (t, o) => {
+        const d = o.dur || 0.85;
+        tone(t, { f: [[0, 55], [d, 440]], type: 'sawtooth', filter: 'lowpass', f2: [[0, 180], [d, 2400]], dur: d, gain: 0.52 * o.g, a: 0.04, bus: 'heavy', verb: 0.3, pan: o.pan });
+      },
+      boltSnap: (t, o) => {
+        fmTone(t, { f: 1650, ratio: 2.4, modIndex: 3.5, modEnd: 0.2, dur: 0.14, gain: 0.65 * o.g, bus: 'heavy', verb: 0.25, pan: o.pan });
+        noise(t, { dur: 0.035, filter: 'highpass', f: 2600, gain: 0.55 * o.g, bus: 'heavy', pan: o.pan });
+      },
+      shatter: (t, o) => {
+        const r = rand('shatter' + t);
+        noise(t, { dur: 0.16, filter: 'highpass', f: 2200, gain: 0.55 * o.g, bus: 'heavy', pan: o.pan });
+        for (let i = 0; i < 10; i++) {
+          fmTone(t + i * 0.024 + r() * 0.015, { f: 1800 + r() * 3400, ratio: 1.7, modIndex: 2.0, dur: 0.095, gain: 0.24 * o.g, bus: 'heavy', verb: 0.22, pan: (r() - 0.5) * 0.65 });
+        }
+      },
+      stoneCollapse: (t, o) => {
+        const r = rand('stone' + t);
+        S.thud(t, o);
+        for (let i = 0; i < 6; i++) {
+          const ti = t + i * 0.09 + r() * 0.04;
+          tone(ti, { f: [[0, 180 - i * 15], [0.14, 48]], dur: 0.18, gain: 0.48 * o.g, bus: 'heavy', pan: (r() - 0.5) * 0.5 });
+          noise(ti, { dur: 0.12, color: 'brown', filter: 'bandpass', f: 650 + r() * 500, q: 1.4, gain: 0.42 * o.g, bus: 'heavy', verb: 0.25 });
+        }
+      },
+      treeTimber: (t, o) => {
+        // Wood crack + leafy whoosh + ground thud
+        noise(t, { dur: 0.18, color: 'white', filter: 'bandpass', f: 1900, q: 2.2, gain: 0.48 * o.g, bus: 'heavy', pan: o.pan });
+        noise(t + 0.12, { dur: 0.45, color: 'pink', filter: 'bandpass', f: [[0, 600], [0.45, 1800]], q: 1.0, gain: 0.45 * o.g, bus: 'heavy', pan: o.pan });
+        S.thud(t + 0.52, o);
+      },
+      thud: (t, o) => {
+        tone(t, { f: [[0, o.f || 135], [0.16, 40]], dur: 0.26, gain: 0.68 * o.g, bus: 'heavy', pan: o.pan });
+        noise(t, { dur: 0.09, color: 'brown', filter: 'lowpass', f: 500, gain: 0.42 * o.g, bus: 'heavy', pan: o.pan });
+      },
+      impact: (t, o) => {
+        S.thud(t, o);
+        noise(t, { dur: 0.65, color: 'pink', filter: 'lowpass', f: [[0, 2400], [0.6, 280]], gain: 0.44 * o.g, bus: 'heavy', verb: 0.35, pan: o.pan });
+      },
+      subDrop: (t, o) => {
+        const d = o.dur || 1.1;
+        tone(t, { f: [[0, 110], [d, 28]], type: 'sine', dur: d, gain: 0.78 * o.g, a: 0.005, bus: 'heavy', verb: 0.25, pan: o.pan });
+      },
+      thunder: (t, o) => {
+        const d = o.dur || 1.8;
+        noise(t, { dur: d, color: 'brown', filter: 'lowpass', f: [[0, 520], [d, 85]], gain: 0.75 * o.g, a: 0.02, hold: 0.2, bus: 'heavy', verb: 0.48, pan: o.pan });
+      },
+      teleportPop: (t, o) => {
+        tone(t, { f: [[0, 340], [0.09, 58]], dur: 0.14, gain: 0.65 * o.g, bus: 'heavy', pan: o.pan });
+      },
+      cannonFire: (t, o) => {
+        S.explosion(t, Object.assign({}, o, { dur: 0.9 }));
+      },
+      sonicBoom: (t, o) => {
+        S.decompressionBang(t, o);
+      },
+
+      // --- Combat, Weapons & Physical Action (bus: 'sfx' @ 0.45) ---
+      swordClash: (t, o) => {
+        noise(t, { dur: 0.055, filter: 'bandpass', f: 3600, q: 2.5, gain: 0.55 * o.g, pan: o.pan });
+        fmTone(t, { f: 2840, ratio: 1.41, modIndex: 2.2, modEnd: 0.1, dur: 0.38, gain: 0.36 * o.g, verb: 0.35, pan: o.pan });
+        tone(t, { f: 4180, type: 'triangle', dur: 0.24, gain: 0.24 * o.g, verb: 0.3, pan: o.pan });
+      },
+      swordDraw: (t, o) => {
+        noise(t, { dur: 0.28, color: 'white', filter: 'bandpass', f: [[0, 2200], [0.28, 5400]], q: 3.2, gain: 0.38 * o.g, a: 0.02, verb: 0.25, pan: o.pan });
+      },
+      arrowWhoosh: (t, o) => {
+        noise(t, { dur: 0.16, color: 'pink', filter: 'bandpass', f: [[0, 900], [0.08, 3200], [0.16, 1100]], q: 1.8, gain: 0.42 * o.g, a: 0.02, pan: o.pan });
+        tone(t + 0.14, { f: [[0, 220], [0.05, 85]], dur: 0.06, gain: 0.35 * o.g, pan: o.pan });
+      },
+      shieldBash: (t, o) => {
+        tone(t, { f: [[0, 240], [0.12, 68]], dur: 0.16, gain: 0.48 * o.g, pan: o.pan });
+        fmTone(t, { f: 520, ratio: 1.6, modIndex: 2.5, dur: 0.18, gain: 0.35 * o.g, verb: 0.2, pan: o.pan });
+      },
+      punchHit: (t, o) => {
+        tone(t, { f: [[0, 185], [0.09, 52]], dur: 0.12, gain: 0.52 * o.g, pan: o.pan });
+        noise(t, { dur: 0.045, color: 'pink', filter: 'bandpass', f: 1450, q: 1.6, gain: 0.45 * o.g, pan: o.pan });
+      },
+      whipCrack: (t, o) => {
+        noise(t, { dur: 0.09, color: 'white', filter: 'bandpass', f: [[0, 600], [0.09, 4200]], q: 1.5, gain: 0.35 * o.g, pan: o.pan });
+        noise(t + 0.085, { dur: 0.03, color: 'white', filter: 'highpass', f: 2800, gain: 0.62 * o.g, verb: 0.25, pan: o.pan });
+      },
+
+      // --- Construction, Craft & Physics (bus: 'sfx' @ 0.45) ---
+      hammerHit: (t, o) => {
+        const n = o.n || 1;
+        const rate = o.rate || 0.42;
+        for (let i = 0; i < n; i++) {
+          const ti = t + i * rate;
+          fmTone(ti, { f: 1480, ratio: 1.8, modIndex: 2.2, dur: 0.12, gain: 0.45 * o.g, verb: 0.2, pan: o.pan });
+          noise(ti, { dur: 0.035, filter: 'bandpass', f: 2400, q: 2.0, gain: 0.42 * o.g, pan: o.pan });
+        }
+      },
+      anvilStrike: (t, o) => {
+        const n = o.n || 1;
+        const rate = o.rate || 0.48;
+        for (let i = 0; i < n; i++) {
+          const ti = t + i * rate;
+          fmTone(ti, { f: 2120, ratio: 1.414, modIndex: 3.0, modEnd: 0.15, dur: 0.42, gain: 0.46 * o.g, verb: 0.35, pan: o.pan });
+          noise(ti, { dur: 0.03, filter: 'highpass', f: 3000, gain: 0.38 * o.g, pan: o.pan });
+        }
+      },
+      axeChop: (t, o) => {
+        const n = o.n || 1;
+        const rate = o.rate || 0.52;
+        for (let i = 0; i < n; i++) {
+          const ti = t + i * rate;
+          tone(ti, { f: [[0, 240], [0.07, 82]], dur: 0.09, gain: 0.48 * o.g, pan: o.pan });
+          noise(ti, { dur: 0.045, color: 'pink', filter: 'bandpass', f: 1250, q: 2.2, gain: 0.45 * o.g, verb: 0.15, pan: o.pan });
+        }
+      },
+      digShovel: (t, o) => {
+        noise(t, { dur: 0.18, color: 'pink', filter: 'bandpass', f: [[0, 2200], [0.18, 900]], q: 1.5, gain: 0.42 * o.g, a: 0.01, pan: o.pan });
+      },
+      ropeSnap: (t, o) => {
+        tone(t, { f: [[0, 520], [0.09, 140]], type: 'triangle', dur: 0.11, gain: 0.48 * o.g, pan: o.pan });
+        noise(t, { dur: 0.04, filter: 'bandpass', f: 2600, q: 2.0, gain: 0.44 * o.g, pan: o.pan });
+      },
+      dominoClick: (t, o) => {
+        const n = o.n || 6;
+        const rate = o.rate || 0.11;
+        for (let i = 0; i < n; i++) {
+          const ti = t + i * rate;
+          fmTone(ti, { f: 1150 + i * 45, ratio: 2.3, modIndex: 1.5, dur: 0.055, gain: 0.36 * o.g, pan: ((i / Math.max(1, n)) - 0.5) * 0.6 });
+        }
+      },
+      fireIgnite: (t, o) => {
+        noise(t, { dur: 0.42, color: 'pink', filter: 'bandpass', f: [[0, 320], [0.12, 1600], [0.42, 580]], q: 0.9, gain: 0.46 * o.g, a: 0.03, pan: o.pan });
+      },
+      steamHiss: (t, o) => {
+        const d = o.dur || 0.55;
+        noise(t, { dur: d, color: 'white', filter: 'highpass', f: 2800, gain: 0.36 * o.g, a: 0.02, pan: o.pan });
+      },
+
+      // --- Locomotion, Vehicles & Animals (bus: 'sfx' @ 0.45) ---
+      footstep: (t, o) => {
+        const n = o.n || 1;
+        const stepRate = o.rate || 0.38;
+        for (let i = 0; i < n; i++) {
+          const ti = t + i * stepRate;
+          tone(ti, { f: [[0, 140], [0.06, 55]], dur: 0.08, gain: 0.32 * o.g, pan: o.pan });
+          noise(ti, { dur: 0.045, color: 'brown', filter: 'bandpass', f: 900 + (i % 2) * 180, q: 1.4, gain: 0.28 * o.g, pan: o.pan });
+        }
+      },
+      marchSteps: (t, o) => {
+        const n = o.n || 4;
+        const rate = o.rate || 0.42;
+        for (let i = 0; i < n; i++) {
+          const ti = t + i * rate;
+          tone(ti, { f: [[0, 155], [0.08, 48]], dur: 0.1, gain: 0.45 * o.g, pan: o.pan });
+          noise(ti, { dur: 0.06, color: 'pink', filter: 'bandpass', f: 950, q: 1.5, gain: 0.38 * o.g, verb: 0.18, pan: o.pan });
+        }
+      },
+      horseGallop: (t, o) => {
+        const n = o.n || 4;
+        for (let i = 0; i < n; i++) {
+          const b = t + i * 0.36;
+          [0, 0.08, 0.17].forEach((off, k) => {
+            tone(b + off, { f: [[0, 260 + k * 35], [0.04, 95]], dur: 0.05, gain: 0.34 * o.g, pan: o.pan });
+            noise(b + off, { dur: 0.035, color: 'brown', filter: 'bandpass', f: 1100 + k * 200, q: 2.2, gain: 0.3 * o.g, pan: o.pan });
+          });
+        }
+      },
+      elephantTrumpet: (t, o) => {
+        const d = o.dur || 0.85;
+        tone(t, { f: [[0, 340], [d * 0.25, 680], [d, 490]], type: 'sawtooth', filter: 'bandpass', f2: 1400, q: 2.0, dur: d, gain: 0.42 * o.g, a: 0.04, verb: 0.35, pan: o.pan });
+        tone(t, { f: [[0, 680], [d * 0.25, 1360], [d, 980]], type: 'triangle', dur: d, gain: 0.25 * o.g, a: 0.04, verb: 0.35, pan: o.pan });
+      },
+      birdSong: (t, o) => {
+        tone(t, { f: [[0, 2400], [0.09, 3200], [0.18, 2800]], dur: 0.2, gain: 0.25 * o.g, verb: 0.3, pan: o.pan });
+        tone(t + 0.24, { f: [[0, 2900], [0.12, 3600]], dur: 0.15, gain: 0.25 * o.g, verb: 0.3, pan: o.pan });
+      },
+      dogWhimper: (t, o) => {
+        const d = o.dur || 0.42;
+        tone(t, { f: [[0, 680], [d * 0.4, 820], [d, 490]], type: 'triangle', dur: d, gain: 0.24 * o.g, a: 0.03, verb: 0.2, pan: o.pan });
+      },
+      dogBark: (t, o) => {
+        tone(t, { f: [[0, 420], [0.06, 580], [0.14, 260]], type: 'sawtooth', filter: 'bandpass', f2: 950, q: 1.8, dur: 0.15, gain: 0.38 * o.g, pan: o.pan });
+      },
+      waterSplash: (t, o) => {
+        noise(t, { dur: 0.42, color: 'pink', filter: 'bandpass', f: [[0, 1800], [0.42, 650]], q: 1.1, gain: 0.44 * o.g, a: 0.01, verb: 0.25, pan: o.pan });
+      },
+      steamWhistle: (t, o) => {
+        const d = o.dur || 0.85;
+        tone(t, { f: 587.33, type: 'sawtooth', filter: 'lowpass', f2: 1800, dur: d, gain: 0.28 * o.g, a: 0.06, hold: d * 0.6, verb: 0.35, pan: o.pan });
+        tone(t, { f: 739.99, type: 'sawtooth', filter: 'lowpass', f2: 1800, dur: d, gain: 0.24 * o.g, a: 0.06, hold: d * 0.6, verb: 0.35, pan: o.pan });
+        noise(t, { dur: d, color: 'white', filter: 'bandpass', f: 2400, q: 1.8, gain: 0.25 * o.g, a: 0.04, pan: o.pan });
+      },
+      engineSpoolDown: (t, o) => {
+        const d = o.dur || 1.4;
+        tone(t, { f: [[0, 480], [d, 110]], type: 'sawtooth', filter: 'bandpass', f2: [[0, 1200], [d, 260]], dur: d, gain: 0.34 * o.g, a: 0.05, verb: 0.25, pan: o.pan });
+      },
+      submarineSonar: (t, o) => {
+        const f0 = o.f || 1320;
+        tone(t, { f: f0, type: 'sine', dur: 1.4, gain: 0.38 * o.g, a: 0.004, verb: 0.75, delay: 0.35, pan: o.pan });
+      },
+      carHorn: (t, o) => {
+        const d = o.dur || 0.38;
+        tone(t, { f: 415, type: 'sawtooth', filter: 'lowpass', f2: 1600, dur: d, gain: 0.3 * o.g, a: 0.01, hold: d * 0.7, pan: o.pan });
+        tone(t, { f: 523.25, type: 'sawtooth', filter: 'lowpass', f2: 1600, dur: d, gain: 0.3 * o.g, a: 0.01, hold: d * 0.7, pan: o.pan });
+      },
+
+      // --- Science, Medical, Tech & UI (bus: 'sfx' @ 0.45) ---
+      pillBadge: (t, o) => {
+        const f0 = hz(o.f || 'G5');
+        tone(t, { f: f0, type: 'triangle', dur: 0.09, gain: 0.36 * o.g, a: 0.002, verb: 0.18, pan: o.pan });
+        tone(t + 0.035, { f: f0 * 1.498, type: 'sine', dur: 0.14, gain: 0.3 * o.g, a: 0.002, verb: 0.22, pan: o.pan });
+      },
+      counterTick: (t, o) => {
+        const n = o.n || 1;
+        const rate = o.rate || 0.055;
+        for (let i = 0; i < n; i++) {
+          const ti = t + i * rate;
+          const pitch = (o.f || 2400) * (1 + (i / Math.max(1, n)) * 0.25);
+          noise(ti, { dur: 0.016, filter: 'bandpass', f: pitch, q: 3.0, gain: 0.32 * o.g, pan: o.pan });
+        }
+      },
+      timerChime: (t, o) => {
+        const f0 = hz(o.f || 'A5');
+        fmTone(t, { f: f0, ratio: 2.0, modIndex: 1.1, modEnd: 0.05, dur: 0.65, gain: 0.38 * o.g, a: 0.002, verb: 0.42, pan: o.pan });
+      },
+      alarmBeep: (t, o) => {
+        const n = o.n || 3;
+        for (let i = 0; i < n; i++) {
+          const ti = t + i * 0.48;
+          tone(ti, { f: 2048, type: 'square', filter: 'bandpass', f2: 2048, q: 4, dur: 0.08, gain: 0.32 * o.g, a: 0.002, pan: o.pan });
+          tone(ti + 0.11, { f: 2048, type: 'square', filter: 'bandpass', f2: 2048, q: 4, dur: 0.08, gain: 0.32 * o.g, a: 0.002, pan: o.pan });
+        }
+      },
+      heartbeatSub: (t, o) => {
+        tone(t, { f: [[0, 82], [0.11, 38]], dur: 0.16, gain: 0.62 * o.g, pan: o.pan });
+        tone(t + 0.21, { f: [[0, 74], [0.14, 34]], dur: 0.18, gain: 0.48 * o.g, pan: o.pan });
+      },
+      maskDrop: (t, o) => {
+        noise(t, { dur: 0.035, filter: 'bandpass', f: 1800, q: 1.8, gain: 0.42 * o.g, pan: o.pan });
+        noise(t + 0.04, { dur: 0.22, filter: 'highpass', f: [[0, 1200], [0.22, 3600]], gain: 0.24 * o.g, pan: o.pan });
+        tone(t + 0.24, { f: [[0, 420], [0.06, 210]], dur: 0.08, gain: 0.28 * o.g, pan: o.pan });
+      },
+      seatbeltClick: (t, o) => {
+        noise(t, { dur: 0.018, filter: 'bandpass', f: 3400, q: 2.5, gain: 0.45 * o.g, pan: o.pan });
+        tone(t + 0.01, { f: 1920, dur: 0.04, gain: 0.25 * o.g, pan: o.pan });
+        noise(t + 0.045, { dur: 0.025, filter: 'bandpass', f: 2200, q: 2.0, gain: 0.38 * o.g, pan: o.pan });
+      },
+      liquidBubble: (t, o) => {
+        const n = o.n || 5;
+        const r = rand('bub' + t);
+        for (let i = 0; i < n; i++) {
+          const ti = t + i * 0.08 + r() * 0.03;
+          const f0 = 380 + r() * 420;
+          tone(ti, { f: [[0, f0], [0.065, f0 * 2.1]], type: 'sine', dur: 0.075, gain: 0.28 * o.g, pan: o.pan });
+        }
+      },
+      geigerClicks: (t, o) => {
+        const d = o.dur || 0.8;
+        const r = rand('geiger' + t);
+        let cur = 0;
+        while (cur < d) {
+          noise(t + cur, { dur: 0.008, filter: 'bandpass', f: 4200, q: 3.5, gain: 0.38 * o.g, pan: (r() - 0.5) * 0.4 });
+          cur += 0.025 + r() * 0.085;
+        }
+      },
+      electricSpark: (t, o) => {
+        const r = rand('spark' + t);
+        for (let i = 0; i < 4; i++) {
+          noise(t + i * 0.035, { dur: 0.028, filter: 'bandpass', f: 2600 + r() * 2200, q: 2.5, gain: 0.42 * o.g, pan: o.pan });
+          tone(t + i * 0.035, { f: 120, type: 'sawtooth', dur: 0.03, gain: 0.25 * o.g, pan: o.pan });
+        }
+      },
+      dataStream: (t, o) => {
+        const n = o.n || 8;
+        const r = rand('data' + t);
+        for (let i = 0; i < n; i++) {
+          tone(t + i * 0.045, { f: 1200 + Math.floor(r() * 8) * 280, type: 'sine', dur: 0.038, gain: 0.22 * o.g, pan: (r() - 0.5) * 0.6 });
+        }
+      },
+      cameraShutter: (t, o) => {
+        noise(t, { dur: 0.015, filter: 'bandpass', f: 3200, q: 2.0, gain: 0.45 * o.g, pan: o.pan });
+        noise(t + 0.038, { dur: 0.02, filter: 'bandpass', f: 2400, q: 2.0, gain: 0.38 * o.g, pan: o.pan });
+      },
+      phoneDial: (t, o) => {
+        tone(t, { f: 440, dur: 0.8, gain: 0.22 * o.g, a: 0.01, hold: 0.7, pan: o.pan });
+        tone(t, { f: 480, dur: 0.8, gain: 0.22 * o.g, a: 0.01, hold: 0.7, pan: o.pan });
+      },
+
+      // --- Historical, Cultural & Everyday (bus: 'sfx' @ 0.45) ---
+      templeBell: (t, o) => {
+        const f0 = hz(o.f || 'C5');
+        fmTone(t, { f: f0, ratio: 2.756, modIndex: 1.8, modEnd: 0.08, dur: 2.3, gain: 0.42 * o.g, a: 0.002, verb: 0.65, pan: o.pan });
+        tone(t, { f: f0 * 0.5, type: 'sine', dur: 2.5, gain: 0.22 * o.g, a: 0.004, verb: 0.6, pan: o.pan });
+      },
+      conchShell: (t, o) => {
+        const d = o.dur || 1.6;
+        tone(t, { f: [[0, 370], [0.25, 440], [d, 432]], type: 'sawtooth', filter: 'bandpass', f2: 880, q: 3.2, dur: d, gain: 0.42 * o.g, a: 0.18, hold: d * 0.55, verb: 0.6, pan: o.pan });
+      },
+      warHorn: (t, o) => {
+        const d = o.dur || 1.8;
+        tone(t, { f: [[0, 105], [0.2, 116.5], [d, 110]], type: 'sawtooth', filter: 'lowpass', f2: 620, dur: d, gain: 0.48 * o.g, a: 0.15, hold: d * 0.6, verb: 0.6, pan: o.pan });
+        tone(t, { f: [[0, 210], [0.2, 233], [d, 220]], type: 'triangle', dur: d, gain: 0.28 * o.g, a: 0.15, hold: d * 0.6, verb: 0.6, pan: o.pan });
+      },
+      gavelBang: (t, o) => {
+        const n = o.n || 2;
+        for (let i = 0; i < n; i++) {
+          const ti = t + i * 0.28;
+          tone(ti, { f: [[0, 320], [0.07, 95]], dur: 0.09, gain: 0.52 * o.g, verb: 0.3, pan: o.pan });
+          noise(ti, { dur: 0.03, filter: 'bandpass', f: 1850, q: 2.2, gain: 0.45 * o.g, pan: o.pan });
+        }
+      },
+      coinClink: (t, o) => {
+        const n = o.n || 3;
+        for (let i = 0; i < n; i++) {
+          const ti = t + i * 0.075;
+          fmTone(ti, { f: 3400 + (i % 2) * 520, ratio: 2.1, modIndex: 1.5, dur: 0.18, gain: 0.32 * o.g, a: 0.001, verb: 0.25, pan: o.pan });
+        }
+      },
+      paperTear: (t, o) => {
+        const d = o.dur || 0.35;
+        noise(t, { dur: d, color: 'white', filter: 'bandpass', f: [[0, 1800], [d, 4200]], q: 1.4, gain: 0.38 * o.g, a: 0.02, pan: o.pan });
+      },
+      penScratch: (t, o) => {
+        const d = o.dur || 0.45;
+        const r = rand('pen' + t);
+        for (let x = 0; x < d; x += 0.038 + r() * 0.035) {
+          const gd = 0.032 + r() * 0.025;
+          noise(t + x, { dur: gd, filter: 'bandpass', f: 3400 + r() * 1400, q: 1.6, gain: 0.24 * o.g, a: gd * 0.3, pan: o.pan });
+        }
+      },
+      seismographScratch: (t, o) => {
+        S.penScratch(t, o);
+      },
+      jailCellSlam: (t, o) => {
+        fmTone(t, { f: 420, ratio: 1.73, modIndex: 4.0, dur: 0.55, gain: 0.52 * o.g, verb: 0.45, pan: o.pan });
+        S.thud(t, o);
+      },
+      toasterPop: (t, o) => {
+        noise(t, { dur: 0.03, filter: 'bandpass', f: 1600, q: 1.5, gain: 0.4 * o.g, pan: o.pan });
+        tone(t + 0.01, { f: [[0, 320], [0.08, 580]], dur: 0.09, gain: 0.32 * o.g, pan: o.pan });
+      },
+
+      // --- Deadpan Comedy, Slapstick & Visual Gag SFX (bus: 'sfx' @ 0.45) ---
+      recordScratch: (t, o) => {
+        const d = o.dur || 0.32;
+        tone(t, { f: [[0, 920], [d * 0.4, 2100], [d, 140]], type: 'sawtooth', filter: 'bandpass', f2: [[0, 1400], [d, 400]], q: 2.0, dur: d, gain: 0.48 * o.g, a: 0.005, pan: o.pan });
+        noise(t, { dur: d, color: 'pink', filter: 'bandpass', f: [[0, 1800], [d, 500]], q: 1.5, gain: 0.42 * o.g, pan: o.pan });
+      },
+      sadTrombone: (t, o) => {
+        const notes = [
+          [0.0, 293.66, 0.32],
+          [0.34, 277.18, 0.32],
+          [0.68, 261.63, 0.32],
+          [1.02, [[0, 246.94], [0.65, 220.0]], 0.72],
+        ];
+        notes.forEach(([off, fVal, dur]) => {
+          tone(t + off, { f: fVal, type: 'sawtooth', vibRate: 5.5, vibDepth: 4, filter: 'lowpass', f2: 1100, dur, gain: 0.36 * o.g, a: 0.02, hold: dur * 0.6, verb: 0.25, pan: o.pan });
+        });
+      },
+      rimshot: (t, o) => {
+        // Ba-dum Tsss!
+        tone(t, { f: [[0, 180], [0.09, 75]], dur: 0.11, gain: 0.42 * o.g, pan: -0.15 });
+        tone(t + 0.14, { f: [[0, 145], [0.11, 58]], dur: 0.13, gain: 0.45 * o.g, pan: 0.0 });
+        noise(t + 0.30, { dur: 0.55, color: 'white', filter: 'highpass', f: 3800, gain: 0.36 * o.g, a: 0.002, verb: 0.3, pan: 0.2 });
+      },
+      comicBoing: (t, o) => {
+        const d = o.dur || 0.48;
+        tone(t, { f: [[0, 160], [d * 0.25, 540], [d * 0.5, 220], [d, 460]], type: 'triangle', vibRate: 18, vibDepth: 35, dur: d, gain: 0.42 * o.g, a: 0.004, pan: o.pan });
+      },
+      cricketChirp: (t, o) => {
+        const n = o.n || 2;
+        for (let c = 0; c < n; c++) {
+          const b = t + c * 0.42;
+          for (let i = 0; i < 4; i++) {
+            tone(b + i * 0.032, { f: 4450, type: 'sine', dur: 0.022, gain: 0.24 * o.g, a: 0.002, pan: o.pan });
+          }
+        }
+      },
+      awkwardPluck: (t, o) => {
+        fmTone(t, { f: o.f || 311.13, ratio: 1.5, modIndex: 2.0, modEnd: 0.05, dur: 0.22, gain: 0.4 * o.g, a: 0.002, verb: 0.18, pan: o.pan });
+      },
+      slideWhistleUp: (t, o) => {
+        const d = o.dur || 0.45;
+        tone(t, { f: [[0, 380], [d, 1480]], type: 'sine', dur: d, gain: 0.34 * o.g, a: 0.02, verb: 0.2, pan: o.pan });
+      },
+      slideWhistleDown: (t, o) => {
+        const d = o.dur || 0.45;
+        tone(t, { f: [[0, 1480], [d, 340]], type: 'sine', dur: d, gain: 0.34 * o.g, a: 0.02, verb: 0.2, pan: o.pan });
+      },
+
+      // --- Cinematic Transitions, Shimmers & UI Micro-Cues (bus: 'sfx' @ 0.45) ---
+      whoosh: (t, o) => {
+        const d = o.dur || 0.38;
+        noise(t, { dur: d, color: 'pink', filter: 'bandpass', f: [[0, 320], [d * 0.55, o.top || 2200], [d, 580]], q: 0.9, gain: 0.42 * o.g, a: d * 0.45, pan: o.pan, verb: 0.15 });
+      },
+      swish: (t, o) => {
+        const d = o.dur || 0.18;
+        noise(t, { dur: d, filter: 'highpass', f: [[0, 1800], [d, 5200]], q: 0.7, gain: 0.28 * o.g, a: d * 0.35, pan: o.pan });
+      },
+      riserTension: (t, o) => {
+        const d = o.dur || 1.5;
+        tone(t, { f: [[0, 110], [d, 880]], type: 'sawtooth', filter: 'lowpass', f2: [[0, 240], [d, 4800]], dur: d, gain: 0.38 * o.g, a: d * 0.75, verb: 0.45, pan: o.pan });
+        noise(t, { dur: d, color: 'pink', filter: 'bandpass', f: [[0, 400], [d, 3800]], q: 1.5, gain: 0.34 * o.g, a: d * 0.8, verb: 0.4, pan: o.pan });
+      },
+      starShimmer: (t, o) => {
+        const notes = ['C5', 'E5', 'G5', 'B5', 'D6', 'E6', 'G6', 'B6'];
+        notes.forEach((n, idx) => {
+          fmTone(t + idx * 0.055, { f: n, ratio: 2.0, modIndex: 0.8, dur: 0.85, gain: 0.22 * o.g, a: 0.003, verb: 0.55, pan: (idx - 3.5) * 0.18 });
+        });
+      },
+      sparkle: (t, o) => {
+        S.starShimmer(t, o);
+      },
+      ding: (t, o) => {
+        const f = hz(o.f || 'E6');
+        fmTone(t, { f, ratio: 2.0, modIndex: 0.9, dur: 1.1, gain: 0.28 * o.g, verb: 0.35, pan: o.pan });
+      },
+      pop: (t, o) => {
+        tone(t, { f: [[0, o.f || 620], [0.07, (o.f || 620) * 0.45]], dur: 0.1, gain: 0.42 * o.g, pan: o.pan });
+      },
+      blip: (t, o) => {
+        tone(t, { f: o.f || 'E6', type: 'triangle', dur: 0.07, gain: 0.22 * o.g, a: 0.002, pan: o.pan });
+      },
+      tick: (t, o) => {
+        noise(t, { dur: 0.016, filter: 'bandpass', f: o.f || 4200, q: 2.8, gain: 0.3 * o.g, pan: o.pan });
+      },
+    };
+
+    // Universal Semantic SFX Synthesizer: if a shot calls k.play('any_custom_sound', t, opts),
+    // automatically match semantic tokens so it NEVER falls back to a generic pop unless intended!
+    function synthesizeSemanticSFX(name, t, o) {
+      const k = String(name || '').toLowerCase();
+      if (/explode|blast|bomb|cannon|detonat/.test(k)) return S.explosion(t, o);
+      if (/shatter|glass|break|smash|pottery|ceramic/.test(k)) return S.shatter(t, o);
+      if (/sword|blade|slash|katana|spear|dagger|clash/.test(k)) return S.swordClash(t, o);
+      if (/hammer|forge|anvil|metal|smith|clink/.test(k)) return S.anvilStrike(t, o);
+      if (/axe|chop|wood|tree|timber|cut/.test(k)) return S.axeChop(t, o);
+      if (/stone|rock|boulder|collapse|crumble|brick/.test(k)) return S.stoneCollapse(t, o);
+      if (/horse|gallop|cavalry|chariot/.test(k)) return S.horseGallop(t, o);
+      if (/elephant|mammoth|trumpet/.test(k)) return S.elephantTrumpet(t, o);
+      if (/roar|dino|monster|beast|growl|tiger|lion/.test(k)) return S.dinoRoar(t, o);
+      if (/march|army|troop|stomp/.test(k)) return S.marchSteps(t, o);
+      if (/step|walk|run|foot/.test(k)) return S.footstep(t, o);
+      if (/bell|temple|sacred|chime|gong/.test(k)) return S.templeBell(t, o);
+      if (/horn|conch|bugle|trumpet/.test(k)) return S.warHorn(t, o);
+      if (/coin|gold|money|cash|trade|treasure/.test(k)) return S.coinClink(t, o);
+      if (/water|splash|wave|oar|swim|river|dive/.test(k)) return S.waterSplash(t, o);
+      if (/fire|flame|torch|burn|ignite/.test(k)) return S.fireIgnite(t, o);
+      if (/thunder|lightning|storm/.test(k)) return S.thunder(t, o);
+      if (/quake|rumble|tremor|tectonic|volcano/.test(k)) return S.volcanoRumble(t, o);
+      if (/alarm|siren|alert|warning|emergency/.test(k)) return S.alarmBeep(t, o);
+      if (/heart|pulse|beat/.test(k)) return S.heartbeatSub(t, o);
+      if (/geiger|radiation|nuclear/.test(k)) return S.geigerClicks(t, o);
+      if (/spark|zap|electric|short|shock|laser/.test(k)) return S.electricSpark(t, o);
+      if (/data|scan|cyber|compute|type|keyboard|glitch/.test(k)) return S.dataStream(t, o);
+      if (/sonar|ping|radar|sub/.test(k)) return S.submarineSonar(t, o);
+      if (/scratch|record|stop|freeze/.test(k)) return S.recordScratch(t, o);
+      if (/sad|fail|trombone|womp/.test(k)) return S.sadTrombone(t, o);
+      if (/joke|gag|boing|bounce|funny|comedy/.test(k)) return S.comicBoing(t, o);
+      if (/cricket|awkward/.test(k)) return S.cricketChirp(t, o);
+      if (/whoosh|fly|pan|zoom|swipe|wind/.test(k)) return S.whoosh(t, o);
+      if (/riser|build|swell/.test(k)) return S.riserTension(t, o);
+      if (/thud|hit|punch|drop|fall|slam|impact/.test(k)) return S.impact(t, o);
+      if (/write|quill|pen|scroll|chalk|draw/.test(k)) return S.penScratch(t, o);
+      if (/bubble|boil|acid|chemical|lab/.test(k)) return S.liquidBubble(t, o);
+      if (/badge|label|callout|ui|hud/.test(k)) return S.pillBadge(t, o);
+      if (/count|ticker|number|chart/.test(k)) return S.counterTick(t, o);
+      return S.pop(t, o);
+    }
+
+    function play(name, t, opts) {
+      if (isBgmOnly) return;
+      const o2 = Object.assign({}, opts);
+      o2.g = o2.gain == null ? 1 : o2.gain;
+      if (S[name]) {
+        S[name](t, o2);
+      } else {
+        synthesizeSemanticSFX(name, t, o2);
+      }
+    }
+
+    // =========================================================================
+    // 8. UNIVERSAL MULTI-LAYER AMBIENT BED ENGINE (bus: 'amb' @ 0.20)
+    // =========================================================================
+    function bed(name, t0, t1, p) {
+      if (isBgmOnly) return;
+      p = p || {};
+      const g = p.gain == null ? 1 : p.gain;
+      const d = Math.max(0.1, t1 - t0);
+      const fade = Math.min(0.4, d / 4);
+      const long = (q) => Object.assign({ dur: d, a: fade, hold: Math.max(0, d - fade * 2), bus: 'amb' }, q);
+      const k = String(name || '').toLowerCase();
+      const r = rand('bed-' + k + '-' + t0);
+
+      if (k === 'cabinhum' || /cabin|airplane|flight/.test(k)) {
+        noise(t0, long({ color: 'brown', filter: 'lowpass', f: 240, gain: 0.48 * g }));
+        tone(t0, long({ f: 92, type: 'sine', gain: 0.16 * g }));
+      } else if (k === 'supersonicwind' || k === 'cabinroar' || /storm|hurricane|blizzard|gale|jetstream/.test(k)) {
+        noise(t0, long({ color: 'pink', filter: 'bandpass', f: 1150, q: 0.55, gain: 0.58 * g }));
+        noise(t0, long({ color: 'brown', filter: 'lowpass', f: 360, gain: 0.45 * g }));
+      } else if (/ocean|sea|harbor|port|beach|coast|ship|naval/.test(k)) {
+        noise(t0, long({ color: 'brown', filter: 'lowpass', f: 420, gain: 0.45 * g }));
+        // Gentle rhythmic wave surf washes
+        for (let tw = t0 + 0.4; tw < t1 - 0.8; tw += 2.6) {
+          noise(tw, { dur: 1.8, color: 'pink', filter: 'bandpass', f: [[0, 350], [0.9, 950], [1.8, 300]], q: 0.8, gain: 0.22 * g, a: 0.7, bus: 'amb', pan: (r() - 0.5) * 0.5 });
+        }
+      } else if (/rain|monsoon|downpour/.test(k)) {
+        noise(t0, long({ color: 'pink', filter: 'bandpass', f: 2400, q: 0.45, gain: 0.38 * g }));
+        noise(t0, long({ color: 'white', filter: 'highpass', f: 5200, gain: 0.14 * g }));
+      } else if (/jungle|forest|village|farm|nature|morning/.test(k)) {
+        noise(t0, long({ color: 'pink', filter: 'bandpass', f: 620, q: 1.1, gain: 0.22 * g }));
+        for (let tb = t0 + 0.5; tb < t1 - 0.4; tb += 1.4 + r() * 1.2) {
+          tone(tb, { f: [[0, 2400 + r() * 600], [0.12, 3100 + r() * 500]], dur: 0.14, gain: 0.12 * g, bus: 'amb', verb: 0.35, pan: (r() - 0.5) * 0.7 });
+        }
+      } else if (/night|cricket|camp/.test(k)) {
+        noise(t0, long({ color: 'brown', filter: 'lowpass', f: 260, gain: 0.22 * g }));
+        for (let tc = t0 + 0.3; tc < t1 - 0.3; tc += 0.65) {
+          tone(tc, { f: 4350 + (r() - 0.5) * 120, type: 'sine', dur: 0.04, gain: 0.1 * g, bus: 'amb', pan: (r() - 0.5) * 0.6 });
+        }
+      } else if (/temple|sacred|palace|courtyard|monastery/.test(k)) {
+        noise(t0, long({ color: 'pink', filter: 'bandpass', f: 420, q: 1.4, gain: 0.2 * g }));
+        tone(t0, long({ f: 130.81, type: 'sine', gain: 0.12 * g, verb: 0.6 }));
+      } else if (/lab|server|tech|studio|office|hospital|icu|bunker/.test(k)) {
+        noise(t0, long({ color: 'brown', filter: 'lowpass', f: 180, gain: 0.32 * g }));
+        tone(t0, long({ f: 120, type: 'sine', gain: 0.1 * g }));
+      } else if (/volcano|lava|fire|forge|furnace|battlefield/.test(k)) {
+        noise(t0, long({ color: 'brown', filter: 'lowpass', f: 210, gain: 0.52 * g }));
+        for (let tf = t0 + 0.2; tf < t1 - 0.2; tf += 0.35 + r() * 0.4) {
+          noise(tf, { dur: 0.04, color: 'white', filter: 'bandpass', f: 2800 + r() * 1800, q: 2.0, gain: 0.14 * g, bus: 'amb', pan: (r() - 0.5) * 0.6 });
+        }
+      } else if (/space|cosmic|void|underwater|submarine|abyss/.test(k)) {
+        tone(t0, long({ f: 55, type: 'sine', gain: 0.28 * g }));
+        noise(t0, long({ color: 'brown', filter: 'lowpass', f: 150, gain: 0.35 * g }));
+      } else if (k === 'fountainwater' || /river|stream|water|canal/.test(k)) {
+        noise(t0, long({ color: 'pink', filter: 'bandpass', f: 1850, q: 0.6, gain: 0.32 * g }));
+      } else {
+        noise(t0, long({ color: 'pink', filter: 'bandpass', f: 480, q: 1.2, gain: 0.26 * g }));
+      }
+    }
+
+    // =========================================================================
+    // 9. UNIVERSAL GENERATIVE COMPOSER (situationalCue)
+    // =========================================================================
+    function dispatchLeadNote(voiceName, t, f, dur, cutoff, g, pan) {
+      const fn = VOICES[voiceName];
+      if (!fn) return VOICES.kalimbaMarimba(t, f, dur, g, pan);
+      if (voiceName === 'pulseOstinato') {
+        return VOICES.pulseOstinato(t, f, dur, cutoff, g, pan);
+      }
+      return fn(t, f, dur, g, pan);
+    }
+
+    function dispatchPadChord(voiceName, t, ch, dur, cutoff, g) {
+      if (voiceName === 'warmStringSection') return VOICES.warmStringSection(t, ch, dur, cutoff * 1.2, g);
+      if (voiceName === 'glassPad') return VOICES.glassPad(t, ch, dur, cutoff * 1.3, g);
+      if (voiceName === 'rhodesEP') {
+        ch.forEach((f, i) => VOICES.rhodesEP(t, f, dur * 0.9, g * 0.55, (i - 1.5) * 0.25));
+        return;
+      }
+      return VOICES.analogPad(t, ch, dur, cutoff, g);
+    }
+
+    function situationalCue(c) {
+      if (isSfxOnly || !c) return;
+      const t0 = c.start_time !== undefined ? c.start_time : 0;
+      const t1 = c.end_time !== undefined ? c.end_time : t0 + 10;
+      if (t1 <= t0) return;
+
+      const dna = analyzeCueDNA(c);
+      if (dna.silent) return;
+
+      const g = c.gain == null ? 1 : c.gain;
+      const rootMidi2 = parseRootMidi(dna.key);
+      const { chords, subHz, scaleHz, lowScaleHz } = buildUniversalHarmony(
+        rootMidi2,
+        dna.scaleName,
+        dna.progName
+      );
+
+      // Compose a bespoke 2-bar Call & Response Motif for this cue
+      const motif = composeSeededMotif(dna, scaleHz.length);
+      const r = rand('arr-' + dna.seedStr);
+
+      // Optional Custom Motif Override: c.motif = ['D4', 'F4', 'A4', 'G4']
+      const customMotifHz = Array.isArray(c.motif)
+        ? c.motif.map((n) => (n ? hz(n) : null))
+        : null;
+
+      // Stem Activation Flags (can be overridden via c.layerStems)
+      const stems = Object.assign(
+        {
+          sub: true,
+          pad: dna.quirk < 0.75,
+          lead: true,
+          counter: dna.energy > 0.38 || dna.grandeur > 0.5,
+          pulse: dna.tension > 0.62 || dna.energy > 0.72,
+          perc: dna.percStyle !== 'none' && (dna.energy > 0.42 || dna.quirk > 0.5),
+          clock: dna.percStyle === 'minimalClock' || dna.percStyle === 'tickingThriller' || c.timerChime,
+        },
+        c.layerStems || {}
+      );
+
+      // Entry Accent: Chime, Temple Bell, or Cinematic Sub-Drop
+      if (c.timerChime || c.chapter_chime) {
+        if (dna.scaleName.startsWith('carnatic') || dna.scaleName.startsWith('japanese')) {
+          S.templeBell(t0, { f: scaleHz[0] || 523.25, g: 0.85 * g });
+        } else {
+          VOICES.celestaHarp(t0, scaleHz[4] || 587.33, 1.2, 1.1 * g, -0.15);
+          VOICES.kalimbaMarimba(t0 + 0.08, scaleHz[7] || 880, 0.65, 1.0 * g, 0.15);
+        }
+      } else if (c.subDrop || dna.tension > 0.8) {
+        VOICES.subPedal(t0, subHz[0] * 0.5, 1.2, g * 1.15);
+      }
+
+      // Optional Pre-Transition Cymbal/Synth Swell at the tail of the cue
+      if (c.riser || (dna.grandeur > 0.7 && t1 - t0 >= 6.0)) {
+        const swellDur = Math.min(1.4, (t1 - t0) * 0.25);
+        VOICES.cymbalSwell(t1 - swellDur, swellDur, g * 0.85);
+      }
+
+      let tb = t0;
+      let barIdx = 0;
+
+      while (tb < t1 - 0.04) {
+        const uCue = clamp((tb - t0) / Math.max(0.1, t1 - t0), 0, 1);
+        const curBpm = Array.isArray(c.tempoCurve)
+          ? lerp(c.tempoCurve[0][1], c.tempoCurve[c.tempoCurve.length - 1][1], uCue)
+          : dna.bpm;
+        const beat = 60 / clamp(curBpm, 48, 176);
+        const bar = beat * 4;
+        const barLen = Math.min(bar, t1 - tb);
+
+        // Dynamic filter evolution across the cue
+        const filterCutoff = lerp(
+          520,
+          3400,
+          clamp(dna.tension * 0.7 + dna.energy * 0.3 + Math.sin(uCue * Math.PI) * 0.18, 0.1, 1)
+        );
+
+        const ch = chords[barIdx % chords.length];
+        const rootSub = subHz[barIdx % subHz.length];
+        const chordDegreeOffset = barIdx % 4 === 1 ? 2 : barIdx % 4 === 2 ? 4 : 0;
+
+        // 1. BASS & DRONE LAYER
+        if (stems.sub) {
+          if (dna.bassVoice === 'tanpuraDrone') {
+            VOICES.subPedal(tb, rootSub, barLen, g * 0.85);
+            VOICES.tanpuraDrone(tb, rootSub, barLen, g * 0.85);
+          } else if (dna.bassVoice === 'darkDreadDrone') {
+            VOICES.darkDreadDrone(tb, rootSub, barLen, g * 0.9);
+          } else if (dna.bassVoice === 'uprightBassPizz') {
+            // Walking 4-beat pizzicato bassline for comedy / quirk / jazz
+            const walkNotes = [rootSub * 2, ch[1] * 0.5, ch[2] * 0.5, ch[0] * 0.5];
+            for (let b = 0; b < 4 && tb + b * beat < t1 - 0.02; b++) {
+              VOICES.uprightBassPizz(tb + b * beat, walkNotes[b % walkNotes.length], beat * 0.85, g * 0.9, -0.1);
+            }
+          } else if (dna.bassVoice === 'moogBass') {
+            // Rhythmic analog bass pulse on beats
+            for (let b = 0; b < 4 && tb + b * beat < t1 - 0.02; b++) {
+              VOICES.moogBass(tb + b * beat, rootSub * 2, beat * 0.82, g * (b % 2 === 0 ? 0.95 : 0.7), 0);
+            }
+          } else {
+            VOICES.subPedal(tb, rootSub, barLen, g * (dna.grandeur > 0.7 ? 1.1 : 0.9));
+          }
+        }
+
+        // 2. HARMONIC PAD & STRING SECTION LAYER
+        if (stems.pad) {
+          const padGain = dna.grandeur > 0.7 ? 1.15 : 0.82;
+          dispatchPadChord(dna.padVoice, tb, ch, barLen, filterCutoff, g * padGain);
+        }
+
+        // 3. DRIVING PULSE OSTINATO LAYER (High-Tension / Tech / Action)
+        if (stems.pulse && dna.leadVoice !== 'pulseOstinato') {
+          const subDiv = dna.tension > 0.7 ? 16 : 8;
+          const stepDur = bar / subDiv;
+          for (let s = 0; s < subDiv && tb + s * stepDur < t1 - 0.02; s++) {
+            const ts = tb + s * stepDur;
+            const noteF = ch[s % ch.length] * 0.5;
+            const accent = s % 4 === 0 ? 0.9 : s % 2 === 0 ? 0.62 : 0.45;
+            VOICES.pulseOstinato(ts, noteF, stepDur * 0.85, filterCutoff, g * accent * 0.7, ((s % 2) - 0.5) * 0.28);
+          }
+        }
+
+        // 4. CLOCK / PRECISION TICK LAYER
+        if (stems.clock) {
+          for (let s = 0; s < 8 && tb + s * (beat / 2) < t1 - 0.02; s++) {
+            const ts = tb + s * (beat / 2);
+            VOICES.clockEscapement(ts, s % 2 === 0, g * (0.6 + dna.tension * 0.35), (s % 2 === 0 ? -1 : 1) * 0.32);
+          }
+        }
+
+        // 5. WORLD & CINEMATIC PERCUSSION GROOVE LAYER
+        if (stems.perc) {
+          for (let b = 0; b < 4 && tb + b * beat < t1 - 0.02; b++) {
+            const tBeat = tb + b * beat;
+            if (dna.percStyle === 'indianPerc') {
+              VOICES.mridangamTabla(tBeat, b === 0 || b === 2, g * 0.9, -0.18);
+              if (tBeat + beat * 0.5 < t1) {
+                VOICES.mridangamTabla(tBeat + beat * 0.5, false, g * 0.68, 0.18);
+              }
+            } else if (dna.percStyle === 'taikoPerc' || dna.percStyle === 'epicDrums') {
+              VOICES.taikoWarDrum(tBeat, b === 0 || b === 2, g * 0.92, (b % 2 - 0.5) * 0.25);
+              if (b === 3 && tBeat + beat * 0.5 < t1) {
+                VOICES.taikoWarDrum(tBeat + beat * 0.5, false, g * 0.7, 0.2);
+              }
+            } else if (dna.percStyle === 'warMarch') {
+              VOICES.cinematicTom(tBeat, b === 0 || b === 2, g * 0.88);
+              VOICES.militarySnare(tBeat + beat * 0.5, b % 2 === 1, g * 0.8, 0.15);
+              if (b === 3 && tBeat + beat * 0.75 < t1) {
+                VOICES.militarySnare(tBeat + beat * 0.75, false, g * 0.65, -0.15);
+              }
+            } else if (dna.percStyle === 'quirkyWoodblock') {
+              VOICES.woodblockTick(tBeat, b % 2 === 0, g * 0.85, (b % 2 - 0.5) * 0.35);
+              VOICES.brushShaker(tBeat + beat * 0.5, false, g * 0.75, 0.2);
+            } else if (dna.percStyle === 'techGroove') {
+              if (b === 0 || b === 2) VOICES.cinematicTom(tBeat, true, g * 0.65);
+              VOICES.brushShaker(tBeat + beat * 0.5, b % 2 === 1, g * 0.8, (b % 2 - 0.5) * 0.3);
+            } else if (dna.percStyle === 'softShaker') {
+              VOICES.brushShaker(tBeat, b === 0, g * 0.7, -0.2);
+              if (tBeat + beat * 0.5 < t1) VOICES.brushShaker(tBeat + beat * 0.5, false, g * 0.5, 0.2);
+            } else if (dna.percStyle !== 'minimalClock') {
+              VOICES.cinematicTom(tBeat, b === 0 || b === 2, g * (0.68 + dna.tension * 0.3));
+            }
+          }
+        }
+
+        // 6. PHRASE-STRUCTURED LEAD MOTIF & CALL-AND-RESPONSE COUNTER-MELODY
+        if (stems.lead) {
+          const isResponseBar = barIdx % 2 === 1;
+          const notePattern = isResponseBar ? motif.bar2Notes : motif.bar1Notes;
+          const steps = customMotifHz ? customMotifHz.length : motif.steps;
+          const stepDur = bar / steps;
+
+          for (let s = 0; s < steps && tb + s * stepDur < t1 - 0.02; s++) {
+            const ts = tb + s * stepDur;
+            let fNote = null;
+
+            if (customMotifHz) {
+              fNote = customMotifHz[(s + barIdx * 2) % customMotifHz.length];
+            } else {
+              const deg = notePattern[s];
+              if (deg !== null && deg !== undefined) {
+                const shiftedIdx = clamp(deg + chordDegreeOffset, 0, scaleHz.length - 1);
+                fNote = scaleHz[shiftedIdx];
+              }
+            }
+
+            if (fNote) {
+              const isStrongBeat = s === 0 || s === Math.floor(steps / 2);
+              const vel = (isStrongBeat ? 0.95 : 0.72) * (0.92 + r() * 0.14);
+              const pan = Math.sin((s + barIdx) * 1.1) * 0.32;
+              const noteDur = stepDur * (dna.energy < 0.45 ? 1.85 : 1.25);
+
+              dispatchLeadNote(dna.leadVoice, ts, fNote, noteDur, filterCutoff, g * vel, pan);
+            }
+          }
+        }
+
+        // 7. HARMONIC COUNTER-MELODY / ANSWER PHRASE (Enters on response bars or high grandeur)
+        if (stems.counter && (barIdx % 2 === 1 || dna.grandeur > 0.65)) {
+          const answerBeats = [0, 2];
+          answerBeats.forEach((bOff, idx) => {
+            const tAns = tb + bOff * beat;
+            if (tAns < t1 - 0.05) {
+              const ansFreq = ch[(idx + barIdx) % ch.length] * 2;
+              dispatchLeadNote(
+                dna.counterVoice,
+                tAns,
+                ansFreq,
+                beat * 1.65,
+                filterCutoff,
+                g * 0.68,
+                idx === 0 ? -0.28 : 0.28
+              );
+            }
+          });
+        }
+
+        tb += bar;
+        barIdx++;
+      }
+    }
+
+    // Backward-Compatible Legacy Archetype Wrapper
+    function cue(archetype, t0, t1, p = {}) {
+      const mapLegacy = {
+        ARCH_01: { situation: 'PLAYFUL_FREEDOM', tension: 0.35, valence: 0.65 },
+        ARCH_02: { situation: 'SCIENTIFIC_INQUIRY', tension: 0.45, valence: 0.1 },
+        ARCH_03: { situation: 'COSMIC_AWE', tension: 0.5, valence: 0.85 },
+        ARCH_04: { situation: 'SOLEMN_TRAGEDY', tension: 0.3, valence: -0.6 },
+        ARCH_05: { situation: 'TICKING_SURVIVAL', tension: 0.85, valence: -0.5 },
+        ARCH_06: { situation: 'HEROIC_RESCUE', tension: 0.75, valence: 0.75 },
+        HARD_STOP: { situation: 'DIEGETIC_SILENCE', tension: 0, valence: 0 },
+      };
+      const mapped = mapLegacy[archetype] || { situation: archetype };
+      situationalCue(Object.assign({}, p, mapped, { start_time: t0, end_time: t1 }));
+    }
+
+    // Master Episode BGM Score Runner (with Smooth Volume Ducking / Swells / 0.00 Silence Drops)
+    function bgmScore(score) {
+      if (!score || isSfxOnly) return;
+      if (Array.isArray(score.cues)) {
+        score.cues.forEach((c) => situationalCue(c));
+      }
+      if (Array.isArray(score.volume_automation) && score.volume_automation.length > 0) {
+        const pts = score.volume_automation;
+        const scaleVol = (v) => (mixMode === 'bgmFull' && v > 0 && v < 0.35 ? 0.42 : v);
+        bus.music.gain.setValueAtTime(scaleVol(pts[0].volume), at(pts[0].time));
+        for (let i = 1; i < pts.length; i++) {
+          const tA = at(pts[i].time);
+          if (tA >= ctx.currentTime) {
+            bus.music.gain.linearRampToValueAtTime(scaleVol(pts[i].volume), tA);
           }
         }
       }
     }
 
-    tb += bar;
-    barIdx++;
-  }
-}
-
-function cue(archetype, t0, t1, p = {}) {
-  const mapLegacy = {
-    ARCH_01: { situation: 'PLAYFUL_FREEDOM', tension: 0.35, valence: 0.65 },
-    ARCH_02: { situation: 'SCIENTIFIC_INQUIRY', tension: 0.45, valence: 0.1 },
-    ARCH_03: { situation: 'COSMIC_AWE', tension: 0.5, valence: 0.85 },
-    ARCH_04: { situation: 'SOLEMN_TRAGEDY', tension: 0.3, valence: -0.6 },
-    ARCH_05: { situation: 'TICKING_SURVIVAL', tension: 0.85, valence: -0.5 },
-    ARCH_06: { situation: 'HEROIC_RESCUE', tension: 0.75, valence: 0.75 },
-    HARD_STOP: { situation: 'DIEGETIC_SILENCE', tension: 0, valence: 0 },
+    return {
+      play,
+      sfx: play,
+      bed,
+      situationalCue,
+      cue,
+      bgmScore,
+      tone,
+      fmTone,
+      noise,
+      hz,
+      MIX,
+      vo: VO,
+      sounds: Object.keys(S),
+      instruments: Object.keys(VOICES),
+      scales: Object.keys(SCALES),
+    };
   };
-  const mapped = mapLegacy[archetype] || { situation: archetype };
-  situationalCue(Object.assign({}, p, mapped, { start_time: t0, end_time: t1 }));
-}
 
-function bgmScore(score) {
-  if (!score || isSfxOnly) return;
-  if (Array.isArray(score.cues)) {
-    score.cues.forEach((c) => situationalCue(c));
-  }
-  if (Array.isArray(score.volume_automation) && score.volume_automation.length > 0) {
-    const pts = score.volume_automation;
-    const scaleVol = (v) => (mixMode === 'bgmFull' && v > 0 && v < 0.35 ? 0.42 : v);
-    bus.music.gain.setValueAtTime(scaleVol(pts[0].volume), at(pts[0].time));
-    for (let i = 1; i < pts.length; i++) {
-      const tA = at(pts[i].time);
-      if (tA >= ctx.currentTime) {
-        bus.music.gain.linearRampToValueAtTime(scaleVol(pts[i].volume), tA);
-      }
+  // ---------- 10. Live Browser Playback & Offline 48kHz Stereo WAV Renderer ----------
+  SOUND.live = function (fn, fromT, opts) {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
     }
-  }
-}
+    fn(SOUND.kit(ctx, Object.assign({}, opts, { start: fromT || 0, delay: 0.03 })));
+    return () => {
+      try {
+        ctx.close();
+      } catch (e) {}
+    };
+  };
 
-return {
-  play,
-  bed,
-  situationalCue,
-  cue,
-  bgmScore,
-  tone,
-  noise,
-  hz,
-  MIX,
-  vo: VO,
-  sounds: Object.keys(S),
-};
+  SOUND.renderOffline = async function (fn, duration, sampleRate, kitOpts) {
+    const sr = sampleRate || 48000;
+    const len = Math.ceil(duration * sr);
+    const ctx = new OfflineAudioContext(2, len, sr);
+    fn(SOUND.kit(ctx, kitOpts || {}));
+    const buf = await ctx.startRendering();
+    const L = buf.getChannelData(0);
+    const R = buf.getChannelData(1);
+    const inter = new Float32Array(len * 2);
+    let peak = 0;
+    for (let i = 0; i < len; i++) {
+      inter[2 * i] = L[i];
+      inter[2 * i + 1] = R[i];
+      peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i]));
+    }
+    return { inter, peak, frames: len, sr, buffer: buf };
+  };
 
-
-};
-
-// ---------- 4. Live Browser Playback & Offline WAV Renderer ----------
-SOUND.live = function (fn, fromT, opts) {
-const ctx = new (window.AudioContext || window.webkitAudioContext)();
-if (ctx.state === 'suspended') {
-ctx.resume().catch(() => {});
-}
-fn(SOUND.kit(ctx, Object.assign({}, opts, { start: fromT || 0, delay: 0.03 })));
-return () => {
-try {
-ctx.close();
-} catch (e) {}
-};
-};
-
-SOUND.renderOffline = async function (fn, duration, sampleRate, kitOpts) {
-const sr = sampleRate || 48000;
-const len = Math.ceil(duration * sr);
-const ctx = new OfflineAudioContext(2, len, sr);
-fn(SOUND.kit(ctx, kitOpts || {}));
-const buf = await ctx.startRendering();
-const L = buf.getChannelData(0);
-const R = buf.getChannelData(1);
-const inter = new Float32Array(len * 2);
-let peak = 0;
-for (let i = 0; i < len; i++) {
-inter[2 * i] = L[i];
-inter[2 * i + 1] = R[i];
-peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i]));
-}
-return { inter, peak, frames: len, sr, buffer: buf };
-};
-
-SOUND.encodeWAV = function (interleaved, sampleRate = 48000) {
-const buffer = new ArrayBuffer(44 + interleaved.length * 2);
-const view = new DataView(buffer);
-const writeStr = (off, s) => {
-for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i));
-};
-writeStr(0, 'RIFF');
-view.setUint32(4, 36 + interleaved.length * 2, true);
-writeStr(8, 'WAVE');
-writeStr(12, 'fmt ');
-view.setUint32(16, 16, true);
-view.setUint16(20, 1, true);
-view.setUint16(22, 2, true);
-view.setUint32(24, sampleRate, true);
-view.setUint32(28, sampleRate * 4, true);
-view.setUint16(32, 4, true);
-view.setUint16(34, 16, true);
-writeStr(36, 'data');
-view.setUint32(40, interleaved.length * 2, true);
-let offset = 44;
-for (let i = 0; i < interleaved.length; i++, offset += 2) {
-const s = Math.max(-1, Math.min(1, interleaved[i]));
-view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-}
-return new Blob([buffer], { type: 'audio/wav' });
-};
+  SOUND.encodeWAV = function (interleaved, sampleRate = 48000) {
+    const buffer = new ArrayBuffer(44 + interleaved.length * 2);
+    const view = new DataView(buffer);
+    const writeStr = (off, s) => {
+      for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i));
+    };
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + interleaved.length * 2, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 2, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 4, true);
+    view.setUint16(32, 4, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, 'data');
+    view.setUint32(40, interleaved.length * 2, true);
+    let offset = 44;
+    for (let i = 0; i < interleaved.length; i++, offset += 2) {
+      const s = Math.max(-1, Math.min(1, interleaved[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+    return new Blob([buffer], { type: 'audio/wav' });
+  };
 })();
-
 
 
 // ============================================================================
@@ -7038,4 +8021,549 @@ DK.normalizeTrans = H.normalizeTrans = normalizeTrans;
 DK.linkShotTransitions = H.linkShotTransitions = linkShotTransitions;
 DK.drawShot = H.drawShot = drawShot;
 DK.scheduleTransitions = H.scheduleTransitions = SOUND.scheduleTransitions = scheduleTransitions;
+})();
+
+
+// ============================================================================
+// UNIVERSAL LUMINA COMPATIBILITY & ENVIRONMENT EXTENSION PATCH
+// (Supports all DK.mood calling styles + FX.envExterior / FX.envInterior /
+// FX.infographicEnv / FX.prop3D + extended FX.interactiveProp + UI.eraChapterDial)
+// ============================================================================
+(function () {
+  'use strict';
+  if (!window.DK) return;
+  const DK = window.DK;
+  const H = window.H || DK;
+  const FX = (window.FX = DK.fx = window.FX || {});
+  const UI = (window.UI = DK.ui = window.UI || {});
+  const E = window.E || { W: 1920, H: 1080 };
+  const {
+    clamp,
+    lerp,
+    ease,
+    rng,
+    alpha,
+    shade,
+    rr,
+    circle,
+    ellipse,
+    ring,
+    poly,
+    seg,
+    linGrad,
+    sphereGrad,
+    cylinderGrad,
+    contactShadow,
+    glow,
+    text,
+    FONTS,
+  } = DK;
+
+  // ---------- 1. Universal DK.mood (Supports all calling conventions) ----------
+  const _origMood = DK.mood;
+  const FALLBACK_SKIES = {
+    clearDay: ['#1e68c8', '#4298e8', '#82c8f8', '#dff2ff'],
+    tropicalDay: ['#1672c8', '#389ee8', '#78ccf5', '#e4f7ff'],
+    coastalDay: ['#145eb8', '#328ce0', '#72bef5', '#dff4ff'],
+    goldenHour: ['#2b589e', '#5886c4', '#f2a668', '#ffe29e'],
+    monsoonLush: ['#1c6ec2', '#4298de', '#84c8f2', '#e2f4fc'],
+    ancientTemple: ['#226ac4', '#4e96e0', '#96c8f2', '#ffebc2'],
+    ancientInterior: ['#38261c', '#523828', '#6e4c36', '#8c6244'],
+    parchmentGold: ['#286ec2', '#569ce2', '#9cd0f5', '#f7ecd0'],
+    edoMist: ['#2c6eb8', '#5c98d8', '#a2ccf2', '#f7e6e6'],
+    victorianFog: ['#3a5878', '#5e7e9e', '#8ca8c4', '#c8d8e6'],
+    primordialLava: ['#263a6e', '#584e7c', '#b85c38', '#f29848'],
+    prehistoricJungle: ['#1e72c4', '#469ee2', '#88cef5', '#e8f7fc'],
+    cabinNight: ['#141836', '#222852', '#333b6e'],
+    stratosphereDay: ['#1462c4', '#368ee2', '#74bef5', '#dcf2ff'],
+    stratosphereNight: ['#060b21', '#0e1d4a', '#1d3b82', '#355ca8'],
+    sunriseFlight: ['#26529c', '#5282c8', '#f29864', '#ffe094'],
+    urbanMorning: ['#1e6ec8', '#489ce8', '#88ccf8', '#e6f5ff'],
+    urbanSunset: ['#2c4e8c', '#6878b4', '#e68862', '#ffd288'],
+    blackoutNight: ['#0b132b', '#162447', '#243b6b'],
+    nightSky: ['#09122c', '#14244d', '#243b6e', '#36528a'],
+    storm: ['#1e2a4a', '#324268', '#4c6088', '#6e82a6'],
+    deepSpace: ['#03050d', '#070b1c', '#0e1634', '#16224c'],
+    xrayBlue: ['#0a1632', '#122652', '#1d3a78'],
+  };
+
+  function paintSky(g, pal) {
+    if (!g || typeof g.createLinearGradient !== 'function') return;
+    const cols =
+      (pal && Array.isArray(pal.sky) && pal.sky) ||
+      (pal && pal.top && [pal.top, pal.mid || pal.top, pal.bot || pal.bottom || pal.top]) ||
+      FALLBACK_SKIES.clearDay;
+    if (DK.backdrop) {
+      DK.backdrop(g, cols, [-E.W, -E.H, E.W * 3, E.H * 3], { clouds: pal && pal.autoClouds !== false });
+    } else {
+      const grad = g.createLinearGradient(0, 0, 0, E.H);
+      cols.forEach((c, idx) => grad.addColorStop(idx / Math.max(1, cols.length - 1), c));
+      g.save();
+      g.fillStyle = grad;
+      g.fillRect(-E.W, -E.H, E.W * 3, E.H * 3);
+      g.restore();
+    }
+  }
+
+  DK.mood = H.mood = function universalMood(arg1, arg2) {
+    const isCtxFirst = arg1 && typeof arg1.createLinearGradient === 'function';
+    const ctx = isCtxFirst ? arg1 : null;
+    const moodName = isCtxFirst
+      ? arg2 || 'clearDay'
+      : typeof arg1 === 'string'
+      ? arg1
+      : 'clearDay';
+
+    let raw = null;
+    if (typeof _origMood === 'function') {
+      try {
+        raw = isCtxFirst ? _origMood(moodName) : _origMood(arg1);
+      } catch (e) {}
+    }
+
+    const basePal = (DK.BASE_MOODS && DK.BASE_MOODS[moodName]) || {};
+    const skyArr = basePal.sky || FALLBACK_SKIES[moodName] || FALLBACK_SKIES.clearDay;
+    const pal = Object.assign(
+      {
+        moodName,
+        sky: skyArr,
+        top: skyArr[0],
+        mid: skyArr[1],
+        bot: skyArr[skyArr.length - 1],
+        bottom: skyArr[skyArr.length - 1],
+        fog: skyArr[skyArr.length - 1],
+        ground: basePal.floor || '#7c5c42',
+      },
+      basePal,
+      typeof raw === 'object' && raw !== null ? raw : {}
+    );
+
+    if (ctx) paintSky(ctx, pal);
+
+    const callable = function (g) {
+      paintSky(g, pal);
+      return pal;
+    };
+
+    Object.keys(pal).forEach((k) => {
+      if (k !== 'name' && k !== 'length' && k !== 'arguments' && k !== 'caller') {
+        try {
+          callable[k] = pal[k];
+        } catch (_) {}
+      }
+    });
+
+    return callable;
+  };
+
+  // ---------- 2. 3D-Shaded Situational Prop Library (FX.prop3D) ----------
+  const _origProp3D = FX.prop3D;
+  FX.prop3D = H.prop3D = DK.prop3D = function (g, xOrOpts, y = 840, s = 1, maybeOpts = {}) {
+    let px = xOrOpts;
+    let py = y;
+    let sc = s;
+    let o = maybeOpts || {};
+    if (typeof xOrOpts === 'object' && xOrOpts !== null) {
+      o = xOrOpts;
+      px = o.x !== undefined ? o.x : 960;
+      py = o.y !== undefined ? o.y : 840;
+      sc = o.s !== undefined ? o.s : 1;
+    }
+    if (typeof _origProp3D === 'function') {
+      try {
+        return _origProp3D(g, px, py, sc, o);
+      } catch (_) {}
+    }
+
+    const kind = o.kind || 'trenchGrid';
+    const col = o.color || '#38BDF8';
+    const t = o.t || 0;
+
+    g.save();
+    g.translate(px, py);
+    g.scale(sc, sc);
+    contactShadow(g, 0, 4, 70, 12, 0.28);
+
+    if (kind === 'trenchGrid') {
+      // Stepped Archaeological Excavation Trench Pit with White Survey String Grid & Artifacts
+      poly(
+        g,
+        [
+          [-110, 0],
+          [110, 0],
+          [135, 38],
+          [-135, 38],
+        ],
+        '#5C3A24',
+        '#8C5A38',
+        3
+      );
+      poly(
+        g,
+        [
+          [-92, 6],
+          [92, 6],
+          [108, 32],
+          [-108, 32],
+        ],
+        '#3D2414'
+      );
+      // Corner wooden stakes
+      [
+        [-112, -2],
+        [112, -2],
+        [-130, 34],
+        [130, 34],
+      ].forEach(([sx, sy]) => {
+        rr(g, sx - 4, sy - 26, 8, 28, 2);
+        g.fillStyle = '#D99B26';
+        g.fill();
+      });
+      // Survey grid strings across trench
+      g.strokeStyle = 'rgba(255, 255, 255, 0.78)';
+      g.lineWidth = 1.8;
+      for (let gx = -80; gx <= 80; gx += 40) {
+        seg(g, [[gx, -14], [gx * 1.15, 22]], 1.5, 'rgba(255,255,255,0.75)');
+      }
+      seg(g, [[-110, -14], [110, -14]], 2, '#F8FAFC');
+      seg(g, [[-126, 18], [126, 18]], 2, '#F8FAFC');
+      // Partially exposed terracotta potsherd & iron blade inside grid
+      circle(g, -28, 16, 11, '#B84C2E');
+      seg(g, [[12, 18], [52, 12]], 6, '#94A3B8');
+    } else if (kind === 'amphoraStack') {
+      // Stacked Roman / Ancient Tamil Terracotta Amphorae & Black-and-Red Ware Jars
+      [
+        [-28, 0, '#B84C2E'],
+        [24, 0, '#9A3412'],
+        [0, -34, '#C2593F'],
+      ].forEach(([ax, ay, acol]) => {
+        ellipse(g, ax, ay - 28, 22, 30, sphereGrad(g, ax, ay - 28, 28, acol));
+        rr(g, ax - 8, ay - 66, 16, 16, 4);
+        g.fillStyle = acol;
+        g.fill();
+      });
+    } else if (kind === 'spiceCrates' || kind === 'marketCanopy') {
+      rr(g, -55, -52, 52, 52, 6);
+      g.fillStyle = '#8C5834';
+      g.fill();
+      rr(g, 4, -44, 48, 44, 6);
+      g.fillStyle = '#704224';
+      g.fill();
+      circle(g, -28, -56, 18, '#F59E0B');
+      circle(g, 28, -48, 16, '#DC2626');
+    } else if (kind === 'suvCar' || kind === 'policeCruiser' || kind === 'ambulance') {
+      // Modern 2.5D Vehicle
+      const bodyCol = kind === 'policeCruiser' ? '#1E293B' : kind === 'ambulance' ? '#F8FAFC' : col;
+      rr(g, -115, -62, 230, 44, 14);
+      g.fillStyle = cylinderGrad(g, -115, -62, 115, -18, bodyCol, -1);
+      g.fill();
+      poly(
+        g,
+        [
+          [-68, -62],
+          [-38, -104],
+          [52, -104],
+          [78, -62],
+        ],
+        shade(bodyCol, 0.12)
+      );
+      poly(
+        g,
+        [
+          [-58, -64],
+          [-34, -96],
+          [44, -96],
+          [66, -64],
+        ],
+        '#38BDF8'
+      );
+      circle(g, -68, -18, 22, '#0F172A');
+      circle(g, -68, -18, 10, '#94A3B8');
+      circle(g, 68, -18, 22, '#0F172A');
+      circle(g, 68, -18, 10, '#94A3B8');
+    } else if (kind === 'microscope' || kind === 'centrifuge' || kind === '3dPrinter') {
+      rr(g, -48, -68, 96, 68, 8);
+      g.fillStyle = '#334155';
+      g.fill();
+      rr(g, -18, -124, 36, 56, 8);
+      g.fillStyle = '#E2E8F0';
+      g.fill();
+      circle(g, 0, -105, 10, col);
+    } else if (kind === 'dualMonitorDesk' || kind === 'serverRack') {
+      rr(g, -75, -72, 150, 12, 4);
+      g.fillStyle = '#475569';
+      g.fill();
+      seg(g, [[-58, -60], [-58, 0]], 8, '#334155');
+      seg(g, [[58, -60], [58, 0]], 8, '#334155');
+      rr(g, -64, -128, 58, 42, 4);
+      rr(g, 6, -128, 58, 42, 4);
+      g.fillStyle = '#0F172A';
+      g.fill();
+      glow(g, 0, -108, 48, col, 0.35);
+    } else {
+      // Generic 3D Pedestal / Crate Prop
+      rr(g, -45, -60, 90, 60, 8);
+      g.fillStyle = cylinderGrad(g, -45, -60, 45, 0, col, -1);
+      g.fill();
+    }
+    g.restore();
+  };
+
+  // ---------- 3. Extended FX.interactiveProp (Adds plowField, brickWallBuild, crumblingPillar) ----------
+  const _origInteractiveProp = FX.interactiveProp;
+  FX.interactiveProp = H.interactiveProp = DK.interactiveProp = function (g, o = {}) {
+    const { kind = 'choppableTree', x = 565, y = 840, cutTime = 1.8, lt = 0, gt = 0 } = o;
+
+    if (kind === 'plowField') {
+      g.save();
+      g.translate(x, y);
+      contactShadow(g, 0, 4, 65, 10, 0.25);
+      // Turned earth furrow mounds behind the plowshare
+      for (let i = -3; i <= 1; i++) {
+        ellipse(g, i * 26, 4, 22, 8, i % 2 === 0 ? '#5C3A21' : '#4A2E1B');
+      }
+      // Wooden Yoke Beam & Curved Iron Plowshare (Kalappai)
+      seg(g, [[-52, -58], [18, -4]], 8, '#7A4E2D');
+      seg(g, [[-52, -58], [-64, -84]], 7, '#5C3A21');
+      seg(g, [[8, -14], [88, -56]], 6, '#8C5A32');
+      poly(g, [[6, -12], [28, -4], [14, 8], [-6, 4]], '#94A3B8');
+      g.restore();
+      return;
+    }
+
+    if (kind === 'brickWallBuild') {
+      g.save();
+      g.translate(x, y);
+      contactShadow(g, 0, 4, 85, 12, 0.28);
+      const courses = lt >= cutTime ? 5 : 3;
+      const bw = 38;
+      const bh = 20;
+      for (let r = 0; r < courses; r++) {
+        const isNewRow = r >= 3;
+        const popS = isNewRow ? clamp((lt - cutTime) / 0.25, 0, 1) : 1;
+        if (popS <= 0.01) continue;
+        const rowOffset = (r % 2) * (bw * 0.45);
+        for (let c = -2; c <= 1; c++) {
+          const bx = c * (bw + 4) + rowOffset - 10;
+          const by = -(r + 1) * (bh + 3);
+          rr(g, bx, by, bw * popS, bh * popS, 3);
+          g.fillStyle = r % 2 === 0 ? '#B84C2E' : '#A83E22';
+          g.fill();
+          g.strokeStyle = '#D9C2A6';
+          g.lineWidth = 1.5;
+          g.stroke();
+        }
+      }
+      if (lt >= cutTime && lt < cutTime + 0.5) {
+        glow(g, 0, -courses * 22, 55, '#FFD54F', 0.55);
+      }
+      g.restore();
+      return;
+    }
+
+    if (kind === 'crumblingPillar') {
+      g.save();
+      g.translate(x, y);
+      contactShadow(g, 0, 4, 52, 10, 0.28);
+      // Base Plinth
+      rr(g, -42, -28, 84, 28, 4);
+      g.fillStyle = '#8C7A68';
+      g.fill();
+      // Carved Sangam Era Milestone Pillar
+      const fall = lt >= cutTime ? clamp((lt - cutTime) / 0.5, 0, 1) * 0.45 : 0;
+      g.save();
+      g.translate(0, -28);
+      g.rotate(fall);
+      rr(g, -26, -155, 52, 155, 6);
+      g.fillStyle = cylinderGrad(g, -26, -155, 26, 0, '#B8A692', -1);
+      g.fill();
+      rr(g, -36, -172, 72, 20, 4);
+      g.fillStyle = '#9C8A76';
+      g.fill();
+      // Tamil-Brahmi inscription lines carved on pillar face
+      seg(g, [[-14, -115], [14, -115]], 3, '#5C4E40');
+      seg(g, [[-16, -95], [12, -95]], 3, '#5C4E40');
+      seg(g, [[-12, -75], [16, -75]], 3, '#5C4E40');
+      g.restore();
+      g.restore();
+      return;
+    }
+
+    if (typeof _origInteractiveProp === 'function') {
+      return _origInteractiveProp(g, o);
+    }
+  };
+
+  // ---------- 4. High-Density Exterior / Interior Builders (FX.envExterior, FX.envInterior, FX.infographicEnv) ----------
+  if (typeof FX.envExterior !== 'function') {
+    FX.envExterior = H.envExterior = DK.envExterior = function (g, t = 0, o = {}) {
+      const { preset = 'modernDowntown', y = 840, seed = 7 } = o;
+
+      if (preset === 'modernDowntown' || preset === 'suburbanStreet') {
+        // Modern Chennai / Urban Avenue with Glass Towers, Ripon/Central Heritage Silhouette, Palms & Asphalt Street
+        FX.skyline(g, {
+          style: 'modern',
+          seed,
+          y: y - 40,
+          minH: 130,
+          maxH: 340,
+          color: '#4A6282',
+          lit: 0.25,
+        });
+        const r = rng(seed + 19);
+        [240, 620, 1180, 1580].forEach((bx, idx) => {
+          const bw = 175 + (idx % 2) * 35;
+          const bh = 230 + (idx % 3) * 55;
+          const bCol = idx === 1 ? '#C2593F' : idx % 2 === 0 ? '#5B7696' : '#64748B';
+          rr(g, bx - bw / 2, y - bh, bw, bh, 6);
+          g.fillStyle = cylinderGrad(g, bx - bw / 2, y - bh, bx + bw / 2, y, bCol, -1);
+          g.fill();
+          // Window grid
+          g.fillStyle = 'rgba(224, 242, 254, 0.55)';
+          for (let wy = y - bh + 22; wy < y - 36; wy += 32) {
+            for (let wx = bx - bw / 2 + 18; wx < bx + bw / 2 - 24; wx += 28) {
+              g.fillRect(wx, wy, 14, 18);
+            }
+          }
+        });
+        FX.tree(g, 410, y, 1.05, '#2E7D32', 'palm');
+        FX.tree(g, 920, y, 1.1, '#388E3C', 'banyan');
+        FX.tree(g, 1410, y, 1.05, '#2E7D32', 'palm');
+        FX.storybookGround(g, y, { style: 'cobblestone', baseCol: '#475569', grassCol: '#489C4E' });
+      } else if (preset === 'archaeologyDigSite') {
+        // Coconut Grove Archaeological Dig Site (Keeladi / Mayiladumparai / Adichanallur)
+        FX.storybookHorizon(g, { style: 'rural', y: y - 70, seed });
+        FX.tree(g, 280, y, 1.12, '#2E7D32', 'palm');
+        FX.tree(g, 1140, y, 1.08, '#388E3C', 'banyan');
+        FX.tree(g, 1620, y, 1.15, '#2E7D32', 'palm');
+        // Archeological Survey Canopy Tent in Midground
+        poly(g, [[420, y - 165], [680, y - 165], [710, y - 120], [390, y - 120]], '#D97706', '#92400E', 2);
+        seg(g, [[415, y - 120], [415, y]], 5, '#78350F');
+        seg(g, [[685, y - 120], [685, y]], 5, '#78350F');
+        FX.storybookGround(g, y, { style: 'earthPath', baseCol: '#7C5436', grassCol: '#4A8C4A' });
+      } else if (preset === 'ancientHarbor') {
+        FX.storybookScene(g, t, { preset: 'harborWharf', y, seed });
+        FX.storybookGround(g, y, { style: 'flagstone', baseCol: '#786858', grassCol: '#489C4E' });
+      } else if (preset === 'templeBazaar') {
+        FX.storybookScene(g, t, { preset: 'templeCourtyard', y, seed });
+        FX.storybookGround(g, y, { style: 'flagstone', baseCol: '#7C5C42', grassCol: '#489C4E' });
+      } else {
+        FX.storybookScene(g, t, { preset: 'ancientVillage', y, seed });
+        FX.storybookGround(g, y, { style: 'earthPath', baseCol: '#7C5C42', grassCol: '#489C4E' });
+      }
+    };
+  }
+
+  if (typeof FX.envInterior !== 'function') {
+    FX.envInterior = H.envInterior = DK.envInterior = function (g, t = 0, o = {}) {
+      const { preset = 'scienceLab', y = 840 } = o;
+      // High-density interior wall & floor
+      const wallCols =
+        preset === 'scienceLab' || preset === 'hospitalICU'
+          ? ['#1E293B', '#334155', '#1E293B']
+          : ['#261C16', '#3E2C22', '#261C16'];
+      g.fillStyle = linGrad(g, 0, 0, 0, y, wallCols);
+      g.fillRect(-E.W, -200, E.W * 3, y + 200);
+
+      // Lab / Studio Windows & Equipment Panels
+      [360, 960, 1560].forEach((wx) => {
+        rr(g, wx - 140, 180, 280, 320, 12);
+        g.fillStyle = 'rgba(56, 189, 248, 0.14)';
+        g.fill();
+        g.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+        g.lineWidth = 4;
+        g.stroke();
+      });
+
+      FX.storybookGround(g, y, { style: 'flagstone', baseCol: '#334155', grassCol: '#1E293B' });
+    };
+  }
+
+  if (typeof FX.infographicEnv !== 'function') {
+    FX.infographicEnv = H.infographicEnv = DK.infographicEnv = function (g, t = 0, o = {}) {
+      const { preset = 'archaeologyDigSite', cam = { x: 960, y: 540, z: 1 }, y = 840, seed = 12, hero = null } = o;
+      const isInterior =
+        preset === 'scienceLab' ||
+        preset === 'techStudio' ||
+        preset === 'modernBedroom' ||
+        preset === 'hospitalICU' ||
+        preset === 'militaryBunker' ||
+        preset === 'prisonCell' ||
+        preset === 'courtroom' ||
+        preset === 'corporateOffice';
+
+      const normCam = {
+        x: (cam.x !== undefined ? cam.x : 960) - 960,
+        y: (cam.y !== undefined ? cam.y : 540) - 540,
+        z: cam.z !== undefined ? cam.z : 1,
+        r: cam.r || 0,
+      };
+
+      DK.fivePlane(g, normCam, {
+        bgSky: (g) => {
+          const m = DK.mood(isInterior ? 'ancientInterior' : 'clearDay');
+          m(g);
+          if (!isInterior) {
+            FX.sun(g, 1480, 195, 58);
+            FX.clouds(g, { seed: seed + 3, count: 6, y: 140, h: 135, color: '#FFFFFF', a: 0.88, t, speed: 11 });
+          }
+        },
+        bgFar: (g) => {
+          if (!isInterior) {
+            FX.Hills ? FX.Hills(g, { seed, y: y - 80 }) : FX.hills(g, { seed, y: y - 80, amp: 95, color: '#5A8F68' });
+          }
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 1.8,
+        mgBack: (g) => {
+          if (isInterior) FX.envInterior(g, t, { preset, y, seed });
+          else FX.envExterior(g, t, { preset, y, seed });
+        },
+        mgBackDepth: 0.72,
+        mgHero: (g) => {
+          if (typeof hero === 'function') hero(g);
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, t, { count: 10, color: '#FFE082', a: 0.14 });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 9,
+      });
+    };
+  }
+
+  // ---------- 5. Normalize 5-Plane Camera Coordinates (Supports both 0-based & 960,540-centered cameras) ----------
+  const _origLayer = DK.layer;
+  DK.layer = H.layer = function (g, cam, depth, fn) {
+    if (cam && (Math.abs(cam.x || 0) > 400 || Math.abs(cam.y || 0) > 250)) {
+      const normCam = {
+        x: (cam.x !== undefined ? cam.x : 960) - 960,
+        y: (cam.y !== undefined ? cam.y : 540) - 540,
+        z: cam.z !== undefined ? cam.z : 1,
+        r: cam.r || 0,
+      };
+      return _origLayer(g, normCam, depth, fn);
+    }
+    return _origLayer(g, cam, depth, fn);
+  };
+
+  // ---------- 6. Enhanced UI.eraChapterDial & UI.pillBadge Parameter Mapping ----------
+  const _origHorizonDial = UI.horizonChapterDial;
+  UI.horizonChapterDial = UI.eraChapterDial = DK.horizonChapterDial = DK.eraChapterDial = H.horizonChapterDial = H.eraChapterDial = function (g, t = 0, o = {}) {
+    const mapped = Object.assign({}, o, {
+      hourText: o.hourText || o.era || o.partText || 'HISTORICAL ERA',
+      titleText: o.titleText || o.year || o.title || 'TIMELINE',
+      subText: o.subText || o.subTitle || '',
+      portholeStyle: o.portholeStyle || (o.era ? 'ancientTemple' : 'city'),
+    });
+    return _origHorizonDial(g, t, mapped);
+  };
+
+  const _origPillBadge = UI.pillBadge;
+  UI.pillBadge = DK.pillBadge = H.pillBadge = function (g, t = 1, o = {}) {
+    const mapped = Object.assign({}, o, {
+      border: o.border || o.accent || '#F5B041',
+    });
+    return _origPillBadge(g, t, mapped);
+  };
 })();

@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Lumina 2.5D Storybook Studio (16:9) — Studio Player (Shots 11–20)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #05070d; color: #e2e8f0; font-family: 'Nunito', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+#stage-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; position: relative; overflow: hidden; }
+canvas { max-width: 100%; max-height: 100%; aspect-ratio: 16 / 9; box-shadow: 0 16px 48px rgba(0,0,0,0.75); background: #070b16; }
+#controls { height: 58px; background: #101522; border-top: 1px solid #222b42; display: flex; align-items: center; gap: 12px; padding: 0 18px; font-size: 13px; }
+button, select, label.btn { background: #1c2539; color: #f8fafc; border: 1px solid #334155; border-radius: 6px; padding: 6px 12px; font-family: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+button:hover, select:hover, label.btn:hover { background: #283552; border-color: #ff8a3d; }
+#scrub { flex: 1; accent-color: #ff8a3d; cursor: pointer; }
+#readout { font-family: 'Space Mono', monospace; font-size: 12px; color: #ffb074; min-width: 230px; }
+</style>
+</head>
+<body>
+<div id="stage-wrap"><canvas id="stage" width="1920" height="1080"></canvas></div>
+<div id="controls">
+  <button id="playBtn">Play</button>
+  <input id="scrub" type="range" min="0" max="1" step="0.001" value="0" />
+  <div id="readout">00.0s / 00.0s · Shot 11</div>
+  <select id="shotSelect"><option value="all">All Shots in Batch (11–20)</option></select>
+  <select id="mixSelect">
+    <option value="sfxOnly" selected>SFX + Ambient Only (No BGM)</option>
+    <option value="mute">Mute</option>
+  </select>
+  <label class="btn">Load vo.wav <input id="voInput" type="file" accept="audio/*" style="display:none" /></label>
+  <button id="wavBtn">Export Batch SFX (.wav)</button>
+</div>
+<script src="../../engine.js"></script>
+<script>
+// ============================================================================
+// MASTER CONSISTENCY BIBLE & GLOBAL THEME DICTIONARY (SHOTS 011–020)
+// ============================================================================
+const THEME = {
+  CHARS: {
+    HOST_PROTAG: {
+      skin: '#D69A72',
+      hairStyle: 'curlyCloud',
+      hairColor: '#261C1A',
+      hairWind: 0.18,
+      wardrobe: 'jacket',
+      topColor: '#FF851B',
+      bottomColor: '#1E293B',
+      headwear: 'none',
+      foreheadMark: null,
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 1.0,
+      seed: 101
+    },
+    HOST_SCIENTIST: {
+      skin: '#C88C68',
+      hairStyle: 'sidePart',
+      hairColor: '#261C1A',
+      hairWind: 0.12,
+      wardrobe: 'scientist',
+      topColor: '#E2E8F0',
+      bottomColor: '#334155',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'neutral',
+      s: 1.0,
+      seed: 102
+    },
+    KEELADI_WEAVER: {
+      skin: '#C88C68',
+      hairStyle: 'braidedCrown',
+      hairColor: '#1A1615',
+      hairWind: 0.15,
+      wardrobe: 'ancientTamil',
+      topColor: '#D97706',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'tilak',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 1.0,
+      seed: 103
+    },
+    KEELADI_MASON: {
+      skin: '#7A4E38',
+      hairStyle: 'warriorKnot',
+      hairColor: '#1A1615',
+      hairWind: 0.15,
+      wardrobe: 'ancientTamil',
+      topColor: '#B45309',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'neutral',
+      s: 1.0,
+      seed: 104
+    },
+    IRON_WOODCUTTER: {
+      skin: '#7A4E38',
+      hairStyle: 'warriorKnot',
+      hairColor: '#1A1615',
+      hairWind: 0.22,
+      wardrobe: 'ancientTamil',
+      topColor: '#9A3412',
+      bottomColor: '#E7E5E4',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'neutral',
+      s: 1.04,
+      seed: 105
+    },
+    TAMIL_FARMER: {
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#261C1A',
+      hairWind: 0.15,
+      wardrobe: 'ancientTamil',
+      topColor: '#15803D',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 1.0,
+      seed: 106
+    },
+    SANGAM_MERCHANT: {
+      skin: '#C88C68',
+      hairStyle: 'royalBun',
+      hairColor: '#1A1615',
+      hairWind: 0.14,
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#FFFBEB',
+      headwear: 'turban',
+      foreheadMark: 'tilak',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+      s: 1.02,
+      seed: 107
+    },
+    THIRUVALLUVAR: {
+      skin: '#C88C68',
+      hairStyle: 'scholarBun',
+      hairColor: '#1A1615',
+      hairWind: 0.18,
+      wardrobe: 'ancientTamil',
+      topColor: '#F4EFE6',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 1.02,
+      seed: 108
+    }
+  },
+
+  ANIMALS: {
+    VILLAGE_SPARROW: {
+      kind: 'sparrow',
+      s: 0.9,
+      expr: 'singing'
+    },
+    PLOW_BULL: {
+      kind: 'bull',
+      s: 1.05,
+      royal: false,
+      expr: 'neutral'
+    }
+  },
+
+  ENVS: {
+    // 1. High-Density Archaeology Dig Site (Shots 011 & 020)
+    ENV_EXCAVATION_SITE: (g, lt, gt, cam, heroFn) => {
+      FX.infographicEnv(g, gt, {
+        preset: 'archaeologyDigSite',
+        cam: cam,
+        y: 840,
+        seed: 21,
+        hero: (g) => {
+          // Coconut & palm grove accents flanking the dig site
+          FX.tree(g, 190, 840, 1.15, '#2E7D32', 'palm');
+          FX.tree(g, 1710, 840, 1.2, '#2E7D32', 'palm');
+          FX.prop3D(g, 340, 840, 0.92, { kind: 'amphoraStack', color: '#B45309', t: gt });
+          FX.prop3D(g, 1540, 840, 0.92, { kind: 'spiceCrates', color: '#92400E', t: gt });
+          if (heroFn) heroFn(g);
+        }
+      });
+    },
+
+    // 2. Subterranean Trench Cutaway (Shot 012)
+    ENV_TRENCH_STRATA: (g, lt, gt, cam, heroFn) => {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'clearDay');
+          FX.sun(g, 1520, 140, 52);
+          FX.clouds(g, { seed: 12, count: 5, y: 95, h: 90, color: '#FFFFFF', a: 0.88, t: gt, speed: 10 });
+        },
+        bgFar: (g) => {
+          FX.hills(g, { seed: 19, y: 280, amp: 65, color: '#5A8F68' });
+          FX.tree(g, 280, 280, 0.78, '#3B7A4A', 'palm');
+          FX.tree(g, 1620, 280, 0.82, '#3B7A4A', 'banyan');
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 1.5,
+        mgBack: (g) => {
+          FX.strataCutaway(g, { surfaceY: 280, bottomY: 1080, style: 'excavationTrench', t: gt });
+          // Stratigraphic depth markers on left trench wall
+          g.save();
+          g.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+          g.fillStyle = '#F8FAFC';
+          g.font = '700 15px "Space Mono", monospace';
+          const depths = [
+            { y: 420, label: '35 cm · Early Historic Layer' },
+            { y: 580, label: '75 cm · Black-and-Red Ware' },
+            { y: 740, label: '115 cm · Iron Age Stratum (2172 BCE)' }
+          ];
+          depths.forEach((d) => {
+            g.beginPath();
+            g.setLineDash([6, 6]);
+            g.moveTo(220, d.y);
+            g.lineTo(1700, d.y);
+            g.stroke();
+            g.setLineDash([]);
+            g.fillText(d.label, 240, d.y - 10);
+          });
+          g.restore();
+        },
+        mgBackDepth: 0.72,
+        mgHero: (g) => {
+          if (heroFn) heroFn(g);
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 14, color: '#FFD54F', a: 0.18 });
+        },
+        fgBokehDepth: 1.4,
+        fgBokehBlur: 8
+      });
+    },
+
+    // 3. Mayiladumparai Ancient Iron Forge Backdrop for Isometric Teardown (Shot 013)
+    ENV_MAYILADUMPARAI_FORGE: (g, lt, gt, cam, heroFn) => {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'ancientInterior');
+        },
+        bgFar: (g) => {
+          FX.storybookScene(g, gt, { preset: 'ironForge', y: 840, seed: 33 });
+          // Darken background slightly so the 2.5D Isometric Iron Tool Teardown pops with crisp contrast
+          g.save();
+          g.fillStyle = 'rgba(7, 11, 22, 0.62)';
+          g.fillRect(0, 0, 1920, 1080);
+          g.restore();
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 3,
+        mgBack: (g) => {
+          FX.structure3D(g, 260, 840, 190, 240, { kind: 'furnace', color: '#9A3412', t: gt });
+          FX.structure3D(g, 1660, 840, 190, 240, { kind: 'furnace', color: '#7C2D12', t: gt });
+          g.save();
+          g.fillStyle = 'rgba(7, 11, 22, 0.45)';
+          g.fillRect(0, 0, 1920, 1080);
+          g.restore();
+        },
+        mgBackDepth: 0.72,
+        mgHero: (g) => {
+          if (heroFn) heroFn(g);
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 18, color: '#FF851B', a: 0.24 });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 9
+      });
+    },
+
+    // 4. Early Iron Age Village Settlement (Shots 014 & 016)
+    ENV_IRON_VILLAGE: (g, lt, gt, cam, heroFn) => {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'clearDay');
+          FX.sun(g, 1480, 195, 60);
+          FX.clouds(g, { seed: 14, count: 6, y: 150, h: 135, color: '#FFFFFF', a: 0.9, t: gt, speed: 12 });
+        },
+        bgFar: (g) => {
+          FX.storybookHorizon(g, { style: 'ancientTamil', y: 760, seed: 14 });
+          FX.hills(g, { seed: 24, y: 760, amp: 105, color: '#5A8F68' });
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 2,
+        mgBack: (g) => {
+          FX.storybookScene(g, gt, { preset: 'ancientVillage', y: 840, seed: 18 });
+          FX.tree(g, 220, 840, 1.25, '#2E7D32', 'banyan');
+          FX.tree(g, 1680, 840, 1.15, '#388E3C', 'palm');
+          FX.structure3D(g, 430, 840, 165, 195, { kind: 'thatchedHut', color: '#B45309', t: gt });
+          FX.structure3D(g, 1470, 840, 175, 205, { kind: 'thatchedHut', color: '#A16207', t: gt });
+        },
+        mgBackDepth: 0.72,
+        mgHero: (g) => {
+          FX.storybookGround(g, 840, { style: 'earthPath', baseCol: '#6E523C', grassCol: '#4A8C4A' });
+          if (heroFn) heroFn(g);
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 10, color: '#FFF8E1', a: 0.16 });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 10
+      });
+    },
+
+    // 5. Forest Clearing & Agricultural Fields (Shots 015 & 018)
+    ENV_FARM_CLEARING: (g, lt, gt, cam, heroFn) => {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'clearDay');
+          FX.sun(g, 1520, 185, 64);
+          FX.clouds(g, { seed: 29, count: 7, y: 145, h: 140, color: '#FFFFFF', a: 0.9, t: gt, speed: 14 });
+        },
+        bgFar: (g) => {
+          FX.storybookHorizon(g, { style: 'rural', y: 760, seed: 29 });
+          FX.hills(g, { seed: 31, y: 760, amp: 115, color: '#4E875C' });
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 2,
+        mgBack: (g) => {
+          FX.storybookScene(g, gt, { preset: 'farmClearing', y: 840, seed: 25 });
+          FX.tree(g, 210, 840, 1.2, '#2E7D32', 'banyan');
+          FX.tree(g, 830, 840, 1.05, '#388E3C', 'oak');
+          FX.tree(g, 1710, 840, 1.18, '#2E7D32', 'palm');
+        },
+        mgBackDepth: 0.72,
+        mgHero: (g) => {
+          FX.storybookGround(g, 840, { style: 'grassland', baseCol: '#5C4430', grassCol: '#4A8C4A' });
+          if (heroFn) heroFn(g);
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 12, color: '#E8F5E9', a: 0.18 });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 10
+      });
+    },
+
+    // 6. Sangam Urban Street — Keeladi Brick Architecture (Shots 017 & 019)
+    ENV_KEELADI_STREET: (g, lt, gt, cam, heroFn) => {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'tropicalDay');
+          FX.sun(g, 1460, 190, 62);
+          FX.clouds(g, { seed: 41, count: 6, y: 140, h: 130, color: '#FFFFFF', a: 0.9, t: gt, speed: 11 });
+        },
+        bgFar: (g) => {
+          FX.storybookHorizon(g, { style: 'ancientTamil', y: 760, seed: 41 });
+          FX.hills(g, { seed: 44, y: 760, amp: 90, color: '#5E8C6A' });
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 2,
+        mgBack: (g) => {
+          FX.storybookScene(g, gt, { preset: 'keeladiStreet', y: 840, seed: 42 });
+          FX.structure3D(g, 310, 840, 220, 260, { kind: 'brickHouse', color: '#A84832', t: gt });
+          FX.structure3D(g, 740, 840, 240, 280, { kind: 'mandapam', color: '#C2593F', t: gt });
+          FX.structure3D(g, 1480, 840, 230, 265, { kind: 'brickHouse', color: '#A84832', t: gt });
+          FX.tree(g, 1730, 840, 1.15, '#2E7D32', 'palm');
+        },
+        mgBackDepth: 0.72,
+        mgHero: (g) => {
+          FX.storybookGround(g, 840, { style: 'cobblestone', baseCol: '#785A46', grassCol: '#4A8C4A' });
+          if (heroFn) heroFn(g);
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 14, color: '#FFD54F', a: 0.20 });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 10
+      });
+    }
+  },
+
+  INFO: {
+    // Shot 013: 3-Layer Isometric Breakdown of 4,200-Year-Old Tamil Iron Tools
+    TEARDOWN_IRON_TOOLS: (g, lt, gt, opts = {}) => {
+      const explodeVal = opts.explode !== undefined ? opts.explode : DK.key(lt, [[0, 0.1], [1.6, 0.88]], DK.ease.outCubic);
+      UI.explodedAssembly(g, lt, {
+        x: 860,
+        y: 550,
+        s: 1.08,
+        explode: explodeVal,
+        isolateIdx: null,
+        layers: [
+          {
+            id: 'arival',
+            label: '1. ARIVAL (அரிவாள் · Sickle)',
+            subText: 'Curved High-Carbon Iron Harvesting Blade',
+            w: 360,
+            d: 210,
+            h: 24,
+            color: '#38BDF8',
+            detail: 'circuit'
+          },
+          {
+            id: 'kodari',
+            label: '2. KODARI (கோடாரி · Socketed Axe)',
+            subText: 'Heavy Forged Wedge for Hardwood Clearing',
+            w: 360,
+            d: 210,
+            h: 28,
+            color: '#FF851B',
+            detail: 'fins'
+          },
+          {
+            id: 'uli',
+            label: '3. ULI (உளி · Iron Chisel)',
+            subText: 'Tempered Point for Stone & Timber Joinery',
+            w: 360,
+            d: 210,
+            h: 24,
+            color: '#38C878',
+            detail: 'core'
+          }
+        ]
+      });
+
+      // Custom forged iron tool silhouettes floating above each isometric tray
+      const gap = explodeVal * 125;
+      g.save();
+      // Top Layer Silhouette: Arival (Curved Sickle)
+      const yTop = 550 - gap - 18;
+      g.strokeStyle = '#E0F2FE';
+      g.lineWidth = 7;
+      g.lineCap = 'round';
+      g.beginPath();
+      g.arc(845, yTop, 42, Math.PI * 0.85, Math.PI * 1.95, false);
+      g.stroke();
+
+      // Middle Layer Silhouette: Kodari (Axe Blade)
+      const yMid = 550;
+      g.fillStyle = '#FFEDD5';
+      g.beginPath();
+      g.moveTo(815, yMid - 14);
+      g.lineTo(895, yMid - 28);
+      g.lineTo(895, yMid + 16);
+      g.lineTo(815, yMid + 4);
+      g.closePath();
+      g.fill();
+
+      // Bottom Layer Silhouette: Uli (Chisel Bar)
+      const yBot = 550 + gap + 18;
+      g.fillStyle = '#DCFCE7';
+      g.beginPath();
+      g.moveTo(800, yBot - 7);
+      g.lineTo(895, yBot - 11);
+      g.lineTo(915, yBot);
+      g.lineTo(895, yBot + 11);
+      g.lineTo(800, yBot + 7);
+      g.closePath();
+      g.fill();
+      g.restore();
+
+      // 3 Orthogonal Technical Callouts locking in at mid-shot micro-beat (lt = 1.60s)
+      UI.techCallout(g, lt, {
+        from: [1040, 550 - gap],
+        elbow: [1310, 345],
+        to: [1680, 345],
+        title: 'ARIVAL (அரிவாள் · SICKLE)',
+        spec: 'Curved Agricultural Blade · Paddy & Millet Harvest',
+        accent: '#38BDF8',
+        t0: 0.45
+      });
+      UI.techCallout(g, lt, {
+        from: [1040, 550],
+        elbow: [1310, 520],
+        to: [1680, 520],
+        title: 'KODARI (கோடாரி · IRON AXE)',
+        spec: 'Forged Iron Head · Dense Forest Clearing',
+        accent: '#FF851B',
+        t0: 0.95
+      });
+      UI.techCallout(g, lt, {
+        from: [1040, 550 + gap],
+        elbow: [1310, 695],
+        to: [1680, 695],
+        title: 'ULI (உளி · TEMPERED CHISEL)',
+        spec: 'High-Tensile Point · Megalithic & Timber Shaping',
+        accent: '#38C878',
+        t0: 1.45
+      });
+    },
+
+    // Shot 019: Strategic Map of Vaigai River Valley, Madurai & Keeladi
+    MAP_VAIGAI_KEELADI: {
+      region: 'Tamil Nadu',
+      bbox: [77.1, 9.1, 79.4, 10.6],
+      style: 'terrainHistorical',
+      title: 'VAIGAI RIVER CIVILIZATION',
+      subTitle: 'SANGAM ERA · c. 600 BCE – 580 BCE',
+      reading: 'HYDRO-ARCHAEOLOGICAL SURVEY',
+      territories: [
+        {
+          place: 'Tamil Nadu',
+          color: 'rgba(247, 185, 40, 0.24)',
+          border: '#F7B928',
+          label: 'PANDYA / VAIGAI BASIN',
+          t0: 0.1
+        }
+      ],
+      routes: [
+        {
+          from: [77.55, 9.98],
+          to: [78.12, 9.92],
+          t0: 0.4,
+          dur: 1.2,
+          color: '#38BDF8'
+        },
+        {
+          from: [78.12, 9.92],
+          to: [78.25, 9.85],
+          t0: 1.6,
+          dur: 0.8,
+          color: '#5CE1FF'
+        },
+        {
+          from: [78.25, 9.85],
+          to: [79.15, 9.35],
+          t0: 2.3,
+          dur: 1.2,
+          color: '#38BDF8'
+        }
+      ],
+      pins: [
+        {
+          lonLat: [78.12, 9.92],
+          label: 'MADURAI',
+          diorama: 'gopuram',
+          t0: 0.7
+        },
+        {
+          lonLat: [78.25, 9.85],
+          label: 'KEELADI (580 BCE)',
+          diorama: 'brickHouse',
+          t0: 1.9
+        }
+      ]
+    }
+  },
+
+  drawEnv(envId, g, lt, gt, cam, heroFn) {
+    const fn = this.ENVS[envId];
+    if (fn) fn(g, lt, gt, cam, heroFn);
+  },
+
+  drawChar(charId, g, opts = {}) {
+    const base = this.CHARS[charId] || {};
+    DK.char(g, Object.assign({}, base, opts, { beard: false, mustache: false }));
+  },
+
+  drawAnimal(animalId, g, opts = {}) {
+    const base = this.ANIMALS[animalId] || {};
+    DK.animal(g, Object.assign({}, base, opts));
+  },
+
+  drawInfo(infoId, g, lt, gt, opts = {}) {
+    const item = this.INFO[infoId];
+    if (typeof item === 'function') {
+      item(g, lt, gt, opts);
+    } else if (item && typeof UI.strategicMap === 'function') {
+      UI.strategicMap(g, lt, Object.assign({}, item, opts));
+    }
+  }
+};
+window.THEME = THEME;
+
+// ============================================================================
+// SHOTS 011 TO 020 (32.2s – 65.7s) WITH ATTACHED PER-SHOT sfx(k, bt0)
+// ============================================================================
+const SHOTS = [
+  // --------------------------------------------------------------------------
+  // SHOT 011 · [00:32.2 - 00:36.2] (start: 32.2, end: 36.2, duration: 4.0)
+  // Why Archaeological Proof Matters
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 11,
+    title: 'Why Archaeological Proof Matters',
+    start: 32.2,
+    end: 36.2,
+    duration: 4.0,
+    vo_line: 'தமிழ் வரலாறு அதுக்கு முன்னாடி இருந்தே இருந்திருக்கும், ஆனா இங்க மனிதர்கள் வாழ்ந்தாங்கன்றதுக்கு ஒரு evidence வேணும் இல்லையா?',
+    env_id: 'ENV_EXCAVATION_SITE',
+    chars: 'HOST_SCIENTIST (x: 640), HOST_PROTAG (moveX: 1340 -> 825)',
+    on_screen_text: 'ARCHAEOLOGICAL PROOF REQUIRED · ASI & TNSDA Methodology',
+    camera_sfx: 'Pan & Push-in · forestMorning + pillBadge + digShovel + submarineSonar + footstep',
+    transition_id: 'VERTICAL_TRENCH_DIVE',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 940], [4.0, 980]], DK.ease.inOutSine),
+        y: 540,
+        z: DK.key(lt, [[0, 1.0], [4.0, 1.07]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_EXCAVATION_SITE', g, lt, gt, cam, (g) => {
+        // Target Prop at x: 735 (charX + 95px for Scientist at 640; charX - 90px for Host arriving at 825)
+        FX.prop3D(g, 735, 840, 1.0, { kind: 'trenchGrid', color: '#38BDF8', state: 'active', t: gt });
+
+        // Mid-Shot Micro-Beat (lt = 2.00s): Holographic scan beam sweeps across the trench grid
+        if (lt >= 1.9) {
+          const scanProg = DK.prog(lt, 2.0, 3.6);
+          const beamX = DK.lerp(650, 820, Math.sin(scanProg * Math.PI));
+          g.save();
+          const grad = g.createLinearGradient(beamX, 680, beamX, 895);
+          grad.addColorStop(0, 'rgba(92, 225, 255, 0.0)');
+          grad.addColorStop(0.5, 'rgba(92, 225, 255, 0.45)');
+          grad.addColorStop(1, 'rgba(56, 200, 120, 0.65)');
+          g.fillStyle = grad;
+          g.fillRect(650, 740, 175, 135);
+
+          // Highlighted buried iron artifacts glowing under the trench grid
+          const glowA = 0.45 + 0.35 * Math.sin(gt * 6);
+          g.strokeStyle = `rgba(92, 225, 255, ${glowA})`;
+          g.lineWidth = 3;
+          g.beginPath();
+          g.moveTo(685, 858);
+          g.lineTo(745, 848);
+          g.moveTo(730, 868);
+          g.lineTo(785, 855);
+          g.stroke();
+
+          // Vertical scan laser line
+          g.strokeStyle = '#5CE1FF';
+          g.lineWidth = 2.5;
+          g.beginPath();
+          g.moveTo(beamX, 730);
+          g.lineTo(beamX, 875);
+          g.stroke();
+          g.restore();
+        }
+
+        // Lead Archaeologist (HOST_SCIENTIST) at x: 640 brushing soil off trenchGrid (x: 735)
+        THEME.drawChar('HOST_SCIENTIST', g, {
+          x: 640,
+          y: 840,
+          prop: 'quill',
+          look: [0.3, 0.25],
+          brows: lt >= 2.0 ? 'raised' : 'neutral',
+          mouth: lt >= 2.0 ? 'smile' : 'neutral',
+          pose: { preset: 'experiment', speed: 1.15 },
+          t: gt
+        });
+
+        // Host (HOST_PROTAG) walking from x: 1340 to x: 825 (arriving 90px right of trenchGrid at 735)
+        THEME.drawChar('HOST_PROTAG', g, {
+          moveX: [1340, 825, lt, 4.0],
+          y: 840,
+          flipX: true,
+          brows: 'raised',
+          mouth: lt > 2.2 ? 'o' : 'neutral',
+          look: [-0.25, 0.15],
+          pose: { preset: 'walk', speed: 1.05 },
+          t: gt
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'ARCHAEOLOGICAL PROOF REQUIRED',
+        x: 960,
+        y: 120,
+        accent: '#5CE1FF',
+        t0: 0.3
+      });
+      UI.citation(g, 'Archaeological Survey of India (ASI) & TNSDA Methodology', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.28, grain: 0.025 });
+    },
+    sfx(k, bt0) {
+      k.bed('forestMorning', bt0 + 0.0, bt0 + 4.0, { gain: 0.20 });
+      k.play('pillBadge', bt0 + 0.30, { gain: 0.40 });
+      k.play('digShovel', bt0 + 0.95, { gain: 0.45 });
+      k.play('submarineSonar', bt0 + 2.00, { gain: 0.48 });
+      k.play('footstep', bt0 + 2.80, { gain: 0.35 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 012 · [00:36.2 - 00:39.8] (start: 36.2, end: 39.8, duration: 3.6)
+  // Subterranean Trench Cutaway: 4,200-Year-Old Weapons
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 12,
+    title: 'Subterranean Trench Cutaway: 4,200-Year-Old Weapons',
+    start: 36.2,
+    end: 39.8,
+    duration: 3.6,
+    vo_line: 'அதுக்கு வந்து 4200 வருஷத்துக்கு முன்னாடி இருந்த இந்த இரும்பு ஆயுதங்கள்தான் ஒரு proof-ஆ அமையுது.',
+    env_id: 'ENV_TRENCH_STRATA',
+    chars: 'HOST_SCIENTIST (x: 780, lifting excavated iron blade at x: 870)',
+    on_screen_text: 'EXCAVATED IRON BLADE · Depth: 115 cm · AMS Carbon-14 Verified (2172 BCE)',
+    camera_sfx: 'Vertical Trench Dive · forestMorning + digShovel + swordDraw + starShimmer + ding',
+    transition_id: 'ISOMETRIC_BLUEPRINT_SNAP',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: 960,
+        y: DK.key(lt, [[0, 480], [3.6, 560]], DK.ease.inOutCubic),
+        z: DK.key(lt, [[0, 1.0], [3.6, 1.08]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_TRENCH_STRATA', g, lt, gt, cam, (g) => {
+        // Mid-Shot Micro-Beat (lt = 1.80s): Golden discovery rays lock onto the iron blade
+        if (lt >= 1.80) {
+          const rayA = DK.prog(lt, 1.80, 2.35) * 0.55;
+          FX.godRays(g, 870, 740, { color: '#FFD54F', a: rayA, count: 8, r: 290, t: gt });
+        }
+
+        // Artifact Pedestal at x: 870 (charX + 90px exact contact for Scientist at x: 780)
+        FX.interactiveProp(g, { kind: 'scholarDesk', x: 870, y: 820, lt, gt });
+
+        // Excavated 4,200-Year-Old Iron Blade rising slightly from pedestal
+        const liftY = DK.key(lt, [[0, 752], [1.8, 734], [3.6, 730]], DK.ease.outCubic);
+        g.save();
+        g.translate(870, liftY);
+        g.rotate(-0.12);
+        // Golden discovery aura around blade after lt = 1.8s
+        if (lt >= 1.8) {
+          g.shadowColor = '#38C878';
+          g.shadowBlur = 18;
+        }
+        // Forged iron hilt & blade
+        g.fillStyle = '#475569';
+        g.fillRect(-52, -5, 24, 10);
+        g.fillStyle = '#94A3B8';
+        g.beginPath();
+        g.moveTo(-28, -7);
+        g.lineTo(48, -4);
+        g.lineTo(66, 0);
+        g.lineTo(48, 4);
+        g.lineTo(-28, 7);
+        g.closePath();
+        g.fill();
+        g.restore();
+
+        // Excavator in Trench (HOST_SCIENTIST) at x: 780, y: 820
+        THEME.drawChar('HOST_SCIENTIST', g, {
+          x: 780,
+          y: 820,
+          look: [0.3, -0.05],
+          brows: lt >= 1.8 ? 'raised' : 'neutral',
+          mouth: lt >= 1.8 ? 'smile' : 'neutral',
+          pose: { preset: 'build', speed: 1.1 },
+          t: gt
+        });
+      });
+
+      UI.techCallout(g, lt, {
+        from: [870, 740],
+        elbow: [1100, 620],
+        to: [1380, 620],
+        title: 'EXCAVATED IRON BLADE',
+        spec: 'Depth: 115 cm · AMS Carbon-14 Verified (2172 BCE)',
+        accent: '#38C878',
+        t0: 1.5
+      });
+      UI.citation(g, 'Mayiladumparai Trench Cutaway · TNSDA (2022)', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.30, grain: 0.025 });
+    },
+    sfx(k, bt0) {
+      k.bed('forestMorning', bt0 + 0.0, bt0 + 3.6, { gain: 0.18 });
+      k.play('digShovel', bt0 + 0.35, { gain: 0.45 });
+      k.play('swordDraw', bt0 + 1.50, { gain: 0.52 });
+      k.play('starShimmer', bt0 + 1.80, { gain: 0.55 });
+      k.play('ding', bt0 + 2.10, { gain: 0.48 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 013 · [00:39.8 - 00:43.0] (start: 39.8, end: 43.0, duration: 3.2)
+  // Isometric Teardown: Sickles, Axes & Chisels
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 13,
+    title: 'Isometric Teardown: Sickles, Axes & Chisels',
+    start: 39.8,
+    end: 43.0,
+    duration: 3.2,
+    vo_line: 'இதுல அரிவாள்கள், கோடாரிகள், உளிகள் இந்த மாதிரி விஷயங்கள் எல்லாம் இருந்திருக்கு.',
+    env_id: 'ENV_MAYILADUMPARAI_FORGE',
+    chars: 'DK.hand Pointer + TEARDOWN_IRON_TOOLS (3-Layer Isometric Assembly)',
+    on_screen_text: 'ARIVAL (அரிவாள்) · KODARI (கோடாரி) · ULI (உளி)',
+    camera_sfx: 'Isometric Zoom · volcanoLava + whoosh + swordDraw + axeChop + anvilStrike',
+    transition_id: 'MATCH_CUT_AXE_TO_TREE',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: 960,
+        y: 540,
+        z: DK.key(lt, [[0, 1.0], [3.2, 1.06]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_MAYILADUMPARAI_FORGE', g, lt, gt, cam, (g) => {
+        // Mid-Shot Micro-Beat (lt = 1.60s): Isometric stack reaches full explode: 0.88
+        const explodeAmt = DK.key(lt, [[0, 0.1], [1.6, 0.88]], DK.ease.outCubic);
+        THEME.drawInfo('TEARDOWN_IRON_TOOLS', g, lt, gt, { explode: explodeAmt });
+
+        // Pointer Hand (DK.hand) pointing sequentially to each tool layer
+        DK.hand(g, {
+          x: 1280,
+          y: DK.key(lt, [[0, 440], [1.6, 540], [3.2, 640]], DK.ease.inOutSine),
+          s: 1.0,
+          skin: '#D69A72',
+          sleeveColor: '#FF851B',
+          pose: 'point',
+          rot: -0.2,
+          t: gt
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'ARIVAL (அரிவாள்) · KODARI (கோடாரி) · ULI (உளி)',
+        x: 960,
+        y: 115,
+        accent: '#FF851B',
+        t0: 0.25
+      });
+      UI.citation(g, 'TNSDA Artifact Catalog: Mayiladumparai & Adichanallur', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.28, grain: 0.025 });
+    },
+    sfx(k, bt0) {
+      k.bed('volcanoLava', bt0 + 0.0, bt0 + 3.2, { gain: 0.18 });
+      k.play('whoosh', bt0 + 0.20, { gain: 0.45 });
+      k.play('swordDraw', bt0 + 0.65, { gain: 0.50 });
+      k.play('axeChop', bt0 + 1.60, { gain: 0.52 });
+      k.play('anvilStrike', bt0 + 2.35, { gain: 0.50 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 014 · [00:43.0 - 00:45.7] (start: 43.0, end: 45.7, duration: 2.7)
+  // Early Iron Age Village Life
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 14,
+    title: 'Early Iron Age Village Life',
+    start: 43.0,
+    end: 45.7,
+    duration: 2.7,
+    vo_line: 'அந்த time-ல சின்ன சின்ன கிராமங்கள்ல வாழ்ந்துட்டு இருந்த மக்கள்',
+    env_id: 'ENV_IRON_VILLAGE',
+    chars: 'KEELADI_WEAVER (moveX: 300 -> 680), KEELADI_MASON (x: 1180), VILLAGE_SPARROW (moveX: 240 -> 1480)',
+    on_screen_text: 'EARLY AGRARIAN HAMLETS · TAMILAKAM',
+    camera_sfx: 'Gentle Right Pan · forestMorning + birdSong + footstep + pillBadge',
+    transition_id: 'CAMERA_PAN_RIGHT',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 930], [2.7, 980]], DK.ease.inOutSine),
+        y: 540,
+        z: 1.02
+      };
+
+      THEME.drawEnv('ENV_IRON_VILLAGE', g, lt, gt, cam, (g) => {
+        // Village Granary Hut at x: 770 (charX + 90px at arrival for KEELADI_WEAVER arriving at 680)
+        FX.structure3D(g, 770, 840, 180, 210, { kind: 'thatchedHut', color: '#C27803', t: gt });
+
+        // Villager (KEELADI_WEAVER) walking from x: 300 to x: 680
+        THEME.drawChar('KEELADI_WEAVER', g, {
+          moveX: [300, 680, lt, 2.7],
+          y: 840,
+          look: [0.25, 0.0],
+          brows: lt >= 1.35 ? 'raised' : 'neutral',
+          mouth: 'smile',
+          pose: { preset: 'walk', speed: 1.1 },
+          t: gt
+        });
+
+        // Pottery Stall at x: 1265 (charX + 85px exact contact for KEELADI_MASON at x: 1180)
+        FX.interactiveProp(g, { kind: 'merchantStall', x: 1265, y: 840, lt, gt });
+
+        // Potter (KEELADI_MASON) at x: 1180 shaping black-and-red ware pottery
+        THEME.drawChar('KEELADI_MASON', g, {
+          x: 1180,
+          y: 840,
+          look: [0.3, 0.15],
+          mouth: 'smile',
+          pose: { preset: 'build', speed: 1.2 },
+          t: gt
+        });
+
+        // Forward-flying Village Sparrow translating across sky (moveX: 240 -> 1480)
+        THEME.drawAnimal('VILLAGE_SPARROW', g, {
+          moveX: [240, 1480, lt, 2.7],
+          y: 260,
+          t: gt
+        });
+      });
+
+      // Mid-Shot Micro-Beat (lt = 1.35s): Secondary hamlet status badge + main badge
+      UI.pillBadge(g, lt, {
+        text: 'EARLY AGRARIAN HAMLETS · TAMILAKAM',
+        x: 960,
+        y: 120,
+        accent: '#F7B928',
+        t0: 0.25
+      });
+      if (lt >= 1.35) {
+        UI.pillBadge(g, lt, {
+          text: 'BLACK-AND-RED WARE POTTERY & GRANARIES',
+          x: 960,
+          y: 182,
+          accent: '#38C878',
+          t0: 1.35
+        });
+      }
+      UI.citation(g, 'Early Agrarian Settlements of Tamilakam · TNSDA', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.025 });
+    },
+    sfx(k, bt0) {
+      k.bed('forestMorning', bt0 + 0.0, bt0 + 2.7, { gain: 0.22 });
+      k.play('birdSong', bt0 + 0.30, { gain: 0.42 });
+      k.play('footstep', bt0 + 1.00, { gain: 0.35 });
+      k.play('pillBadge', bt0 + 1.35, { gain: 0.38 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 015 · [00:45.7 - 00:48.4] (start: 45.7, end: 48.4, duration: 2.7)
+  // Clearing Forests & Plowing Fields
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 15,
+    title: 'Clearing Forests & Plowing Fields',
+    start: 45.7,
+    end: 48.4,
+    duration: 2.7,
+    vo_line: 'காடுகளை எல்லாம் அகற்றி விவசாயம் பண்றதுக்காக இந்த கருவிகள் எல்லாம் use பண்ணிருக்கலாம்னு சொல்றாங்க.',
+    env_id: 'ENV_FARM_CLEARING',
+    chars: 'IRON_WOODCUTTER (x: 480, axe), TAMIL_FARMER (moveX: 980 -> 1420) + PLOW_BULL (moveX: 1085 -> 1525)',
+    on_screen_text: 'FOREST CLEARING & IRON-PLOW AGRICULTURE',
+    camera_sfx: 'Push-in on Tree Fell · forestMorning + axeChop + treeTimber + thud',
+    transition_id: 'DISSOLVE_TIME_LAPSE',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: 960,
+        y: 540,
+        z: DK.key(lt, [[0, 1.0], [1.35, 1.06], [2.7, 1.08]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_FARM_CLEARING', g, lt, gt, cam, (g) => {
+        // Choppable Tree at x: 565 (charX + 85px exact contact for IRON_WOODCUTTER at x: 480)
+        // Mid-Shot Micro-Beat (lt = 1.35s): Tree splinters and topples at cutTime: 1.35
+        FX.interactiveProp(g, {
+          kind: 'choppableTree',
+          x: 565,
+          y: 840,
+          cutTime: 1.35,
+          lt,
+          gt
+        });
+
+        // Woodcutter (IRON_WOODCUTTER) at x: 480 swinging iron axe
+        THEME.drawChar('IRON_WOODCUTTER', g, {
+          x: 480,
+          y: 840,
+          prop: 'axe',
+          look: [0.3, -0.05],
+          brows: 'furrowed',
+          mouth: lt >= 1.35 ? 'smile' : 'neutral',
+          pose: { preset: 'build', speed: 1.35 },
+          t: gt
+        });
+
+        // Moving Plow Field furrow at charX + 85px
+        const plowX = DK.lerp(1065, 1505, lt / 2.7);
+        FX.interactiveProp(g, {
+          kind: 'plowField',
+          x: plowX,
+          y: 840,
+          lt,
+          gt
+        });
+
+        // Forward-walking Bull (PLOW_BULL) pulling the plow (moveX: 1085 -> 1525)
+        THEME.drawAnimal('PLOW_BULL', g, {
+          moveX: [1085, 1525, lt, 2.7],
+          y: 840,
+          t: gt
+        });
+
+        // Plowman (TAMIL_FARMER) pushing the iron-tipped plow (moveX: 980 -> 1420)
+        THEME.drawChar('TAMIL_FARMER', g, {
+          moveX: [980, 1420, lt, 2.7],
+          y: 840,
+          look: [0.3, 0.1],
+          pose: { preset: 'push', speed: 1.15 },
+          t: gt
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'FOREST CLEARING & IRON-PLOW AGRICULTURE',
+        x: 960,
+        y: 120,
+        accent: '#38C878',
+        t0: 0.25
+      });
+      UI.citation(g, 'Archaeobotanical Evidence: Paddy & Millets (TNSDA)', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.025 });
+    },
+    sfx(k, bt0) {
+      k.bed('forestMorning', bt0 + 0.0, bt0 + 2.7, { gain: 0.22 });
+      k.play('axeChop', bt0 + 0.55, { gain: 0.55 });
+      k.play('axeChop', bt0 + 1.35, { gain: 0.65 });
+      k.play('treeTimber', bt0 + 1.42, { gain: 0.62 });
+      k.play('thud', bt0 + 2.25, { gain: 0.50 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 016 · [00:48.4 - 00:51.3] (start: 48.4, end: 51.3, duration: 2.9)
+  // From Small Villages to Brick Foundations
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 16,
+    title: 'From Small Villages to Brick Foundations',
+    start: 48.4,
+    end: 51.3,
+    duration: 2.9,
+    vo_line: 'ஆனா அப்படி சின்ன சின்ன கிராமமா வாழ்ந்துட்டு இருந்த அந்த சமூகம்தான்',
+    env_id: 'ENV_IRON_VILLAGE',
+    chars: 'KEELADI_MASON (x: 620, hammer), TAMIL_FARMER (moveX: 260 -> 535)',
+    on_screen_text: 'VILLAGE → URBAN TRANSITION',
+    camera_sfx: 'Push-in on Bricklaying · forestMorning + hammerHit + footstep',
+    transition_id: 'MORPH_VILLAGE_TO_CITY',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: 960,
+        y: 540,
+        z: DK.key(lt, [[0, 1.0], [2.9, 1.05]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_IRON_VILLAGE', g, lt, gt, cam, (g) => {
+        // Kiln-Fired Brick Wall Build at x: 705 (charX + 85px exact contact for KEELADI_MASON at x: 620)
+        // Mid-Shot Micro-Beat (lt = 1.45s): Brick wall rises by two courses at cutTime: 1.45
+        FX.interactiveProp(g, {
+          kind: 'brickWallBuild',
+          x: 705,
+          y: 840,
+          cutTime: 1.45,
+          lt,
+          gt
+        });
+
+        // Mason (KEELADI_MASON) at x: 620 laying kiln-fired bricks with hammer
+        THEME.drawChar('KEELADI_MASON', g, {
+          x: 620,
+          y: 840,
+          prop: 'hammer',
+          look: [0.3, 0.1],
+          brows: lt >= 1.45 ? 'raised' : 'neutral',
+          mouth: lt >= 1.45 ? 'smile' : 'neutral',
+          pose: { preset: 'build', speed: 1.25 },
+          t: gt
+        });
+
+        // Brick Carrier (TAMIL_FARMER) walking from x: 260 to x: 535 (85px left of Mason at 620)
+        THEME.drawChar('TAMIL_FARMER', g, {
+          moveX: [260, 535, lt, 2.9],
+          y: 840,
+          look: [0.25, 0.05],
+          pose: { preset: 'walk', speed: 1.2 },
+          t: gt
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'VILLAGE → URBAN TRANSITION',
+        x: 960,
+        y: 120,
+        accent: '#F7B928',
+        t0: 0.25
+      });
+      UI.citation(g, 'From Iron Age Hamlets to Early Historic Urbanism', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.025 });
+    },
+    sfx(k, bt0) {
+      k.bed('forestMorning', bt0 + 0.0, bt0 + 2.9, { gain: 0.20 });
+      k.play('hammerHit', bt0 + 0.50, { gain: 0.48 });
+      k.play('hammerHit', bt0 + 1.45, { gain: 0.55 });
+      k.play('footstep', bt0 + 1.90, { gain: 0.38 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 017 · [00:51.3 - 00:54.3] (start: 51.3, end: 54.3, duration: 3.0)
+  // +1,500 Years: A Grand Urban Civilization
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 17,
+    title: '+1,500 Years: A Grand Urban Civilization',
+    start: 51.3,
+    end: 54.3,
+    duration: 3.0,
+    vo_line: 'அடுத்த 1500 வருஷத்துக்குள்ளேயே ஒரு பிரம்மாண்டமான நாகரிகமா மாறப்போகுது.',
+    env_id: 'ENV_KEELADI_STREET',
+    chars: 'SANGAM_MERCHANT (moveX: 380 -> 965, coinBag) + PLOW_BULL (moveX: 490 -> 1075)',
+    on_screen_text: '+1,500 YEARS → URBAN TAMIL CIVILIZATION',
+    camera_sfx: 'Grand Street Tracking · templeCourtyard + pillBadge + coinClink + templeBell',
+    transition_id: 'CHAPTER_DIAL_WIPE',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 920], [3.0, 990]], DK.ease.inOutSine),
+        y: 540,
+        z: DK.key(lt, [[0, 1.0], [3.0, 1.07]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_KEELADI_STREET', g, lt, gt, cam, (g) => {
+        // Mid-Shot Micro-Beat (lt = 1.50s): Golden sunlight sweeps across the terracotta tiled roofs
+        if (lt >= 1.50) {
+          const sunA = DK.prog(lt, 1.50, 2.20) * 0.45;
+          FX.godRays(g, 1460, 190, { color: '#FFD54F', a: sunA, count: 10, r: 900, t: gt });
+        }
+
+        // Target Merchant Stall at x: 1055 (charX + 90px at arrival for Merchant arriving at 965)
+        FX.interactiveProp(g, { kind: 'merchantStall', x: 1055, y: 840, lt, gt });
+
+        // Forward-walking Bull (PLOW_BULL) accompanying merchant (moveX: 490 -> 1075)
+        THEME.drawAnimal('PLOW_BULL', g, {
+          moveX: [490, 1075, lt, 3.0],
+          y: 840,
+          royal: true,
+          t: gt
+        });
+
+        // Sangam Merchant (SANGAM_MERCHANT) walking with coinBag (moveX: 380 -> 965)
+        THEME.drawChar('SANGAM_MERCHANT', g, {
+          moveX: [380, 965, lt, 3.0],
+          y: 840,
+          prop: 'coinBag',
+          look: [0.25, 0.0],
+          brows: 'raised',
+          mouth: 'smile',
+          pose: { preset: 'walk', speed: 1.15 },
+          t: gt
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        text: '+1,500 YEARS → URBAN TAMIL CIVILIZATION',
+        x: 960,
+        y: 120,
+        accent: '#FF851B',
+        t0: 0.3
+      });
+      UI.citation(g, 'TNSDA Keeladi Urbanization Reports (2019–2025)', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.025 });
+    },
+    sfx(k, bt0) {
+      k.bed('templeCourtyard', bt0 + 0.0, bt0 + 3.0, { gain: 0.22 });
+      k.play('pillBadge', bt0 + 0.30, { gain: 0.42 });
+      k.play('coinClink', bt0 + 1.50, { gain: 0.50 });
+      k.play('templeBell', bt0 + 2.20, { gain: 0.48 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 018 · [00:54.3 - 00:57.9] (start: 54.3, end: 57.9, duration: 3.6)
+  // Jumping from 2170 BCE to 600 BCE
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 18,
+    title: 'Jumping from 2170 BCE to 600 BCE',
+    start: 54.3,
+    end: 57.9,
+    duration: 3.6,
+    vo_line: 'இப்ப கி.மு 2170-ல இருந்து நம்ம கி.மு 600-க்கு போலாம்.',
+    env_id: 'ENV_FARM_CLEARING',
+    chars: 'HOST_PROTAG (moveX: 360 -> 1180, run) + UI.eraChapterDial',
+    on_screen_text: 'SANGAM URBAN ERA · 2170 BCE → 600 BCE',
+    camera_sfx: 'Fast Tracking Pan · forestMorning + counterTick + timerChime + footstep',
+    transition_id: 'ZOOM_INTO_VAIGAI_RIVER',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 900], [3.6, 1020]], DK.ease.inOutCubic),
+        y: 540,
+        z: 1.04
+      };
+
+      THEME.drawEnv('ENV_FARM_CLEARING', g, lt, gt, cam, (g) => {
+        // Sangam Milestone Pillar at x: 1270 (charX + 90px at arrival for HOST_PROTAG arriving at 1180)
+        FX.interactiveProp(g, {
+          kind: 'crumblingPillar',
+          x: 1270,
+          y: 840,
+          cutTime: 99,
+          lt,
+          gt
+        });
+
+        // Time-Traveler Sprint (HOST_PROTAG) running from x: 360 to x: 1180
+        THEME.drawChar('HOST_PROTAG', g, {
+          moveX: [360, 1180, lt, 3.6],
+          y: 840,
+          look: [0.3, 0.0],
+          brows: 'raised',
+          mouth: 'smile',
+          pose: { preset: 'run', speed: 1.35 },
+          t: gt
+        });
+      });
+
+      // Mid-Shot Micro-Beat (lt = 1.80s): Era Chapter Dial spins and locks onto '2170 BCE → 600 BCE'
+      UI.eraChapterDial(g, lt, {
+        era: 'SANGAM URBAN ERA',
+        year: lt < 1.80 ? '2170 BCE → ...' : '2170 BCE → 600 BCE'
+      });
+      UI.citation(g, 'Keeladi AMS Radiocarbon Dating: 580 BCE (TNSDA, 2019)', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.28, grain: 0.025 });
+    },
+    sfx(k, bt0) {
+      k.bed('forestMorning', bt0 + 0.0, bt0 + 3.6, { gain: 0.20 });
+      k.play('counterTick', bt0 + 0.40, { gain: 0.45 });
+      k.play('counterTick', bt0 + 0.90, { gain: 0.45 });
+      k.play('timerChime', bt0 + 1.80, { gain: 0.58 });
+      k.play('footstep', bt0 + 2.60, { gain: 0.40 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 019 · [00:57.9 - 01:02.3] (start: 57.9, end: 62.3, duration: 4.4)
+  // The Sangam Era & The Vaigai River Valley
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 19,
+    title: 'The Sangam Era & The Vaigai River Valley',
+    start: 57.9,
+    end: 62.3,
+    duration: 4.4,
+    vo_line: 'இந்த காலகட்டத்தை Sangam Era-ன்னு சொல்றாங்க. இந்த கதை வைகை நதிக்கரையில இருந்துதான் ஆரம்பிக்குது.',
+    env_id: 'ENV_KEELADI_STREET + MAP_VAIGAI_KEELADI',
+    chars: 'THIRUVALLUVAR (moveX: 420 -> 940, palmLeaf)',
+    on_screen_text: 'SANGAM ERA (c. 600 BCE) · VAIGAI RIVER VALLEY · MADURAI & KEELADI',
+    camera_sfx: 'Map & Terrace Push-in · fountainWater + pillBadge + pop + waterSplash + ding',
+    transition_id: 'DIVE_TO_KEELADI_TRENCH',
+    map: THEME.INFO.MAP_VAIGAI_KEELADI,
+    draw(g, lt, gt, u) {
+      // Strategic Map of Vaigai River Valley, Madurai & Keeladi
+      THEME.drawInfo('MAP_VAIGAI_KEELADI', g, lt, gt);
+
+      // Mid-Shot Micro-Beat (lt = 1.90s): Cyan Vaigai River spline pulse highlight
+      if (lt >= 1.90) {
+        const pulseA = 0.35 + 0.25 * Math.sin((lt - 1.90) * 5);
+        g.save();
+        g.strokeStyle = `rgba(92, 225, 255, ${pulseA})`;
+        g.lineWidth = 10;
+        g.lineCap = 'round';
+        g.beginPath();
+        g.moveTo(640, 470);
+        g.quadraticCurveTo(880, 495, 1045, 535);
+        g.quadraticCurveTo(1180, 575, 1340, 645);
+        g.stroke();
+        g.restore();
+      }
+
+      // Foreground Storybook Terrace overlooking the Vaigai Map
+      g.save();
+      FX.storybookGround(g, 850, { style: 'flagstone', baseCol: '#5E493A', grassCol: '#3E7A4E' });
+
+      // Scholar Desk at x: 1030 (charX + 90px at arrival for THIRUVALLUVAR arriving at 940)
+      FX.interactiveProp(g, { kind: 'scholarDesk', x: 1030, y: 850, lt, gt });
+
+      // Sangam Poet (THIRUVALLUVAR) walking from x: 420 to x: 940 with palm-leaf manuscript
+      THEME.drawChar('THIRUVALLUVAR', g, {
+        moveX: [420, 940, lt, 4.4],
+        y: 850,
+        prop: 'palmLeaf',
+        look: [0.25, -0.1],
+        brows: 'neutral',
+        mouth: 'smile',
+        pose: { preset: 'walk', speed: 1.1 },
+        t: gt
+      });
+      g.restore();
+
+      UI.pillBadge(g, lt, {
+        text: 'SANGAM ERA (c. 600 BCE) · VAIGAI RIVER VALLEY',
+        x: 960,
+        y: 120,
+        accent: '#5CE1FF',
+        t0: 0.25
+      });
+      UI.citation(g, 'TNSDA: Keeladi — An Urban Settlement on the Banks of River Vaigai (2019)', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.28, grain: 0.025 });
+    },
+    sfx(k, bt0) {
+      k.bed('fountainWater', bt0 + 0.0, bt0 + 4.4, { gain: 0.22 });
+      k.play('pillBadge', bt0 + 0.25, { gain: 0.42 });
+      k.play('pop', bt0 + 1.00, { gain: 0.42 });
+      k.play('waterSplash', bt0 + 1.90, { gain: 0.48 });
+      k.play('ding', bt0 + 2.35, { gain: 0.50 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 020 · [01:02.3 - 01:05.7] (start: 62.3, end: 65.7, duration: 3.4)
+  // Keeladi Excavation: Unearthing a Metropolis
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 20,
+    title: 'Keeladi Excavation: Unearthing a Metropolis',
+    start: 62.3,
+    end: 65.7,
+    duration: 3.4,
+    vo_line: 'அதாவது கீழடி அப்படிங்கிற ஊர்ல அகழ்வாய்வு பண்ணும்போது ஒரு மாபெரும் நகரம் வெளிய வருது.',
+    env_id: 'ENV_EXCAVATION_SITE',
+    chars: 'HOST_SCIENTIST (x: 560, build), KEELADI_WEAVER (moveX: 1280 -> 920, walk)',
+    on_screen_text: 'KEELADI EXCAVATION · Sivaganga Dist. · 580 BCE Urban Settlement',
+    camera_sfx: 'Push-in on Unearthed Brick Metropolis · forestMorning + digShovel + pillBadge + starShimmer',
+    transition_id: 'CAMERA_PAN_LEFT',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: 960,
+        y: 540,
+        z: DK.key(lt, [[0, 1.0], [3.4, 1.08]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_EXCAVATION_SITE', g, lt, gt, cam, (g) => {
+        // Unearthed Red-Brick Urban Wall at x: 645 (charX + 85px exact contact for Scientist at 560)
+        // Mid-Shot Micro-Beat (lt = 1.70s): Red-brick urban wall emerges from the trench soil
+        FX.interactiveProp(g, {
+          kind: 'brickWallBuild',
+          x: 645,
+          y: 840,
+          cutTime: 1.70,
+          lt,
+          gt
+        });
+
+        // Survey Trench Grid at x: 830 (charX - 90px at arrival for KEELADI_WEAVER arriving at 920)
+        FX.prop3D(g, 830, 840, 1.0, { kind: 'trenchGrid', color: '#FF851B', state: 'active', t: gt });
+
+        // Excavator 1 (HOST_SCIENTIST) at x: 560 unearthing the baked-brick wall
+        THEME.drawChar('HOST_SCIENTIST', g, {
+          x: 560,
+          y: 840,
+          look: [0.3, 0.15],
+          brows: lt >= 1.70 ? 'raised' : 'neutral',
+          mouth: lt >= 1.70 ? 'smile' : 'neutral',
+          pose: { preset: 'build', speed: 1.2 },
+          t: gt
+        });
+
+        // Excavator 2 (KEELADI_WEAVER) walking from x: 1280 to x: 920 (flipX: true)
+        THEME.drawChar('KEELADI_WEAVER', g, {
+          moveX: [1280, 920, lt, 3.4],
+          y: 840,
+          flipX: true,
+          look: [-0.25, 0.1],
+          brows: 'raised',
+          mouth: 'smile',
+          pose: { preset: 'walk', speed: 1.15 },
+          t: gt
+        });
+      });
+
+      UI.techCallout(g, lt, {
+        from: [645, 760],
+        elbow: [860, 620],
+        to: [1180, 620],
+        title: 'KEELADI EXCAVATION',
+        spec: 'Sivaganga Dist. · 580 BCE Urban Settlement',
+        accent: '#FF851B',
+        t0: 1.4
+      });
+      UI.citation(g, 'ASI & TNSDA Keeladi Seasons I–X (2015–2025)', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.28, grain: 0.025 });
+    },
+    sfx(k, bt0) {
+      k.bed('forestMorning', bt0 + 0.0, bt0 + 3.4, { gain: 0.20 });
+      k.play('digShovel', bt0 + 0.45, { gain: 0.48 });
+      k.play('pillBadge', bt0 + 1.40, { gain: 0.42 });
+      k.play('starShimmer', bt0 + 1.70, { gain: 0.52 });
+    }
+  }
+];
+
+if (window.DK && DK.linkShotTransitions) DK.linkShotTransitions(SHOTS, window.THEME);
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const BATCH_START = SHOTS[0].start;
+const BATCH_END = SHOTS[SHOTS.length - 1].end;
+const DURATION = BATCH_END - BATCH_START;
+
+// Auto-runs each shot's attached sfx(k, bt0) if scoreSound(k) is not defined separately
+if (typeof window.scoreSound !== 'function') {
+  window.scoreSound = function scoreSound(k) {
+    SHOTS.forEach((s) => {
+      if (typeof s.sfx === 'function') s.sfx(k, s.start - BATCH_START);
+    });
+  };
+}
+const scoreSound = window.scoreSound;
+
+window.BATCH_START = BATCH_START;
+window.BATCH_END = BATCH_END;
+window.DURATION = DURATION;
+window.SHOTS = SHOTS;
+window.scoreSound = scoreSound;
+
+let currentT = 0, playing = false, rafId = null, lastTs = 0, stopSound = null, activeShotFilter = 'all', voAudio = null;
+
+function findShotAtGlobal(gt) {
+  for (let i = 0; i < SHOTS.length; i++) {
+    if (gt >= SHOTS[i].start && gt <= SHOTS[i].end) return SHOTS[i];
+  }
+  return gt < SHOTS[0].start ? SHOTS[0] : SHOTS[SHOTS.length - 1];
+}
+
+function renderAtLocal(localT) {
+  currentT = DK.clamp(localT, 0, DURATION);
+  const gt = BATCH_START + currentT;
+  const s = findShotAtGlobal(gt);
+  const lt = DK.clamp(gt - s.start, 0, s.duration);
+  const u = s.duration > 0 ? lt / s.duration : 0;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, 1920, 1080);
+  ctx.save();
+  if (window.DK && DK.drawShot) DK.drawShot(ctx, s, lt, gt, u);
+  else s.draw(ctx, lt, gt, u);
+  ctx.restore();
+  document.getElementById('scrub').value = DURATION > 0 ? currentT / DURATION : 0;
+  document.getElementById('readout').textContent = gt.toFixed(2) + 's (' + currentT.toFixed(2) + 's) · Shot ' + s.shot_number;
+}
+
+window.seek = function (t, opts) {
+  if (playing) pause();
+  const localT = opts && opts.global ? t - BATCH_START : t;
+  renderAtLocal(localT);
+};
+
+function startAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  const mixMode = document.getElementById('mixSelect').value;
+  if (mixMode !== 'mute' && window.SOUND) stopSound = SOUND.live(scoreSound, currentT, { mixMode: 'sfxOnly' });
+  if (voAudio) { voAudio.currentTime = BATCH_START + currentT; voAudio.play().catch(() => {}); }
+}
+
+function stopAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  if (voAudio) voAudio.pause();
+}
+
+function play() {
+  if (playing) return;
+  playing = true;
+  document.getElementById('playBtn').textContent = 'Pause';
+  lastTs = performance.now();
+  startAudio();
+  const tick = (now) => {
+    if (!playing) return;
+    const dt = (now - lastTs) / 1000;
+    lastTs = now;
+    let nextT = currentT + dt;
+    if (activeShotFilter !== 'all') {
+      const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+      if (s) {
+        const sLocal0 = s.start - BATCH_START, sLocal1 = s.end - BATCH_START;
+        if (nextT >= sLocal1) { nextT = sLocal0; currentT = nextT; startAudio(); }
+      }
+    } else if (nextT >= DURATION) {
+      nextT = 0; currentT = 0; startAudio();
+    }
+    renderAtLocal(nextT);
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+}
+
+function pause() {
+  playing = false;
+  document.getElementById('playBtn').textContent = 'Play';
+  if (rafId) cancelAnimationFrame(rafId);
+  stopAudio();
+}
+
+const shotSelect = document.getElementById('shotSelect');
+SHOTS.forEach((s) => {
+  const opt = document.createElement('option');
+  opt.value = String(s.shot_number);
+  opt.textContent = 'Shot ' + s.shot_number + ': ' + s.title + ' (' + s.start.toFixed(1) + 's-' + s.end.toFixed(1) + 's)';
+  shotSelect.appendChild(opt);
+});
+
+shotSelect.addEventListener('change', () => {
+  activeShotFilter = shotSelect.value;
+  if (activeShotFilter !== 'all') {
+    const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+    if (s) { renderAtLocal(s.start - BATCH_START); if (playing) startAudio(); }
+  }
+});
+
+document.getElementById('playBtn').addEventListener('click', () => (playing ? pause() : play()));
+document.getElementById('scrub').addEventListener('input', (e) => {
+  renderAtLocal(parseFloat(e.target.value) * DURATION);
+  if (playing) startAudio();
+});
+document.getElementById('mixSelect').addEventListener('change', () => { if (playing) startAudio(); });
+document.getElementById('voInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  voAudio = new Audio(URL.createObjectURL(file));
+});
+document.getElementById('wavBtn').addEventListener('click', async () => {
+  const res = await SOUND.renderOffline(scoreSound, DURATION, 48000, { mixMode: 'sfxOnly' });
+  const blob = SOUND.encodeWAV(res.inter, res.sr);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'batch_sfx_' + SHOTS[0].shot_number + '_' + SHOTS[SHOTS.length - 1].shot_number + '.wav';
+  a.click();
+});
+window.addEventListener('DOMContentLoaded', async () => {
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  if (window.MAP && MAP.preloadAll) await MAP.preloadAll(SHOTS);
+  renderAtLocal(0);
+});
+</script>
+</body>
+</html>

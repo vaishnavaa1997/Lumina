@@ -1,0 +1,1639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Lumina 2.5D Storybook Studio (16:9) — Studio Player (Shots 21–30)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #05070d; color: #e2e8f0; font-family: 'Nunito', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+#stage-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; position: relative; overflow: hidden; }
+canvas { max-width: 100%; max-height: 100%; aspect-ratio: 16 / 9; box-shadow: 0 16px 48px rgba(0,0,0,0.75); background: #070b16; }
+#controls { height: 58px; background: #101522; border-top: 1px solid #222b42; display: flex; align-items: center; gap: 12px; padding: 0 18px; font-size: 13px; }
+button, select, label.btn { background: #1c2539; color: #f8fafc; border: 1px solid #334155; border-radius: 6px; padding: 6px 12px; font-family: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+button:hover, select:hover, label.btn:hover { background: #283552; border-color: #ff8a3d; }
+#scrub { flex: 1; accent-color: #ff8a3d; cursor: pointer; }
+#readout { font-family: 'Space Mono', monospace; font-size: 12px; color: #ffb074; min-width: 230px; }
+</style>
+</head>
+<body>
+<div id="stage-wrap"><canvas id="stage" width="1920" height="1080"></canvas></div>
+<div id="controls">
+  <button id="playBtn">Play</button>
+  <input id="scrub" type="range" min="0" max="1" step="0.001" value="0" />
+  <div id="readout">00.0s / 00.0s · Shot 21</div>
+  <select id="shotSelect"><option value="all">All Shots in Batch</option></select>
+  <select id="mixSelect">
+    <option value="sfxOnly" selected>SFX + Ambient Only (No BGM)</option>
+    <option value="mute">Mute</option>
+  </select>
+  <label class="btn">Load vo.wav <input id="voInput" type="file" accept="audio/*" style="display:none" /></label>
+  <button id="wavBtn">Export Batch SFX (.wav)</button>
+</div>
+<script src="../../engine.js"></script>
+<script>
+// ============================================================================
+// LOCKED MASTER CONSISTENCY BIBLE & GLOBAL THEME DICTIONARY (SHOTS 21 TO 30)
+// ============================================================================
+const THEME = {
+  CHARS: {
+    HOST_PROTAG: {
+      skin: '#D69A72',
+      hairStyle: 'curlyCloud',
+      hairColor: '#261C1A',
+      hairWind: 0.22,
+      wardrobe: 'jacket',
+      topColor: '#FF851B',
+      bottomColor: '#1E293B',
+      headwear: 'none',
+      foreheadMark: null,
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 1.0,
+      seed: 101
+    },
+    KEELADI_WEAVER: {
+      skin: '#C88C68',
+      hairStyle: 'braidedCrown',
+      hairColor: '#1A1615',
+      hairWind: 0.15,
+      wardrobe: 'ancientTamil',
+      topColor: '#E05A47',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'tilak',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 1.0,
+      seed: 202
+    },
+    SANGAM_MERCHANT: {
+      skin: '#C88C68',
+      hairStyle: 'royalBun',
+      hairColor: '#261C1A',
+      hairWind: 0.18,
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 1.0,
+      seed: 203
+    },
+    KEELADI_MASON: {
+      skin: '#B87B56',
+      hairStyle: 'warriorKnot',
+      hairColor: '#1A1615',
+      hairWind: 0.15,
+      wardrobe: 'ancientTamil',
+      topColor: '#D97724',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'neutral',
+      s: 0.88,
+      seed: 204
+    },
+    TAMIL_FARMER: {
+      skin: '#B87B56',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      hairWind: 0.15,
+      wardrobe: 'ancientTamil',
+      topColor: '#4A8C4A',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 0.88,
+      seed: 205
+    },
+    THIRUVALLUVAR: {
+      skin: '#C88C68',
+      hairStyle: 'scholarBun',
+      hairColor: '#1A1615',
+      hairWind: 0.18,
+      wardrobe: 'ancientTamil',
+      topColor: '#F8FAFC',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 1.0,
+      seed: 206
+    },
+    ROMAN_TRADER: {
+      skin: '#E8A478',
+      hairStyle: 'wavyLocks',
+      hairColor: '#4A2E20',
+      hairWind: 0.2,
+      wardrobe: 'roman',
+      topColor: '#B91C1C',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: null,
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+      s: 1.0,
+      seed: 207
+    },
+    CHERA_KING: {
+      skin: '#C88C68',
+      hairStyle: 'royalBun',
+      hairColor: '#1A1615',
+      hairWind: 0.22,
+      wardrobe: 'ancientTamil',
+      topColor: '#2E7D32',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      foreheadMark: 'tilak',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 1.0,
+      seed: 208
+    },
+    CHOLA_KING: {
+      skin: '#C88C68',
+      hairStyle: 'royalBun',
+      hairColor: '#1A1615',
+      hairWind: 0.22,
+      wardrobe: 'ancientTamil',
+      topColor: '#D97724',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 1.0,
+      seed: 209
+    },
+    PANDYA_KING: {
+      skin: '#C88C68',
+      hairStyle: 'royalBun',
+      hairColor: '#1A1615',
+      hairWind: 0.22,
+      wardrobe: 'ancientTamil',
+      topColor: '#2563EB',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      foreheadMark: 'tilak',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 1.0,
+      seed: 210
+    },
+    ILANGO_ADIGAL: {
+      skin: '#C88C68',
+      hairStyle: 'scholarBun',
+      hairColor: '#1A1615',
+      hairWind: 0.18,
+      wardrobe: 'ancientTamil',
+      topColor: '#F59E0B',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 1.0,
+      seed: 211
+    }
+  },
+
+  spawnChar(g, id, overrides = {}) {
+    const base = this.CHARS[id] || this.CHARS.HOST_PROTAG;
+    const cfg = Object.assign({}, base, overrides, {
+      beard: false,
+      mustache: false
+    });
+    DK.char(g, cfg);
+  },
+
+  drawEnv(envId, g, cam, gt, heroFn) {
+    if (envId === 'ENV_KEELADI_STREET') {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'clearDay');
+          FX.sun(g, 1540, 195, 62);
+          FX.clouds(g, { seed: 21, count: 7, y: 150, h: 140, color: '#FFFFFF', a: 0.9, t: gt, speed: 12 });
+        },
+        bgFar: (g) => {
+          FX.hills(g, { seed: 21, y: 760, amp: 95, color: '#6E9E75' });
+          FX.storybookHorizon(g, { style: 'ancientTamil', y: 760, seed: 21 });
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 1.5,
+        mgBack: (g) => {
+          FX.storybookScene(g, gt, { preset: 'keeladiStreet', y: 840, seed: 22 });
+          FX.structure3D(g, 280, 840, 250, 210, { kind: 'brickHouse', color: '#B84A32', t: gt });
+          FX.structure3D(g, 1460, 840, 270, 225, { kind: 'brickHouse', color: '#C4533A', t: gt });
+          FX.tree(g, 150, 840, 1.05, '#3E7E48', 'palm');
+          FX.tree(g, 1770, 840, 1.1, '#3E7E48', 'palm');
+        },
+        mgBackDepth: 0.72,
+        mgHero: (g) => {
+          FX.storybookGround(g, 840, { style: 'earthPath', baseCol: '#8C583A', grassCol: '#4E8C4A' });
+          if (typeof heroFn === 'function') heroFn(g);
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 10, color: 'rgba(255, 220, 160, 0.16)', seed: 21 });
+        },
+        fgBokehDepth: 1.4,
+        fgBokehBlur: 8
+      });
+      return;
+    }
+
+    if (envId === 'ENV_KEELADI_DRAINAGE') {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'clearDay');
+          FX.sun(g, 1600, 130, 46);
+          FX.clouds(g, { seed: 23, count: 5, y: 90, h: 90, color: '#FFFFFF', a: 0.85, t: gt, speed: 10 });
+        },
+        bgFar: (g) => {
+          FX.storybookHorizon(g, { style: 'ancientTamil', y: 315, seed: 23 });
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 1,
+        mgBack: (g) => {
+          FX.structure3D(g, 330, 320, 190, 155, { kind: 'brickHouse', color: '#B84A32', t: gt });
+          FX.structure3D(g, 920, 320, 210, 165, { kind: 'brickHouse', color: '#C4533A', t: gt });
+          FX.structure3D(g, 1480, 320, 195, 160, { kind: 'brickHouse', color: '#A8432B', t: gt });
+          FX.tree(g, 140, 320, 0.72, '#3E7E48', 'palm');
+          FX.tree(g, 1780, 320, 0.75, '#3E7E48', 'palm');
+        },
+        mgBackDepth: 0.72,
+        mgHero: (g) => {
+          FX.strataCutaway(g, { surfaceY: 320, bottomY: 1080, style: 'keeladiDrainage', t: gt });
+          // Corbelled underground brick drain channel housing at y = 710..795
+          g.save();
+          g.fillStyle = '#7A3221';
+          g.strokeStyle = '#D96B43';
+          g.lineWidth = 3;
+          g.fillRect(220, 706, 1480, 92);
+          g.strokeRect(220, 706, 1480, 92);
+          for (let bx = 230; bx < 1680; bx += 48) {
+            g.fillStyle = '#B84A32';
+            g.fillRect(bx, 708, 42, 14);
+            g.fillRect(bx, 782, 42, 14);
+          }
+          g.restore();
+          if (typeof heroFn === 'function') heroFn(g);
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 8, color: 'rgba(92, 225, 255, 0.14)', seed: 24 });
+        },
+        fgBokehDepth: 1.35,
+        fgBokehBlur: 6
+      });
+      return;
+    }
+
+    if (envId === 'ENV_ANCIENT_HARBOR') {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'coastalDay');
+          FX.sun(g, 420, 185, 64);
+          FX.clouds(g, { seed: 27, count: 6, y: 140, h: 130, color: '#FFFFFF', a: 0.88, t: gt, speed: 14 });
+        },
+        bgFar: (g) => {
+          FX.storybookHorizon(g, { style: 'harbor', y: 730, seed: 27 });
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 1.5,
+        mgBack: (g) => {
+          FX.waterBody(g, gt, { x: 0, y: 710, w: 1920, h: 140, color: '#1B6CA8', waves: true });
+          const shipBob = Math.sin(gt * 2.1) * 5;
+          FX.structure3D(g, 380, 755 + shipBob, 280, 220, { kind: 'romanShip', color: '#8B4513', t: gt });
+          FX.structure3D(g, 1540, 760 - shipBob, 260, 210, { kind: 'cholaShip', color: '#A0522D', t: gt });
+          FX.storybookScene(g, gt, { preset: 'harborWharf', y: 845, seed: 28 });
+        },
+        mgBackDepth: 0.72,
+        mgHero: (g) => {
+          FX.storybookGround(g, 840, { style: 'flagstone', baseCol: '#7B6D5D', grassCol: '#4A8C4A' });
+          if (typeof heroFn === 'function') heroFn(g);
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 9, color: 'rgba(255, 235, 180, 0.16)', seed: 27 });
+        },
+        fgBokehDepth: 1.4,
+        fgBokehBlur: 8
+      });
+      return;
+    }
+
+    if (envId === 'ENV_TEMPLE_COURTYARD') {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'goldenHour');
+          FX.sun(g, 960, 210, 68);
+          FX.godRays(g, 960, 210, { count: 8, a: 0.20 });
+          FX.clouds(g, { seed: 29, count: 6, y: 150, h: 130, color: '#FFE4B5', a: 0.85, t: gt, speed: 10 });
+        },
+        bgFar: (g) => {
+          FX.storybookHorizon(g, { style: 'ancientTamil', y: 760, seed: 29 });
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 1.5,
+        mgBack: (g) => {
+          FX.storybookScene(g, gt, { preset: 'templeCourtyard', y: 850, seed: 29 });
+          FX.structure3D(g, 220, 850, 220, 320, { kind: 'gopuram', color: '#C86D3B', t: gt });
+          FX.structure3D(g, 1700, 850, 220, 320, { kind: 'gopuram', color: '#C86D3B', t: gt });
+        },
+        mgBackDepth: 0.72,
+        mgHero: (g) => {
+          FX.storybookGround(g, 850, { style: 'flagstone', baseCol: '#7E6B58', grassCol: '#4A8C4A' });
+          if (typeof heroFn === 'function') heroFn(g);
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 12, color: 'rgba(255, 200, 90, 0.18)', seed: 29 });
+        },
+        fgBokehDepth: 1.4,
+        fgBokehBlur: 8
+      });
+      return;
+    }
+
+    if (envId === 'ENV_SANGAM_HALL') {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'parchmentGold');
+          FX.godRays(g, 960, 110, { count: 10, a: 0.24 });
+        },
+        bgFar: (g) => {
+          FX.storybookHorizon(g, { style: 'ancientTamil', y: 760, seed: 30 });
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 1.5,
+        mgBack: (g) => {
+          FX.storybookScene(g, gt, { preset: 'sangamHall', y: 840, seed: 30 });
+          FX.structure3D(g, 280, 840, 220, 310, { kind: 'mandapam', color: '#9E7B56', t: gt });
+          FX.structure3D(g, 960, 840, 340, 340, { kind: 'mandapam', color: '#B08960', t: gt });
+          FX.structure3D(g, 1640, 840, 220, 310, { kind: 'mandapam', color: '#9E7B56', t: gt });
+        },
+        mgBackDepth: 0.72,
+        mgHero: (g) => {
+          FX.storybookGround(g, 840, { style: 'marbleFloor', baseCol: '#7B6348', grassCol: '#4A8C4A' });
+          if (typeof heroFn === 'function') heroFn(g);
+        },
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 14, color: 'rgba(255, 215, 110, 0.22)', seed: 30 });
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 9
+      });
+    }
+  },
+
+  drawInfo(infoId, g, lt, gt, opts = {}) {
+    if (infoId === 'TEARDOWN_KEELADI_RINGWELL') {
+      const explodeVal = opts.explode !== undefined ? opts.explode : 0.85;
+      const isoIdx = opts.isolateIdx !== undefined ? opts.isolateIdx : null;
+      g.save();
+      g.fillStyle = 'rgba(8, 13, 26, 0.72)';
+      g.beginPath();
+      g.roundRect(410, 175, 1100, 680, 22);
+      g.fill();
+      g.strokeStyle = 'rgba(255, 133, 27, 0.45)';
+      g.lineWidth = 2.5;
+      g.stroke();
+      g.restore();
+
+      UI.explodedAssembly(g, lt, {
+        x: 960,
+        y: 535,
+        s: 1.0,
+        explode: explodeVal,
+        isolateIdx: isoIdx,
+        layers: [
+          {
+            id: 'curb',
+            label: 'SURFACE BRICK COLLAR',
+            subText: 'Kiln-Fired Brick Curb · 580 BCE',
+            w: 290,
+            d: 200,
+            h: 28,
+            color: '#C85A32',
+            detail: 'grid'
+          },
+          {
+            id: 'ring1',
+            label: 'TERRACOTTA RING #1 (உறைகிணறு)',
+            subText: 'Interlocking Flanged Clay Lip · 75cm Dia',
+            w: 255,
+            d: 180,
+            h: 42,
+            color: '#E87A3E',
+            detail: 'fins'
+          },
+          {
+            id: 'ring2',
+            label: 'TERRACOTTA RING #2',
+            subText: 'High-Fired Earthenware Cylinder',
+            w: 255,
+            d: 180,
+            h: 42,
+            color: '#D4662F',
+            detail: 'fins'
+          },
+          {
+            id: 'aquifer',
+            label: 'SAND & GRAVEL FILTRATION BED',
+            subText: 'Natural Subterranean Aquifer Filter',
+            w: 310,
+            d: 215,
+            h: 26,
+            color: '#38BDF8',
+            detail: 'circuit'
+          }
+        ]
+      });
+
+      // Animated internal cyan filtration droplets
+      g.save();
+      for (let i = 0; i < 6; i++) {
+        const py = 330 + ((gt * 110 + i * 68) % 390);
+        const px = 940 + Math.sin(gt * 3 + i) * 28;
+        g.fillStyle = '#5CE1FF';
+        g.beginPath();
+        g.arc(px, py, 5, 0, Math.PI * 2);
+        g.fill();
+      }
+      g.restore();
+      return;
+    }
+
+    if (infoId === 'GLOBE_ROMAN_TRADE') {
+      UI.geoGlobe(g, lt, {
+        x: 1180,
+        y: 470,
+        r: 285,
+        center: [60.0, 14.5],
+        zoom: 1.12,
+        highlight: ['India', 'Egypt', 'Italy', 'Greece'],
+        routes: [
+          {
+            from: [32.55, 29.97],
+            to: [79.83, 11.93],
+            t0: 0.15,
+            dur: 2.0,
+            color: '#FF851B',
+            vessel: 'romanShip'
+          },
+          {
+            from: [45.0, 12.8],
+            to: [76.2, 10.2],
+            t0: 0.35,
+            dur: 1.8,
+            color: '#F7B928',
+            vessel: 'romanShip'
+          }
+        ],
+        pins: [
+          { lonLat: [32.55, 29.97], label: 'RED SEA / EGYPT', diorama: 'pin', t0: 0.15 },
+          { lonLat: [76.2, 10.2], label: 'MUZIRIS', diorama: 'pin', t0: 1.4 },
+          { lonLat: [79.83, 11.93], label: 'ARIKAMEDU / KORKAI', diorama: 'gopuram', t0: 2.1 }
+        ]
+      });
+      return;
+    }
+
+    if (infoId === 'MAP_MOOVENTHAR') {
+      g.save();
+      g.translate(420, 165);
+      g.scale(0.56, 0.56);
+      UI.strategicMap(g, lt, {
+        bbox: [75.2, 7.6, 80.8, 13.6],
+        style: 'terrainHistorical',
+        title: 'MOOVENTHAR · TAMILAKAM',
+        subTitle: 'CHERA · CHOLA · PANDYA',
+        reading: 'SANGAM DYNASTIES',
+        territories: [
+          { place: 'Kerala', color: 'rgba(46, 125, 50, 0.45)', border: '#66BB6A', label: 'CHERA (BOW)', t0: 0.15 },
+          { place: 'Tamil Nadu', color: 'rgba(247, 185, 40, 0.42)', border: '#FFD54F', label: 'CHOLA & PANDYA', t0: 0.25 }
+        ],
+        pins: [
+          { lonLat: [76.22, 10.52], label: 'VANJI (CHERA · BOW)', diorama: 'pin', t0: 1.45 },
+          { lonLat: [79.13, 10.78], label: 'URAIYUR (CHOLA · TIGER)', diorama: 'gopuram', t0: 1.55 },
+          { lonLat: [78.12, 9.92], label: 'MADURAI (PANDYA · FISH)', diorama: 'gopuram', t0: 1.65 }
+        ]
+      });
+      g.restore();
+    }
+  }
+};
+window.THEME = THEME;
+
+// ============================================================================
+// SHOTS 21 TO 30 (WITH ATTACHED sfx(k, bt0) INSIDE EVERY SHOT OBJECT)
+// ============================================================================
+const SHOTS = [
+  // --------------------------------------------------------------------------
+  // SHOT 021 · [01:05.7 - 01:08.3] (65.7s – 68.3s · dur: 2.6s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 21,
+    title: 'No Palaces or Royal Weapons — Citizen Settlement',
+    start: 65.7,
+    end: 68.3,
+    duration: 2.6,
+    vo_line: 'ஆனா இங்க எந்த ராஜாவோட வீடோ, அரண்மனைகளோ இல்ல ஆயுதங்களோ கிடைக்கல.',
+    env_id: 'ENV_KEELADI_STREET',
+    chars: 'HOST_PROTAG (moveX: 460 -> 820)',
+    on_screen_text: 'NO ROYAL PALACES · CITIZEN URBAN SETTLEMENT',
+    camera_sfx: 'cam.z 1.00->1.04 · uiCancel at 0.40s & 1.30s',
+    transition_out: 'CUT_TO_STREET_LIFE',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 980], [2.6, 940]], DK.ease.outCubic),
+        y: DK.key(lt, [[0, 540], [2.6, 540]], DK.ease.linear),
+        z: DK.key(lt, [[0, 1.00], [2.6, 1.04]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_KEELADI_STREET', g, cam, gt, (g) => {
+        // Target interactive prop at x: 910 (charX + 90px at arrival x=820)
+        FX.interactiveProp(g, { kind: 'scholarDesk', x: 910, y: 840, cutTime: 1.30, lt, gt });
+
+        // Translucent ghost outlines of Royal Crown & War Sword above desk
+        UI.ghostDouble(g, { x: 910, y: 690, s: 0.85, a: 0.35, label: 'ROYAL PALACE / WEAPONS' });
+        g.save();
+        g.translate(910, 650);
+        g.strokeStyle = 'rgba(92, 225, 255, 0.85)';
+        g.fillStyle = 'rgba(92, 225, 255, 0.16)';
+        g.lineWidth = 3;
+        g.setLineDash([6, 5]);
+        // Ghost Crown silhouette
+        g.beginPath();
+        g.moveTo(-95, 20);
+        g.lineTo(-105, -35);
+        g.lineTo(-75, -10);
+        g.lineTo(-50, -48);
+        g.lineTo(-25, -10);
+        g.lineTo(5, -35);
+        g.lineTo(-5, 20);
+        g.closePath();
+        g.fill();
+        g.stroke();
+        // Ghost Sword silhouette
+        g.beginPath();
+        g.moveTo(45, 25);
+        g.lineTo(95, -45);
+        g.moveTo(55, -5);
+        g.lineTo(85, 15);
+        g.stroke();
+        g.setLineDash([]);
+
+        // Mid-Shot Micro-Beat (lt = 1.30s): Red [X — NOT FOUND] stamp
+        if (lt >= 1.30) {
+          const popS = DK.pop(lt, 1.30, 0.28);
+          g.save();
+          g.scale(popS, popS);
+          g.rotate(-0.14);
+          g.fillStyle = 'rgba(255, 77, 106, 0.94)';
+          g.strokeStyle = '#FFFFFF';
+          g.lineWidth = 3;
+          g.beginPath();
+          g.roundRect(-175, -32, 350, 64, 10);
+          g.fill();
+          g.stroke();
+          g.fillStyle = '#FFFFFF';
+          g.font = '900 22px "Nunito", sans-serif';
+          g.textAlign = 'center';
+          g.textBaseline = 'middle';
+          g.fillText('✖ NO PALACES · NO ROYAL WEAPONS', 0, 0);
+          g.restore();
+        }
+        g.restore();
+
+        // Active Host walking across stage (Anti-Treadmill moveX: 460 -> 820)
+        THEME.spawnChar(g, 'HOST_PROTAG', {
+          moveX: [460, 820, lt, 2.6],
+          y: 840,
+          brows: lt >= 1.30 ? 'raised' : 'neutral',
+          mouth: lt >= 1.30 ? 'o' : 'neutral',
+          pose: { preset: 'walk', speed: 1.15 },
+          t: gt
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'NO ROYAL PALACES · CITIZEN URBAN SETTLEMENT',
+        x: 960,
+        y: 115,
+        accent: '#FF4D6A',
+        t0: 1.30
+      });
+      UI.citation(g, 'TNSDA Keeladi Report: Secular & Industrial Settlement Structure', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('templeCourtyard', bt0 + 0.0, bt0 + 2.6, { gain: 0.20 });
+      k.play('uiCancel', bt0 + 0.40, { gain: 0.46 });
+      k.play('footstep', bt0 + 0.65, { gain: 0.34 });
+      k.play('uiCancel', bt0 + 1.30, { gain: 0.48 });
+      k.play('pillBadge', bt0 + 1.32, { gain: 0.40 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 022 · [01:08.3 - 01:13.3] (68.3s – 73.3s · dur: 5.0s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 22,
+    title: 'Kiln-Fired Brick Homes, Ivory Dice & Textile Looms',
+    start: 68.3,
+    end: 73.3,
+    duration: 5.0,
+    vo_line: 'அதுக்கு பதிலா சுட்ட செங்கல்ல கட்டுன வீடுகள், விளையாட்டு பொருட்கள், அதுமட்டுமில்லாம நெசவு செஞ்சதுக்கான தடயங்கள் எல்லாமே கிடைச்சிருக்கு.',
+    env_id: 'ENV_KEELADI_STREET',
+    chars: 'KEELADI_WEAVER (x: 460) · SANGAM_MERCHANT (moveX: 1420 -> 1020)',
+    on_screen_text: 'BRICK HOMES · IVORY DICE · TEXTILE LOOMS',
+    camera_sfx: 'cam.x 890->1030 · loomClack at 0.30s · diceRoll & pop at 2.50s',
+    transition_out: 'VERTICAL_CUTAWAY_DOWN',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 890], [2.5, 960], [5.0, 1030]], DK.ease.inOutQuad),
+        y: DK.key(lt, [[0, 540], [5.0, 532]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.00], [2.5, 1.05], [5.0, 1.08]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_KEELADI_STREET', g, cam, gt, (g) => {
+        // Left Target Prop: Textile Loom & Spindle Whorls Stall at x: 545 (charX + 85px)
+        FX.interactiveProp(g, { kind: 'merchantStall', x: 545, y: 840, cutTime: 2.50, lt, gt });
+
+        // Wooden Loom & Terracotta Spindle Whorls detail on stall
+        g.save();
+        g.translate(545, 745);
+        g.strokeStyle = '#6E3B1E';
+        g.lineWidth = 5;
+        g.strokeRect(-42, -55, 84, 55);
+        for (let tx = -34; tx <= 34; tx += 8) {
+          g.strokeStyle = '#F7B928';
+          g.lineWidth = 2;
+          g.beginPath();
+          g.moveTo(tx, -52);
+          g.lineTo(tx, -2);
+          g.stroke();
+        }
+        // Spinning terracotta whorl
+        g.fillStyle = '#D95D39';
+        g.beginPath();
+        g.arc(32, -24 + Math.sin(gt * 6) * 6, 11, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+
+        // Left Weaver actively weaving
+        THEME.spawnChar(g, 'KEELADI_WEAVER', {
+          x: 460,
+          y: 840,
+          pose: { preset: 'build', speed: 1.25 },
+          t: gt
+        });
+
+        // Right Target Prop: Ivory Dice & Board-Game Table at x: 930 (charX - 90px at arrival x=1020)
+        FX.interactiveProp(g, { kind: 'scholarDesk', x: 930, y: 840, cutTime: 2.50, lt, gt });
+
+        // Ivory Dice (பகடைக்காய்) & Game Board detail on desk
+        g.save();
+        g.translate(930, 758);
+        g.fillStyle = '#FDFBF7';
+        g.strokeStyle = '#475569';
+        g.lineWidth = 2;
+        const diceBounce = lt >= 2.50 ? Math.abs(Math.sin((lt - 2.5) * 9)) * Math.exp(-(lt - 2.5) * 2.2) * 18 : 0;
+        g.fillRect(-28, -14 - diceBounce, 24, 10);
+        g.strokeRect(-28, -14 - diceBounce, 24, 10);
+        g.fillRect(4, -16 - diceBounce * 0.8, 24, 10);
+        g.strokeRect(4, -16 - diceBounce * 0.8, 24, 10);
+        g.fillStyle = '#1E293B';
+        g.beginPath();
+        g.arc(-16, -9 - diceBounce, 2, 0, Math.PI * 2);
+        g.arc(12, -11 - diceBounce * 0.8, 2, 0, Math.PI * 2);
+        g.arc(20, -11 - diceBounce * 0.8, 2, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+
+        // Right Citizen walking up to the game table (Anti-Treadmill moveX: 1420 -> 1020)
+        THEME.spawnChar(g, 'SANGAM_MERCHANT', {
+          moveX: [1420, 1020, lt, 5.0],
+          y: 840,
+          flipX: true,
+          brows: lt >= 2.50 ? 'raised' : 'neutral',
+          mouth: 'smile',
+          pose: { preset: 'walk', speed: 1.1 },
+          t: gt
+        });
+      });
+
+      // Mid-Shot Micro-Beat (lt = 2.50s): Tech Callout & Artifact Highlights
+      UI.techCallout(g, lt, {
+        from: [545, 740],
+        elbow: [760, 580],
+        to: [1160, 580],
+        title: 'BRICK HOMES · IVORY DICE · TEXTILE LOOMS',
+        spec: 'Over 20,000 Civic & Industrial Artifacts Unearthed',
+        accent: '#38C878',
+        t0: 2.50
+      });
+      UI.citation(g, 'TNSDA Keeladi Artifact Inventory (Over 20,000 Artifacts)', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('templeCourtyard', bt0 + 0.0, bt0 + 5.0, { gain: 0.20 });
+      k.play('loomClack', bt0 + 0.30, { gain: 0.45 });
+      k.play('footstep', bt0 + 1.20, { gain: 0.34 });
+      k.play('diceRoll', bt0 + 2.50, { gain: 0.48 });
+      k.play('pop', bt0 + 2.55, { gain: 0.45 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 023 · [01:13.3 - 01:17.5] (73.3s – 77.5s · dur: 4.2s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 23,
+    title: 'Subterranean Cutaway — Underground Drainage System',
+    start: 73.3,
+    end: 77.5,
+    duration: 4.2,
+    vo_line: 'இதுல ஆச்சரியமான விஷயம் என்னன்னா, இதுல வடிகால் அமைப்பு எல்லாம் இருந்திருக்கு, அதாவது drainage system.',
+    env_id: 'ENV_KEELADI_DRAINAGE',
+    chars: 'KEELADI_MASON (moveX: 380 -> 780, y: 320)',
+    on_screen_text: 'UNDERGROUND DRAINAGE SYSTEM · 580 BCE',
+    camera_sfx: 'cam.y 380->610 · waterPipeFlow bed · sonarPing at 2.10s',
+    transition_out: 'CAMERA_PAN_SUBTERRANEAN',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 960], [4.2, 960]], DK.ease.linear),
+        y: DK.key(lt, [[0, 380], [2.1, 560], [4.2, 610]], DK.ease.inOutCubic),
+        z: DK.key(lt, [[0, 1.00], [2.1, 1.06], [4.2, 1.12]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_KEELADI_DRAINAGE', g, cam, gt, (g) => {
+        // Surface brick drainage inlet prop at x: 865, y: 320 (charX + 85px at arrival x=780)
+        FX.interactiveProp(g, { kind: 'brickWallBuild', x: 865, y: 320, cutTime: 2.10, lt, gt });
+
+        // Surface Engineer walking along surface street (surfaceY: 320)
+        THEME.spawnChar(g, 'KEELADI_MASON', {
+          moveX: [380, 780, lt, 4.2],
+          y: 320,
+          s: 0.88,
+          prop: 'scroll',
+          pose: { preset: 'walk', speed: 1.1 },
+          t: gt
+        });
+
+        // Vertical brick drop shaft from x: 865 down to underground conduit at y: 720
+        g.save();
+        g.fillStyle = '#6E2C1C';
+        g.fillRect(848, 320, 34, 400);
+        g.strokeStyle = '#D96B43';
+        g.lineWidth = 2;
+        g.strokeRect(848, 320, 34, 400);
+        if (lt >= 1.5) {
+          g.fillStyle = 'rgba(56, 189, 248, 0.78)';
+          g.fillRect(855, 320, 20, 400 * DK.prog(lt, 1.5, 2.1));
+        }
+        g.restore();
+
+        // Mid-Shot Micro-Beat (lt = 2.10s): Bright cyan water stream coursing through covered brick drain
+        const streamW = DK.lerp(0, 1440, DK.prog(lt, 1.5, 3.8));
+        if (streamW > 2) {
+          FX.waterBody(g, gt, {
+            x: 240,
+            y: 720,
+            w: streamW,
+            h: 65,
+            color: '#38BDF8',
+            waves: true
+          });
+        }
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'UNDERGROUND DRAINAGE SYSTEM · 580 BCE',
+        x: 960,
+        y: 110,
+        accent: '#5CE1FF',
+        t0: 0.3
+      });
+      UI.citation(g, 'TNSDA Keeladi Report: Covered Brick Drains & Filtration', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.28, grain: 0.022 });
+    },
+    sfx(k, bt0) {
+      k.bed('fountainWater', bt0 + 0.0, bt0 + 4.2, { gain: 0.28 });
+      k.play('pillBadge', bt0 + 0.30, { gain: 0.38 });
+      k.play('sonarPing', bt0 + 2.10, { gain: 0.48 });
+      k.play('waterSplash', bt0 + 2.18, { gain: 0.40 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 024 · [01:17.5 - 01:21.1] (77.5s – 81.1s · dur: 3.6s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 24,
+    title: 'Common Municipal Drainage Network Across All Homes',
+    start: 77.5,
+    end: 81.1,
+    duration: 3.6,
+    vo_line: 'ஒரே ஒரு வீட்டுக்கு மட்டும் இல்ல, அங்க இருந்த எல்லா வீடுகளுக்கும் ஒரு common-ஆன drainage system.',
+    env_id: 'ENV_KEELADI_DRAINAGE',
+    chars: 'KEELADI_MASON (x: 520, y: 320) · TAMIL_FARMER (moveX: 1120 -> 1420, y: 320)',
+    on_screen_text: 'COMMON MUNICIPAL DRAINAGE GRID',
+    camera_sfx: 'cam.z 1.04->0.96 · 4 tributary pop cues at 0.3s, 0.8s, 1.3s, 1.8s',
+    transition_out: 'ISOMETRIC_TEARDOWN_ZOOM',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 910], [1.8, 960], [3.6, 1010]], DK.ease.inOutQuad),
+        y: DK.key(lt, [[0, 580], [3.6, 560]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.04], [3.6, 0.96]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_KEELADI_DRAINAGE', g, cam, gt, (g) => {
+        // Target Prop 1 at x: 605, y: 320 (Mason 1 at x: 520 + 85px)
+        FX.interactiveProp(g, { kind: 'brickWallBuild', x: 605, y: 320, cutTime: 1.80, lt, gt });
+
+        // Mason 1 sealing house junction pipe
+        THEME.spawnChar(g, 'KEELADI_MASON', {
+          x: 520,
+          y: 320,
+          s: 0.88,
+          prop: 'hammer',
+          pose: { preset: 'build', speed: 1.2 },
+          t: gt
+        });
+
+        // Mason 2 walking along surface street (Anti-Treadmill moveX: 1120 -> 1420)
+        THEME.spawnChar(g, 'TAMIL_FARMER', {
+          moveX: [1120, 1420, lt, 3.6],
+          y: 320,
+          s: 0.88,
+          pose: { preset: 'walk', speed: 1.15 },
+          t: gt
+        });
+
+        // Continuous master collector water stream at y = 720
+        FX.waterBody(g, gt, {
+          x: 240,
+          y: 720,
+          w: 1440,
+          h: 65,
+          color: '#38BDF8',
+          waves: true
+        });
+
+        // Mid-Shot Micro-Beat (lt = 0.3..1.8s): 4 vertical tributary drain lines from surface houses merge into master collector
+        const tribXs = [360, 605, 960, 1460];
+        const tribTimes = [0.3, 0.8, 1.3, 1.8];
+        g.save();
+        tribXs.forEach((tx, idx) => {
+          const p = DK.prog(lt, tribTimes[idx], tribTimes[idx] + 0.45);
+          g.fillStyle = '#6E2C1C';
+          g.fillRect(tx - 16, 320, 32, 405);
+          g.strokeStyle = '#D96B43';
+          g.lineWidth = 2;
+          g.strokeRect(tx - 16, 320, 32, 405);
+          if (p > 0) {
+            g.fillStyle = '#5CE1FF';
+            g.fillRect(tx - 9, 320, 18, 405 * p);
+            if (p >= 1) {
+              g.beginPath();
+              g.arc(tx, 740, 14 + Math.sin(gt * 6 + idx) * 4, 0, Math.PI * 2);
+              g.fillStyle = 'rgba(92, 225, 255, 0.65)';
+              g.fill();
+            }
+          }
+        });
+        g.restore();
+      });
+
+      UI.techCallout(g, lt, {
+        from: [960, 740],
+        elbow: [1180, 580],
+        to: [1520, 580],
+        title: 'COMMON MUNICIPAL DRAINAGE GRID',
+        spec: 'Multi-House Interconnected Conduit Network',
+        accent: '#5CE1FF',
+        t0: 1.80
+      });
+      UI.citation(g, 'TNSDA Keeladi Excavations: Civic Hydraulic Engineering', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.28, grain: 0.022 });
+    },
+    sfx(k, bt0) {
+      k.bed('fountainWater', bt0 + 0.0, bt0 + 3.6, { gain: 0.26 });
+      k.play('pop', bt0 + 0.30, { gain: 0.42 });
+      k.play('pop', bt0 + 0.80, { gain: 0.42 });
+      k.play('pop', bt0 + 1.30, { gain: 0.42 });
+      k.play('pop', bt0 + 1.80, { gain: 0.45 });
+      k.play('hammerHit', bt0 + 1.82, { gain: 0.38 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 025 · [01:21.1 - 01:26.1] (81.1s – 86.1s · dur: 5.0s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 25,
+    title: 'Isometric Teardown — Terracotta Ring-Well (உறைகிணறு)',
+    start: 81.1,
+    end: 86.1,
+    duration: 5.0,
+    vo_line: 'சுடுமண் குழாய்களை வச்சு, ஒரு ring well வடிவத்துல, ஒரு perfect-ஆன underground drainage system-அ உருவாக்கியிருக்காங்க.',
+    env_id: 'ENV_KEELADI_DRAINAGE',
+    chars: 'DK.hand (Pointer Hand x: 1260, y: 420 -> 620)',
+    on_screen_text: 'TERRACOTTA RING-WELL (உறைகிணறு)',
+    camera_sfx: 'cam.z 1.00->1.12 · stoneLock at 0.4s, 1.4s, 2.5s',
+    transition_out: 'CAMERA_PULL_UP_TO_STREET',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 960], [5.0, 960]], DK.ease.linear),
+        y: DK.key(lt, [[0, 540], [5.0, 540]], DK.ease.linear),
+        z: DK.key(lt, [[0, 1.00], [2.5, 1.07], [5.0, 1.12]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_KEELADI_DRAINAGE', g, cam, gt, (g) => {
+        // Isometric Exploded Assembly of Terracotta Ring-Well
+        THEME.drawInfo('TEARDOWN_KEELADI_RINGWELL', g, lt, gt, {
+          explode: DK.key(lt, [[0, 0.10], [2.5, 0.88]], DK.ease.outCubic),
+          isolateIdx: lt > 2.5 ? 1 : null
+        });
+
+        // Pointer Hand tracing interlocking flanged lip of Terracotta Ring-Well
+        DK.hand(g, {
+          x: 1260,
+          y: DK.key(lt, [[0, 420], [2.5, 520], [5.0, 620]], DK.ease.inOutQuad),
+          s: 1.0,
+          skin: '#C88C68',
+          sleeveColor: '#FF851B',
+          pose: 'point',
+          rot: -0.2,
+          t: gt
+        });
+      });
+
+      // Mid-Shot Micro-Beat (lt = 2.50s): Spotlight Ring #1 + Tech Callout
+      UI.techCallout(g, lt, {
+        from: [960, 520],
+        elbow: [1220, 390],
+        to: [1560, 390],
+        title: 'TERRACOTTA RING-WELL (உறைகிணறு)',
+        spec: 'Interlocking Baked-Clay Rings · Natural Filtration',
+        accent: '#FF851B',
+        t0: 2.50
+      });
+      UI.citation(g, 'TNSDA Keeladi Technical Analysis: Terracotta Ring Wells & Pipelines', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.28, grain: 0.022 });
+    },
+    sfx(k, bt0) {
+      k.bed('fountainWater', bt0 + 0.0, bt0 + 5.0, { gain: 0.22 });
+      k.play('stoneLock', bt0 + 0.40, { gain: 0.50 });
+      k.play('stoneLock', bt0 + 1.40, { gain: 0.50 });
+      k.play('stoneLock', bt0 + 2.50, { gain: 0.55 });
+      k.play('pillBadge', bt0 + 2.52, { gain: 0.42 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 026 · [01:26.1 - 01:29.2] (86.1s – 89.2s · dur: 3.1s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 26,
+    title: '2,600 Years Ago — 6th Century BCE Tamil-Brahmi (தமிழி)',
+    start: 86.1,
+    end: 89.2,
+    duration: 3.1,
+    vo_line: 'இது எல்லாமே 2600 வருஷத்துக்கு முன்னாடியே பண்ணிருக்காங்க.',
+    env_id: 'ENV_KEELADI_STREET',
+    chars: 'THIRUVALLUVAR (x: 580) · HOST_PROTAG (moveX: 1320 -> 755)',
+    on_screen_text: '2,600 YEARS AGO · 6th CENTURY BCE',
+    camera_sfx: 'cam.z 1.00->1.06 · stylusScratch at 0.25s · chimeSuccess at 1.55s',
+    transition_out: 'WHIP_PAN_TO_OCEAN',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 940], [3.1, 960]], DK.ease.outCubic),
+        y: DK.key(lt, [[0, 540], [3.1, 532]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.00], [3.1, 1.06]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_KEELADI_STREET', g, cam, gt, (g) => {
+        // Target Prop: Scholar Desk at x: 665, y: 840 (Scribe x:580 + 85px; Host arrives at x:755 -> 755 - 90px)
+        FX.interactiveProp(g, { kind: 'scholarDesk', x: 665, y: 840, cutTime: 1.55, lt, gt });
+
+        // Inscribed Black-and-Red Ware Potsherd on desk
+        g.save();
+        g.translate(665, 750);
+        g.fillStyle = '#A83825';
+        g.beginPath();
+        g.ellipse(0, 0, 32, 18, 0, 0, Math.PI * 2);
+        g.fill();
+        g.strokeStyle = '#1E1B18';
+        g.lineWidth = 4;
+        g.stroke();
+
+        // Mid-Shot Micro-Beat (lt = 1.55s): Glowing Golden Tamil-Brahmi (தமிழி) inscription above desk
+        if (lt >= 1.55) {
+          const glowP = DK.pop(lt, 1.55, 0.3);
+          g.save();
+          g.translate(0, -85);
+          g.scale(glowP, glowP);
+          g.fillStyle = 'rgba(15, 23, 42, 0.88)';
+          g.strokeStyle = '#F7B928';
+          g.lineWidth = 2.5;
+          g.beginPath();
+          g.roundRect(-145, -30, 290, 60, 12);
+          g.fill();
+          g.stroke();
+          g.fillStyle = '#FFD54F';
+          g.font = '900 22px "Nunito", sans-serif';
+          g.textAlign = 'center';
+          g.textBaseline = 'middle';
+          g.fillText('தமிழி · TAMIL-BRAHMI (580 BCE)', 0, 0);
+          g.restore();
+        }
+        g.restore();
+
+        // Scribe inscribing Tamil-Brahmi on pottery
+        THEME.spawnChar(g, 'THIRUVALLUVAR', {
+          x: 580,
+          y: 840,
+          prop: 'quill',
+          pose: { preset: 'write', speed: 1.2 },
+          t: gt
+        });
+
+        // Host walking up to right side of scholarDesk (Anti-Treadmill moveX: 1320 -> 755)
+        THEME.spawnChar(g, 'HOST_PROTAG', {
+          moveX: [1320, 755, lt, 3.1],
+          y: 840,
+          flipX: true,
+          brows: lt >= 1.55 ? 'raised' : 'neutral',
+          mouth: 'smile',
+          pose: { preset: 'walk', speed: 1.15 },
+          t: gt
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        text: '2,600 YEARS AGO · 6th CENTURY BCE',
+        x: 960,
+        y: 115,
+        accent: '#F7B928',
+        t0: 0.2
+      });
+      UI.citation(g, 'TNSDA (2019): Tamil-Brahmi Dated to 580 BCE', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('templeCourtyard', bt0 + 0.0, bt0 + 3.1, { gain: 0.20 });
+      k.play('penScratch', bt0 + 0.25, { gain: 0.45 });
+      k.play('footstep', bt0 + 0.90, { gain: 0.34 });
+      k.play('timerChime', bt0 + 1.55, { gain: 0.52 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 027 · [01:29.2 - 01:33.5] (89.2s – 93.5s · dur: 4.3s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 27,
+    title: 'Roman & Greek Maritime Trade Routes to Ancient Tamilakam',
+    start: 89.2,
+    end: 93.5,
+    duration: 4.3,
+    vo_line: 'அதுமட்டுமில்லாம இந்த time-ல ரோமானியர்கள், கிரேக்கர்கள் எல்லாம் கப்பல்கள்ல தமிழ்நாட்டுக்கு வந்து,',
+    env_id: 'ENV_ANCIENT_HARBOR',
+    chars: 'SANGAM_MERCHANT (moveX: 300 -> 660, y: 850)',
+    on_screen_text: 'INDO-ROMAN & GREEK MARITIME TRADE ROUTES',
+    camera_sfx: 'cam.z 0.98->1.10 · oceanWaves bed · shipBell at 2.15s',
+    transition_out: 'DIVE_TO_HARBOR_WHARF',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 960], [4.3, 960]], DK.ease.linear),
+        y: DK.key(lt, [[0, 540], [2.15, 530], [4.3, 520]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 0.98], [2.15, 1.04], [4.3, 1.10]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_ANCIENT_HARBOR', g, cam, gt, (g) => {
+        // 3D Globe overlay showing Indo-Roman & Greek Red Sea -> Tamilakam Maritime Route
+        THEME.drawInfo('GLOBE_ROMAN_TRADE', g, lt, gt);
+
+        // Target Prop: Harbor Amphora Stack at x: 755, y: 850 (Port Officer arrives at x: 660 -> charX + 95px)
+        FX.prop3D(g, 755, 850, 1.0, {
+          kind: 'amphoraStack',
+          color: '#D97724',
+          state: 'active',
+          t: gt
+        });
+
+        // Port Officer walking across wharf (Anti-Treadmill moveX: 300 -> 660)
+        THEME.spawnChar(g, 'SANGAM_MERCHANT', {
+          moveX: [300, 660, lt, 4.3],
+          y: 850,
+          prop: 'telescope',
+          brows: lt >= 2.15 ? 'raised' : 'neutral',
+          pose: { preset: 'walk', speed: 1.1 },
+          t: gt
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'INDO-ROMAN & GREEK MARITIME TRADE ROUTES',
+        x: 960,
+        y: 110,
+        accent: '#FF851B',
+        t0: 0.25
+      });
+      UI.citation(g, 'Periplus of the Erythraean Sea (1st Century CE) & Pliny the Elder', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('ancientHarbor', bt0 + 0.0, bt0 + 4.3, { gain: 0.25 });
+      k.play('pillBadge', bt0 + 0.25, { gain: 0.40 });
+      k.play('templeBell', bt0 + 2.15, { gain: 0.50 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 028 · [01:33.5 - 01:37.3] (93.5s – 97.3s · dur: 3.8s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 28,
+    title: 'Black Pepper, Korkai Pearls & Roman Gold Trade',
+    start: 93.5,
+    end: 97.3,
+    duration: 3.8,
+    vo_line: 'இங்க இருந்த மிளகுகளையும், முத்துக்களையும் வணிகம் செஞ்சிருக்காங்க அப்படிங்கிறதுக்கான தடயங்களும் இருக்கு.',
+    env_id: 'ENV_ANCIENT_HARBOR',
+    chars: 'SANGAM_MERCHANT (x: 780) · ROMAN_TRADER (moveX: 1340 -> 965)',
+    on_screen_text: 'BLACK PEPPER, PEARLS & ROMAN GOLD',
+    camera_sfx: 'cam.x 930->990 · crateThud at 0.20s · coinClink at 1.90s',
+    transition_out: 'CAMERA_PULL_TO_MAP',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 930], [1.9, 960], [3.8, 990]], DK.ease.inOutQuad),
+        y: DK.key(lt, [[0, 540], [3.8, 532]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.00], [3.8, 1.06]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_ANCIENT_HARBOR', g, cam, gt, (g) => {
+        // Target Prop: Merchant Stall at x: 875, y: 840 (Merchant x:780 + 95px; Roman Trader arrives at x:965 - 90px)
+        FX.interactiveProp(g, { kind: 'merchantStall', x: 875, y: 840, cutTime: 1.90, lt, gt });
+
+        // Spice Crates & Amphorae beside stall
+        FX.prop3D(g, 1140, 840, 1.0, {
+          kind: 'spiceCrates',
+          color: '#D97724',
+          t: gt
+        });
+
+        // Economics Scale balancing Tamil Black Pepper & Pearls vs Roman Gold
+        UI.economicsScale(g, lt, {
+          x: 875,
+          y: 660,
+          s: 0.75,
+          leftLabel: 'PEPPER & PEARLS',
+          rightLabel: 'ROMAN GOLD'
+        });
+
+        // Tamil Merchant actively weighing goods at stall
+        THEME.spawnChar(g, 'SANGAM_MERCHANT', {
+          x: 780,
+          y: 840,
+          pose: { preset: 'trade', speed: 1.2 },
+          t: gt
+        });
+
+        // Roman Trader walking up to right side of stall with gold coinBag (Anti-Treadmill moveX: 1340 -> 965)
+        THEME.spawnChar(g, 'ROMAN_TRADER', {
+          moveX: [1340, 965, lt, 3.8],
+          y: 840,
+          flipX: true,
+          prop: 'coinBag',
+          brows: lt >= 1.90 ? 'raised' : 'neutral',
+          mouth: 'smile',
+          pose: { preset: 'walk', speed: 1.15 },
+          t: gt
+        });
+      });
+
+      // Mid-Shot Micro-Beat (lt = 1.90s): Tech Callout
+      UI.techCallout(g, lt, {
+        from: [875, 660],
+        elbow: [1100, 540],
+        to: [1460, 540],
+        title: 'BLACK PEPPER, PEARLS & ROMAN GOLD',
+        spec: 'Arikamedu Amphorae & Roman Coin Hoards',
+        accent: '#F7B928',
+        t0: 1.90
+      });
+      UI.citation(g, 'Sir Mortimer Wheeler, Arikamedu Excavations (1945) & TNSDA', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('ancientHarbor', bt0 + 0.0, bt0 + 3.8, { gain: 0.25 });
+      k.play('thud', bt0 + 0.20, { gain: 0.45 });
+      k.play('footstep', bt0 + 0.95, { gain: 0.35 });
+      k.play('coinClink', bt0 + 1.90, { gain: 0.58 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 029 · [01:37.3 - 01:40.4] (97.3s – 100.4s · dur: 3.1s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 29,
+    title: 'The Mooventhar — Chera, Chola & Pandya Dynasties',
+    start: 97.3,
+    end: 100.4,
+    duration: 3.1,
+    vo_line: 'இந்த காலத்துலதான் சேர, சோழ, பாண்டியர்களான மூவேந்தர்கள் தமிழ்நாட்டை ஆட்சி செஞ்சிருக்காங்க.',
+    env_id: 'ENV_TEMPLE_COURTYARD',
+    chars: 'CHERA_KING (260->520) · CHOLA_KING (700->960) · PANDYA_KING (1140->1400)',
+    on_screen_text: 'MOOVENTHAR · CHERA · CHOLA · PANDYA',
+    camera_sfx: 'cam.z 0.98->1.05 · warDrum at 0.20s · flagSnap at 1.55s',
+    transition_out: 'DIVE_TO_SANGAM_HALL',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 960], [3.1, 960]], DK.ease.linear),
+        y: DK.key(lt, [[0, 545], [3.1, 535]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 0.98], [3.1, 1.05]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_TEMPLE_COURTYARD', g, cam, gt, (g) => {
+        // Strategic Map of Ancient Tamilakam in upper center
+        THEME.drawInfo('MAP_MOOVENTHAR', g, lt, gt);
+
+        // 3 Royal Stone Pedestals at exact charX + 85px arrival positions (605, 1045, 1485)
+        const pedestals = [
+          { x: 605, title: 'CHERA · BOW (வில்)', col: '#2E7D32' },
+          { x: 1045, title: 'CHOLA · TIGER (புலி)', col: '#D97724' },
+          { x: 1485, title: 'PANDYA · FISH (மீன்)', col: '#2563EB' }
+        ];
+        pedestals.forEach((p) => {
+          FX.interactiveProp(g, { kind: 'crumblingPillar', x: p.x, y: 850, cutTime: 99, lt, gt });
+          if (lt >= 1.55) {
+            const flagPop = DK.pop(lt, 1.55, 0.28);
+            g.save();
+            g.translate(p.x, 665);
+            g.scale(flagPop, flagPop);
+            g.fillStyle = p.col;
+            g.strokeStyle = '#FFD54F';
+            g.lineWidth = 2.5;
+            g.beginPath();
+            g.roundRect(-95, -24, 190, 44, 8);
+            g.fill();
+            g.stroke();
+            g.fillStyle = '#FFFFFF';
+            g.font = '900 16px "Nunito", sans-serif';
+            g.textAlign = 'center';
+            g.textBaseline = 'middle';
+            g.fillText(p.title, 0, -2);
+            g.restore();
+          }
+        });
+
+        // Chera King marching to Pedestal 1 (moveX: 260 -> 520)
+        THEME.spawnChar(g, 'CHERA_KING', {
+          moveX: [260, 520, lt, 3.1],
+          y: 850,
+          prop: 'flag',
+          pose: { preset: 'march', speed: 1.15 },
+          t: gt
+        });
+
+        // Chola King marching to Pedestal 2 (moveX: 700 -> 960)
+        THEME.spawnChar(g, 'CHOLA_KING', {
+          moveX: [700, 960, lt, 3.1],
+          y: 850,
+          prop: 'flag',
+          pose: { preset: 'march', speed: 1.15 },
+          t: gt
+        });
+
+        // Pandya King marching to Pedestal 3 (moveX: 1140 -> 1400)
+        THEME.spawnChar(g, 'PANDYA_KING', {
+          moveX: [1140, 1400, lt, 3.1],
+          y: 850,
+          prop: 'flag',
+          pose: { preset: 'march', speed: 1.15 },
+          t: gt
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'MOOVENTHAR · CHERA · CHOLA · PANDYA',
+        x: 960,
+        y: 115,
+        accent: '#F7B928',
+        t0: 0.2
+      });
+      UI.citation(g, 'Purananuru & Ashokan Rock Edict II (3rd Century BCE)', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('templeCourtyard', bt0 + 0.0, bt0 + 3.1, { gain: 0.22 });
+      k.play('marchSteps', bt0 + 0.20, { gain: 0.52 });
+      k.play('whipCrack', bt0 + 1.55, { gain: 0.55 });
+      k.play('warHorn', bt0 + 1.58, { gain: 0.44 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 030 · [01:40.4 - 01:44.6] (100.4s – 104.6s · dur: 4.2s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 30,
+    title: 'Literary Golden Age — Thirukkural & Silappathikaram',
+    start: 100.4,
+    end: 104.6,
+    duration: 4.2,
+    vo_line: 'சிலப்பதிகாரம், திருக்குறள் அப்படின்னு தமிழ் இலக்கியம் தன்னோட உச்சத்தை தொட்டதும் இதே time-லதான்.',
+    env_id: 'ENV_SANGAM_HALL',
+    chars: 'THIRUVALLUVAR (x: 620) · ILANGO_ADIGAL (moveX: 1380 -> 1040)',
+    on_screen_text: 'SILAPPATHIKARAM & THIRUKKURAL · LITERARY GOLDEN AGE',
+    camera_sfx: 'cam.x 930->990 · stylusScratch at 0.20s · harpArpeggio at 2.10s',
+    transition_out: 'STORM_SHADOW_WIPE',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 930], [2.1, 960], [4.2, 990]], DK.ease.inOutQuad),
+        y: DK.key(lt, [[0, 540], [4.2, 528]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.00], [2.1, 1.04], [4.2, 1.08]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_SANGAM_HALL', g, cam, gt, (g) => {
+        // Left Target Prop: Thiruvalluvar's Scholar Desk at x: 705, y: 840 (charX + 85px)
+        FX.interactiveProp(g, { kind: 'scholarDesk', x: 705, y: 840, cutTime: 2.10, lt, gt });
+
+        // Right Target Prop: Ilango Adigal's Manuscript Lectern at x: 950, y: 840 (charX - 90px at arrival x=1040)
+        FX.interactiveProp(g, { kind: 'scholarDesk', x: 950, y: 840, cutTime: 2.10, lt, gt });
+
+        // Thiruvalluvar inscribing Thirukkural couplets on palm leaf
+        THEME.spawnChar(g, 'THIRUVALLUVAR', {
+          x: 620,
+          y: 840,
+          prop: 'palmLeaf',
+          pose: { preset: 'write', speed: 1.15 },
+          t: gt
+        });
+
+        // Ilango Adigal walking up to right manuscript lectern (Anti-Treadmill moveX: 1380 -> 1040)
+        THEME.spawnChar(g, 'ILANGO_ADIGAL', {
+          moveX: [1380, 1040, lt, 4.2],
+          y: 840,
+          flipX: true,
+          prop: 'scroll',
+          brows: lt >= 2.10 ? 'raised' : 'neutral',
+          mouth: 'smile',
+          pose: { preset: 'walk', speed: 1.05 },
+          t: gt
+        });
+
+        // Mid-Shot Micro-Beat (lt = 2.10s): Golden literary aura & twin manuscript plaques
+        if (lt >= 2.10) {
+          const popL = DK.pop(lt, 2.10, 0.32);
+          g.save();
+          // Left plaque: Thirukkural
+          g.save();
+          g.translate(650, 640);
+          g.scale(popL, popL);
+          g.fillStyle = 'rgba(15, 23, 42, 0.90)';
+          g.strokeStyle = '#F7B928';
+          g.lineWidth = 2.5;
+          g.beginPath();
+          g.roundRect(-165, -34, 330, 68, 12);
+          g.fill();
+          g.stroke();
+          g.fillStyle = '#FFD54F';
+          g.font = '900 18px "Nunito", sans-serif';
+          g.textAlign = 'center';
+          g.fillText('திருக்குறள் · THIRUKKURAL', 0, -6);
+          g.fillStyle = '#E2E8F0';
+          g.font = '700 14px "Nunito", sans-serif';
+          g.fillText('1,330 Universal Ethics Couplets', 0, 16);
+          g.restore();
+
+          // Right plaque: Silappathikaram
+          g.save();
+          g.translate(1035, 640);
+          g.scale(popL, popL);
+          g.fillStyle = 'rgba(15, 23, 42, 0.90)';
+          g.strokeStyle = '#FF851B';
+          g.lineWidth = 2.5;
+          g.beginPath();
+          g.roundRect(-175, -34, 350, 68, 12);
+          g.fill();
+          g.stroke();
+          g.fillStyle = '#FFB074';
+          g.font = '900 18px "Nunito", sans-serif';
+          g.textAlign = 'center';
+          g.fillText('சிலப்பதிகாரம் · SILAPPATHIKARAM', 0, -6);
+          g.fillStyle = '#E2E8F0';
+          g.font = '700 14px "Nunito", sans-serif';
+          g.fillText('The Grand Tamil Anklet Epic', 0, 16);
+          g.restore();
+          g.restore();
+        }
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'SILAPPATHIKARAM & THIRUKKURAL · LITERARY GOLDEN AGE',
+        x: 960,
+        y: 115,
+        accent: '#F7B928',
+        t0: 0.25
+      });
+      UI.citation(g, 'Classical Sangam & Post-Sangam Corpus (Pathinenkilkanakku & Five Epics)', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('templeCourtyard', bt0 + 0.0, bt0 + 4.2, { gain: 0.22 });
+      k.play('penScratch', bt0 + 0.20, { gain: 0.45 });
+      k.play('footstep', bt0 + 1.00, { gain: 0.34 });
+      k.play('starShimmer', bt0 + 2.10, { gain: 0.55 });
+      k.play('timerChime', bt0 + 2.15, { gain: 0.48 });
+    }
+  }
+];
+
+if (window.DK && DK.linkShotTransitions) DK.linkShotTransitions(SHOTS, window.THEME);
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const BATCH_START = SHOTS[0].start;
+const BATCH_END = SHOTS[SHOTS.length - 1].end;
+const DURATION = BATCH_END - BATCH_START;
+
+// Auto-runs each shot's attached sfx(k, bt0) if scoreSound(k) is not defined separately
+if (typeof window.scoreSound !== 'function') {
+  window.scoreSound = function scoreSound(k) {
+    SHOTS.forEach((s) => {
+      if (typeof s.sfx === 'function') s.sfx(k, s.start - BATCH_START);
+    });
+  };
+}
+const scoreSound = window.scoreSound;
+
+window.BATCH_START = BATCH_START;
+window.BATCH_END = BATCH_END;
+window.DURATION = DURATION;
+window.SHOTS = SHOTS;
+window.scoreSound = scoreSound;
+
+let currentT = 0, playing = false, rafId = null, lastTs = 0, stopSound = null, activeShotFilter = 'all', voAudio = null;
+
+function findShotAtGlobal(gt) {
+  for (let i = 0; i < SHOTS.length; i++) {
+    if (gt >= SHOTS[i].start && gt <= SHOTS[i].end) return SHOTS[i];
+  }
+  return gt < SHOTS[0].start ? SHOTS[0] : SHOTS[SHOTS.length - 1];
+}
+
+function renderAtLocal(localT) {
+  currentT = DK.clamp(localT, 0, DURATION);
+  const gt = BATCH_START + currentT;
+  const s = findShotAtGlobal(gt);
+  const lt = DK.clamp(gt - s.start, 0, s.duration);
+  const u = s.duration > 0 ? lt / s.duration : 0;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, 1920, 1080);
+  ctx.save();
+  if (window.DK && DK.drawShot) DK.drawShot(ctx, s, lt, gt, u);
+  else s.draw(ctx, lt, gt, u);
+  ctx.restore();
+  document.getElementById('scrub').value = DURATION > 0 ? currentT / DURATION : 0;
+  document.getElementById('readout').textContent = gt.toFixed(2) + 's (' + currentT.toFixed(2) + 's) · Shot ' + s.shot_number;
+}
+
+window.seek = function (t, opts) {
+  if (playing) pause();
+  const localT = opts && opts.global ? t - BATCH_START : t;
+  renderAtLocal(localT);
+};
+
+function startAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  const mixMode = document.getElementById('mixSelect').value;
+  if (mixMode !== 'mute' && window.SOUND) stopSound = SOUND.live(scoreSound, currentT, { mixMode: 'sfxOnly' });
+  if (voAudio) { voAudio.currentTime = BATCH_START + currentT; voAudio.play().catch(() => {}); }
+}
+
+function stopAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  if (voAudio) voAudio.pause();
+}
+
+function play() {
+  if (playing) return;
+  playing = true;
+  document.getElementById('playBtn').textContent = 'Pause';
+  lastTs = performance.now();
+  startAudio();
+  const tick = (now) => {
+    if (!playing) return;
+    const dt = (now - lastTs) / 1000;
+    lastTs = now;
+    let nextT = currentT + dt;
+    if (activeShotFilter !== 'all') {
+      const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+      if (s) {
+        const sLocal0 = s.start - BATCH_START, sLocal1 = s.end - BATCH_START;
+        if (nextT >= sLocal1) { nextT = sLocal0; currentT = nextT; startAudio(); }
+      }
+    } else if (nextT >= DURATION) {
+      nextT = 0; currentT = 0; startAudio();
+    }
+    renderAtLocal(nextT);
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+}
+
+function pause() {
+  playing = false;
+  document.getElementById('playBtn').textContent = 'Play';
+  if (rafId) cancelAnimationFrame(rafId);
+  stopAudio();
+}
+
+const shotSelect = document.getElementById('shotSelect');
+SHOTS.forEach((s) => {
+  const opt = document.createElement('option');
+  opt.value = String(s.shot_number);
+  opt.textContent = 'Shot ' + s.shot_number + ': ' + s.title + ' (' + s.start.toFixed(1) + 's-' + s.end.toFixed(1) + 's)';
+  shotSelect.appendChild(opt);
+});
+
+shotSelect.addEventListener('change', () => {
+  activeShotFilter = shotSelect.value;
+  if (activeShotFilter !== 'all') {
+    const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+    if (s) { renderAtLocal(s.start - BATCH_START); if (playing) startAudio(); }
+  }
+});
+
+document.getElementById('playBtn').addEventListener('click', () => (playing ? pause() : play()));
+document.getElementById('scrub').addEventListener('input', (e) => {
+  renderAtLocal(parseFloat(e.target.value) * DURATION);
+  if (playing) startAudio();
+});
+document.getElementById('mixSelect').addEventListener('change', () => { if (playing) startAudio(); });
+document.getElementById('voInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  voAudio = new Audio(URL.createObjectURL(file));
+});
+document.getElementById('wavBtn').addEventListener('click', async () => {
+  const res = await SOUND.renderOffline(scoreSound, DURATION, 48000, { mixMode: 'sfxOnly' });
+  const blob = SOUND.encodeWAV(res.inter, res.sr);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'batch_sfx_' + SHOTS[0].shot_number + '_' + SHOTS[SHOTS.length - 1].shot_number + '.wav';
+  a.click();
+});
+window.addEventListener('DOMContentLoaded', async () => {
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  if (window.MAP && MAP.preloadAll) await MAP.preloadAll(SHOTS);
+  renderAtLocal(0);
+});
+</script>
+</body>
+</html>

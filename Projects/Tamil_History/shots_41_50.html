@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Lumina 2.5D Storybook Studio (16:9) — Studio Player (Shots 41 to 50 · SFX + Ambient Batch)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #05070d; color: #e2e8f0; font-family: 'Nunito', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+#stage-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; position: relative; overflow: hidden; }
+canvas { max-width: 100%; max-height: 100%; aspect-ratio: 16 / 9; box-shadow: 0 16px 48px rgba(0,0,0,0.75); background: #070b16; }
+#controls { height: 58px; background: #101522; border-top: 1px solid #222b42; display: flex; align-items: center; gap: 12px; padding: 0 18px; font-size: 13px; }
+button, select, label.btn { background: #1c2539; color: #f8fafc; border: 1px solid #334155; border-radius: 6px; padding: 6px 12px; font-family: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+button:hover, select:hover, label.btn:hover { background: #283552; border-color: #ff8a3d; }
+#scrub { flex: 1; accent-color: #ff8a3d; cursor: pointer; }
+#readout { font-family: 'Space Mono', monospace; font-size: 12px; color: #ffb074; min-width: 230px; }
+</style>
+</head>
+<body>
+<div id="stage-wrap"><canvas id="stage" width="1920" height="1080"></canvas></div>
+<div id="controls">
+  <button id="playBtn">Play</button>
+  <input id="scrub" type="range" min="0" max="1" step="0.001" value="0" />
+  <div id="readout">00.0s / 00.0s · Shot 41</div>
+  <select id="shotSelect"><option value="all">All Shots in Batch (41–50)</option></select>
+  <select id="mixSelect">
+    <option value="sfxOnly" selected>SFX + Ambient Only (No BGM)</option>
+    <option value="mute">Mute</option>
+  </select>
+  <label class="btn">Load vo.wav <input id="voInput" type="file" accept="audio/*" style="display:none" /></label>
+  <button id="wavBtn">Export Batch SFX (.wav)</button>
+</div>
+<script src="../../engine.js"></script>
+<script>
+// ============================================================================
+// LOCKED MASTER CONSISTENCY BIBLE & GLOBAL THEME DICTIONARY (SHOTS 41 TO 50)
+// ============================================================================
+const THEME = {
+  CHARS: {
+    PERUNTHACHAN: {
+      skin: '#C88C68',
+      hairStyle: 'scholarBun',
+      hairColor: '#788092',
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      s: 1.02,
+      seed: 41
+    },
+    MAHENDRAVARMAN: {
+      skin: '#D69A72',
+      hairStyle: 'royalBun',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#E63946',
+      bottomColor: '#F7B928',
+      headwear: 'crown',
+      foreheadMark: 'tilak',
+      beard: false,
+      mustache: false,
+      s: 1.05,
+      seed: 42
+    },
+    NARASIMHAVARMAN: {
+      skin: '#C88C68',
+      hairStyle: 'warriorKnot',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#FF851B',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      s: 1.05,
+      seed: 43
+    },
+    KEELADI_MASON: {
+      skin: '#7A4E38',
+      hairStyle: 'warriorKnot',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#D98238',
+      bottomColor: '#E2D9C8',
+      headwear: 'turban',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      s: 1.0,
+      seed: 44
+    },
+    TAMIL_FARMER: {
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#1A1615',
+      wardrobe: 'ancientTamil',
+      topColor: '#58A65C',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      s: 0.98,
+      seed: 45
+    },
+    PALLAVA_SCULPTOR: {
+      skin: '#C88C68',
+      hairStyle: 'wavyLocks',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#38BDF8',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      beard: false,
+      mustache: false,
+      s: 1.0,
+      seed: 46
+    },
+    HOST_PROTAG: {
+      skin: '#D69A72',
+      hairStyle: 'curlyCloud',
+      hairColor: '#261C1A',
+      wardrobe: 'ancientTamil',
+      topColor: '#FF851B',
+      bottomColor: '#F4EFE6',
+      headwear: 'none',
+      foreheadMark: null,
+      beard: false,
+      mustache: false,
+      s: 1.0,
+      seed: 47
+    }
+  },
+
+  ANIMALS: {
+    ROYAL_ELEPHANT: {
+      kind: 'elephant',
+      s: 1.05,
+      royal: true,
+      expr: 'happy'
+    }
+  },
+
+  spawnChar(g, id, overrides = {}) {
+    const base = this.CHARS[id] || this.CHARS.HOST_PROTAG;
+    const cfg = Object.assign({}, base, overrides, {
+      beard: false,
+      mustache: false
+    });
+    if (base.pose || overrides.pose) {
+      cfg.pose = Object.assign({}, base.pose || {}, overrides.pose || {});
+    }
+    DK.char(g, cfg);
+  },
+
+  spawnAnimal(g, id, overrides = {}) {
+    const base = this.ANIMALS[id] || { kind: 'elephant', s: 1.0 };
+    const cfg = Object.assign({}, base, overrides);
+    DK.animal(g, cfg);
+  },
+
+  drawEnv(envId, g, cam, gt, heroFn) {
+    if (envId === 'ENV_MAMALLAPURAM_SHORE') {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'coastalDay');
+          FX.sun(g, 1520, 200, 68);
+          FX.godRays(g, 1520, 200, { count: 7, a: 0.14 });
+          FX.clouds(g, { seed: 41, count: 7, y: 150, h: 140, color: '#FFFFFF', a: 0.88, t: gt, speed: 12 });
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 2,
+        bgFar: (g) => {
+          FX.storybookHorizon(g, { style: 'harbor', y: 740, seed: 42 });
+          FX.waterBody(g, gt, { x: 0, y: 725, w: 1920, h: 120, color: '#1D70B8', waves: true });
+          FX.structure3D(g, 1620, 725, 130, 95, { kind: 'cholaShip', color: '#8C5230', t: gt });
+        },
+        mgBackDepth: 0.72,
+        mgBack: (g) => {
+          // Coastal Granite Outcrops & Monolithic Pancha Ratha + Shore Temple
+          FX.hills(g, { seed: 71, y: 790, amp: 85, color: '#A58E74' });
+          FX.structure3D(g, 360, 795, 220, 250, { kind: 'mandapam', color: '#C5AC90', t: gt });
+          FX.structure3D(g, 1380, 795, 250, 315, { kind: 'gopuram', color: '#B89E82', t: gt });
+          FX.tree(g, 175, 795, 1.05, '#3E8E41', 'palm');
+          FX.tree(g, 1690, 795, 1.1, '#3E8E41', 'palm');
+        },
+        mgHero: (g) => {
+          FX.storybookGround(g, 840, { style: 'sand', baseCol: '#D4B895', grassCol: '#689F58' });
+          // Sculpted stone terrace path
+          g.save();
+          g.fillStyle = '#B89F84';
+          g.fillRect(140, 836, 1640, 18);
+          g.strokeStyle = 'rgba(70, 52, 36, 0.35)';
+          g.lineWidth = 2;
+          for (let sx = 180; sx < 1760; sx += 110) {
+            g.beginPath();
+            g.moveTo(sx, 836);
+            g.lineTo(sx - 18, 854);
+            g.stroke();
+          }
+          g.restore();
+          if (typeof heroFn === 'function') heroFn(g);
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 8,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 10, color: 'rgba(255, 232, 175, 0.22)' });
+        }
+      });
+      return;
+    }
+
+    if (envId === 'ENV_TEMPLE_COURTYARD') {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'clearDay');
+          FX.sun(g, 1460, 190, 62);
+          FX.clouds(g, { seed: 43, count: 6, y: 145, h: 135, color: '#FFFFFF', a: 0.88, t: gt, speed: 10 });
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 2,
+        bgFar: (g) => {
+          FX.storybookHorizon(g, { style: 'ancientTamil', y: 750, seed: 44 });
+          FX.hills(g, { seed: 45, y: 750, amp: 95, color: '#62966F' });
+        },
+        mgBackDepth: 0.72,
+        mgBack: (g) => {
+          FX.storybookScene(g, gt, { preset: 'templeCourtyard', y: 840, seed: 46 });
+          FX.structure3D(g, 330, 800, 210, 240, { kind: 'mandapam', color: '#B87A56', t: gt });
+          FX.structure3D(g, 1430, 800, 230, 280, { kind: 'gopuram', color: '#A85C3A', t: gt });
+          FX.tree(g, 175, 800, 1.0, '#46894A', 'banyan');
+          FX.tree(g, 1695, 800, 0.95, '#46894A', 'palm');
+        },
+        mgHero: (g) => {
+          FX.storybookGround(g, 840, { style: 'flagstone', baseCol: '#8C7A6B', grassCol: '#558B4E' });
+          if (typeof heroFn === 'function') heroFn(g);
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 8,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 9, color: 'rgba(255, 215, 140, 0.18)' });
+        }
+      });
+    }
+  },
+
+  drawInfo(infoId, g, lt, gt, opts = {}) {
+    if (infoId === 'SCALE_PALLAVA_EVOLUTION') {
+      UI.scaleComparison(g, lt, {
+        x: 1210,
+        y: 840,
+        camZoom: 1.0,
+        grid: false,
+        items: [
+          { label: 'BRICK SHRINE (4.5m)', heightM: 4.5, kind: 'brickHouse', color: '#C85A32' },
+          { label: 'MONOLITHIC RATHA (12m)', heightM: 12.0, kind: 'mandapam', color: '#F7B928' },
+          { label: 'SHORE TEMPLE (18m)', heightM: 18.0, kind: 'gopuram', color: '#5CE1FF' }
+        ],
+        t: gt
+      });
+
+      // Mid-Shot Micro-Beat (lt >= 1.45s): Full height lock indicator & evolution arc
+      if (lt >= 1.45) {
+        const p = DK.pop(lt, 1.45, 0.35);
+        g.save();
+        g.globalAlpha = DK.clamp(p, 0, 1);
+        g.strokeStyle = '#5CE1FF';
+        g.lineWidth = 3.5;
+        g.setLineDash([10, 6]);
+        g.beginPath();
+        g.moveTo(930, 680);
+        g.quadraticCurveTo(1180, 470, 1470, 390);
+        g.stroke();
+        g.setLineDash([]);
+
+        // Lock badge over the 12m & 18m granite monuments
+        g.fillStyle = 'rgba(13, 21, 38, 0.92)';
+        g.strokeStyle = '#F7B928';
+        g.lineWidth = 2.5;
+        g.beginPath();
+        g.roundRect(1020, 310, 430, 54, 10);
+        g.fill();
+        g.stroke();
+        g.fillStyle = '#FFD54F';
+        g.font = '800 18px "Space Mono", monospace';
+        g.textAlign = 'center';
+        g.fillText('LOCKED: 12m RATHA & 18m SHORE TEMPLE', 1235, 344);
+        g.restore();
+      }
+      return;
+    }
+
+    if (infoId === 'TEARDOWN_MAMALLAPURAM_MONOLITH') {
+      const explodeVal = opts.explode !== undefined ? opts.explode : DK.key(lt, [[0, 0.15], [1.5, 0.80]], DK.ease.outCubic);
+      const isoIdx = opts.isolateIdx !== undefined ? opts.isolateIdx : (lt > 1.5 ? 0 : null);
+      UI.explodedAssembly(g, lt, {
+        x: 1120,
+        y: 550,
+        s: 1.04,
+        explode: explodeVal,
+        isolateIdx: isoIdx,
+        layers: [
+          {
+            id: 'stupi',
+            label: 'STEP 1: STUPI (FINIAL · TOP FIRST ↓)',
+            subText: 'Octagonal Roof Dome Carved First',
+            w: 185,
+            d: 140,
+            h: 34,
+            color: '#FF851B',
+            detail: 'grid'
+          },
+          {
+            id: 'griva',
+            label: 'STEP 2: GRIVA & UPPER TALA TIER',
+            subText: 'Kudu Arches & Pavilion Haras',
+            w: 250,
+            d: 185,
+            h: 38,
+            color: '#F7B928',
+            detail: 'circuit'
+          },
+          {
+            id: 'mandapa',
+            label: 'STEP 3: SANCTUM & SIMHA PILLARS',
+            subText: 'Hollowed Chamber & Lion Columns',
+            w: 315,
+            d: 225,
+            h: 44,
+            color: '#5CE1FF',
+            detail: 'fins'
+          },
+          {
+            id: 'adhisthana',
+            label: 'STEP 4: ADHISTHANA (BASE PLINTH LAST)',
+            subText: 'Living Granite Bedrock Base',
+            w: 375,
+            d: 265,
+            h: 36,
+            color: '#94A3B8',
+            detail: 'battery'
+          }
+        ],
+        t: gt
+      });
+
+      // Downward excavation direction arrows (Top -> Bottom)
+      if (lt >= 1.5) {
+        const pulse = 0.7 + 0.3 * Math.sin(gt * 6);
+        g.save();
+        g.strokeStyle = `rgba(255, 133, 27, ${pulse})`;
+        g.fillStyle = `rgba(255, 133, 27, ${pulse})`;
+        g.lineWidth = 5;
+        const ax = 895;
+        g.beginPath();
+        g.moveTo(ax, 330);
+        g.lineTo(ax, 700);
+        g.stroke();
+        for (let ay = 420; ay <= 700; ay += 140) {
+          g.beginPath();
+          g.moveTo(ax - 14, ay - 18);
+          g.lineTo(ax, ay);
+          g.lineTo(ax + 14, ay - 18);
+          g.closePath();
+          g.fill();
+        }
+        g.restore();
+      }
+      return;
+    }
+
+    if (infoId === 'PHY_OOPS_MONOLITH') {
+      PHY.shatterWall(g, lt, {
+        id: 'pallava_oops_monolith_49',
+        x: 850,
+        y: 840,
+        w: 210,
+        h: 340,
+        impactTime: 1.10,
+        impactPoint: [850, 680],
+        force: 960,
+        cols: 6,
+        rows: 7,
+        material: 'stone',
+        floorY: 840,
+        seed: 49
+      });
+
+      // Comedic "OOPS! NO CTRL+Z" visual stamp at lt >= 1.15s
+      if (lt >= 1.15) {
+        const popS = DK.pop(lt, 1.15, 0.28);
+        g.save();
+        g.translate(855, 455);
+        g.rotate(-0.12);
+        g.scale(popS, popS);
+        g.fillStyle = 'rgba(220, 38, 38, 0.94)';
+        g.strokeStyle = '#FFFFFF';
+        g.lineWidth = 3.5;
+        g.beginPath();
+        g.roundRect(-185, -34, 370, 68, 12);
+        g.fill();
+        g.stroke();
+        g.fillStyle = '#FFFFFF';
+        g.font = '900 22px "Space Mono", monospace';
+        g.textAlign = 'center';
+        g.fillText('OOPS! MONOLITH RUINED!', 0, -3);
+        g.font = '700 15px "Nunito", sans-serif';
+        g.fillStyle = '#FDE047';
+        g.fillText('100% WASTE · START A NEW MOUNTAIN', 0, 21);
+        g.restore();
+      }
+    }
+  }
+};
+window.THEME = THEME;
+
+// ============================================================================
+// SHOTS 041 TO 050 (141.1s – 169.6s · PER-SHOT ATTACHED draw + sfx)
+// ============================================================================
+const SHOTS = [
+  // --------------------------------------------------------------------------
+  // SHOT 041 · [02:21.1 - 02:24.0] (141.1s – 144.0s · dur: 2.9s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 41,
+    title: 'Architectural Evolution: Brick to Rock-Cut Granite',
+    start: 141.1,
+    end: 144.0,
+    duration: 2.9,
+    vo_line: 'இந்த time-லதான் தமிழ்நாட்டோட கட்டிடக்கலை ஒரு மாபெரும் பரிணாம வளர்ச்சி அடையுது.',
+    env_id: 'ENV_MAMALLAPURAM_SHORE + SCALE_PALLAVA_EVOLUTION',
+    chars: 'PERUNTHACHAN (moveX: 300 -> 640)',
+    on_screen_text: 'ARCHITECTURAL EVOLUTION: BRICK → ROCK-CUT GRANITE',
+    camera_sfx: 'Push-in 0.98->1.05 · dataStream + stoneLock',
+    transition_id: 'DIVE_TO_MAMALLAPURAM',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 940], [2.9, 960]], DK.ease.outCubic),
+        y: DK.key(lt, [[0, 540], [2.9, 530]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 0.98], [2.9, 1.05]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_MAMALLAPURAM_SHORE', g, cam, gt, (g) => {
+        // Target interactive prop at x: 730 (charX + 90px contact at arrival x: 640)
+        FX.interactiveProp(g, { kind: 'scholarDesk', x: 730, y: 840, cutTime: 1.45, lt, gt });
+
+        // Master Architect walking up to the 3D architectural scale pedestal
+        THEME.spawnChar(g, 'PERUNTHACHAN', {
+          moveX: [300, 640, lt, 2.9],
+          y: 840,
+          prop: 'scroll',
+          eyeMode: lt > 1.45 ? 'happyArch' : 'warm',
+          mouth: lt > 1.45 ? 'smile' : 'neutral',
+          pose: { preset: 'walk', speed: 1.15 },
+          t: gt
+        });
+
+        // 3D Scale Arena: Brick Shrine (4.5m) -> Monolithic Ratha (12m) -> Shore Temple (18m)
+        THEME.drawInfo('SCALE_PALLAVA_EVOLUTION', g, lt, gt);
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'ARCHITECTURAL EVOLUTION: BRICK → ROCK-CUT GRANITE',
+        x: 960,
+        y: 115,
+        accent: '#5CE1FF',
+        t0: 0.2
+      });
+      UI.citation(g, 'Mandagapattu Inscription of Mahendravarman I (c. 600–630 CE)', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('ancientHarbor', bt0 + 0.0, bt0 + 2.9, { gain: 0.22 });
+      k.play('pillBadge', bt0 + 0.20, { gain: 0.40 });
+      k.play('dataStream', bt0 + 0.25, { gain: 0.45 });
+      k.play('footstep', bt0 + 0.55, { gain: 0.35 });
+      k.play('footstep', bt0 + 1.10, { gain: 0.35 });
+      k.play('anvilStrike', bt0 + 1.45, { gain: 0.52 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 042 · [02:24.0 - 02:28.1] (144.0s – 148.1s · dur: 4.1s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 42,
+    title: 'Mahendravarman I & Narasimhavarman I at Mamallapuram',
+    start: 144.0,
+    end: 148.1,
+    duration: 4.1,
+    vo_line: 'பல்லவ மன்னன் மகேந்திரவர்மனும், நரசிம்மவர்மனும் மாமல்லபுரத்துல செஞ்சது ஒரு magic-ன்னே சொல்லலாம்.',
+    env_id: 'ENV_MAMALLAPURAM_SHORE',
+    chars: 'MAHENDRAVARMAN (x: 580) + NARASIMHAVARMAN (moveX: 1320 -> 760)',
+    on_screen_text: 'MAHENDRAVARMAN I & NARASIMHAVARMAN I · MAMALLAPURAM',
+    camera_sfx: 'Pan 920->1000 · oceanWaves + chimeDiscovery',
+    transition_id: 'SPLIT_COMPARISON_WIPE',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 920], [2.05, 960], [4.1, 1000]], DK.ease.inOutQuad),
+        y: DK.key(lt, [[0, 540], [4.1, 530]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.00], [4.1, 1.07]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_MAMALLAPURAM_SHORE', g, cam, gt, (g) => {
+        // Mid-Shot Micro-Beat (lt >= 2.05s): Golden blueprint rays over Pancha Ratha & Shore Temple
+        if (lt >= 2.05) {
+          const glowA = DK.clamp((lt - 2.05) / 0.45, 0, 1) * (0.65 + 0.25 * Math.sin(gt * 4));
+          g.save();
+          g.strokeStyle = `rgba(255, 213, 79, ${glowA})`;
+          g.lineWidth = 2.5;
+          g.setLineDash([8, 6]);
+          // Blueprint frame around left Ratha & right Shore Temple
+          g.strokeRect(250, 520, 260, 290);
+          g.strokeRect(1240, 460, 290, 350);
+          g.setLineDash([]);
+          g.restore();
+        }
+
+        // Blueprint drafting desk at x: 665 (charX + 85px from Mahendravarman at 580, charX - 95px from Narasimhavarman at 760)
+        FX.interactiveProp(g, { kind: 'scholarDesk', x: 665, y: 840, cutTime: 2.05, lt, gt });
+
+        // Mahendravarman I inspecting rock-cut temple plans
+        THEME.spawnChar(g, 'MAHENDRAVARMAN', {
+          x: 580,
+          y: 840,
+          prop: 'scroll',
+          eyeMode: lt > 2.05 ? 'happyArch' : 'warm',
+          mouth: lt > 2.05 ? 'smile' : 'neutral',
+          pose: { preset: 'experiment', speed: 1.15 },
+          t: gt
+        });
+
+        // Narasimhavarman I / Mamalla walking up to right side of blueprint table
+        THEME.spawnChar(g, 'NARASIMHAVARMAN', {
+          moveX: [1320, 760, lt, 4.1],
+          y: 840,
+          flipX: true,
+          prop: 'vel',
+          eyeMode: lt > 2.05 ? 'happyArch' : 'warm',
+          mouth: lt > 2.05 ? 'smile' : 'neutral',
+          pose: { preset: 'walk', speed: 1.15 },
+          t: gt
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'MAHENDRAVARMAN I & NARASIMHAVARMAN I · MAMALLAPURAM',
+        x: 960,
+        y: 115,
+        accent: '#FF851B',
+        t0: 0.25
+      });
+      UI.citation(g, 'UNESCO World Heritage Site: Group of Monuments at Mahabalipuram (7th Cent. CE)', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('ocean', bt0 + 0.0, bt0 + 4.1, { gain: 0.24 });
+      k.play('pillBadge', bt0 + 0.25, { gain: 0.40 });
+      k.play('footstep', bt0 + 0.80, { gain: 0.35 });
+      k.play('footstep', bt0 + 1.50, { gain: 0.35 });
+      k.play('starShimmer', bt0 + 2.05, { gain: 0.52 });
+      k.play('footstep', bt0 + 2.70, { gain: 0.35 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 043 · [02:28.1 - 02:30.7] (148.1s – 150.7s · dur: 2.6s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 43,
+    title: 'Conventional Temple Building: Ground Foundation First',
+    start: 148.1,
+    end: 150.7,
+    duration: 2.6,
+    vo_line: 'பொதுவா கோயில்னா எப்படி கட்டுவாங்க? அஸ்திவாரம் போட்டு,',
+    env_id: 'ENV_TEMPLE_COURTYARD',
+    chars: 'KEELADI_MASON (x: 640) + TAMIL_FARMER (moveX: 280 -> 550)',
+    on_screen_text: 'CONVENTIONAL METHOD: GROUND FOUNDATION FIRST',
+    camera_sfx: 'Push-in 1.02->1.06 · brickTrowel + stoneLock',
+    transition_id: 'CONTINUOUS_BUILD_UP',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 940], [2.6, 960]], DK.ease.outCubic),
+        y: DK.key(lt, [[0, 550], [2.6, 540]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.02], [2.6, 1.06]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_TEMPLE_COURTYARD', g, cam, gt, (g) => {
+        // Foundation trench & masonry target prop at x: 725 (charX + 85px from Mason at 640)
+        FX.interactiveProp(g, { kind: 'brickWallBuild', x: 725, y: 840, cutTime: 1.30, lt, gt });
+
+        // Helper pushing a dressed foundation block synchronously across the courtyard
+        const helperX = DK.lerp(280, 550, DK.clamp(lt / 2.6, 0, 1));
+        g.save();
+        g.fillStyle = '#94A3B8';
+        g.strokeStyle = '#334155';
+        g.lineWidth = 3;
+        g.fillRect(helperX + 58, 792, 64, 48);
+        g.strokeRect(helperX + 58, 792, 64, 48);
+        g.restore();
+
+        THEME.spawnChar(g, 'TAMIL_FARMER', {
+          moveX: [280, 550, lt, 2.6],
+          y: 840,
+          pose: { preset: 'push', speed: 1.2 },
+          t: gt
+        });
+
+        // Foundation Mason laying the base foundation stone
+        THEME.spawnChar(g, 'KEELADI_MASON', {
+          x: 640,
+          y: 840,
+          prop: 'hammer',
+          pose: { preset: 'build', speed: 1.25 },
+          t: gt
+        });
+
+        // Mid-Shot Micro-Beat (lt >= 1.30s): Base foundation locks into ground with green callout
+        if (lt >= 1.30) {
+          const p = DK.pop(lt, 1.30, 0.3);
+          g.save();
+          g.globalAlpha = DK.clamp(p, 0, 1);
+          g.fillStyle = 'rgba(16, 185, 129, 0.92)';
+          g.strokeStyle = '#ECFDF5';
+          g.lineWidth = 2.5;
+          g.beginPath();
+          g.roundRect(795, 765, 315, 48, 8);
+          g.fill();
+          g.stroke();
+          g.fillStyle = '#FFFFFF';
+          g.font = '800 16px "Space Mono", monospace';
+          g.textAlign = 'center';
+          g.fillText('STEP 1: FOUNDATION FIRST', 952, 795);
+          g.restore();
+        }
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'CONVENTIONAL METHOD: GROUND FOUNDATION FIRST',
+        x: 960,
+        y: 115,
+        accent: '#94A3B8',
+        t0: 0.2
+      });
+      UI.citation(g, 'Structural Masonry vs. Monolithic Rock-Cut Architecture', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('templeCourtyard', bt0 + 0.0, bt0 + 2.6, { gain: 0.22 });
+      k.play('pillBadge', bt0 + 0.20, { gain: 0.38 });
+      k.play('digShovel', bt0 + 0.30, { gain: 0.45 });
+      k.play('anvilStrike', bt0 + 1.30, { gain: 0.52 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 044 · [02:30.7 - 02:33.3] (150.7s – 153.3s · dur: 2.6s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 44,
+    title: 'Bottom-to-Top Stone Course Stacking',
+    start: 150.7,
+    end: 153.3,
+    duration: 2.6,
+    vo_line: 'கல்லை ஒண்ணு மேல ஒண்ணு அடுக்கி, கீழ இருந்து மேல கட்டுவாங்க.',
+    env_id: 'ENV_TEMPLE_COURTYARD',
+    chars: 'KEELADI_MASON (x: 640) + TAMIL_FARMER (moveX: 1180 -> 920)',
+    on_screen_text: 'BOTTOM-TO-TOP STONE STACKING ↑',
+    camera_sfx: 'Tilt-up 555->520 · 3x stoneLock',
+    transition_id: 'WHIP_PAN_TO_BOULDER',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 960], [2.6, 960]], DK.ease.linear),
+        y: DK.key(lt, [[0, 555], [2.6, 520]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.06], [2.6, 1.02]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_TEMPLE_COURTYARD', g, cam, gt, (g) => {
+        // Rising stone wall prop at x: 725 (charX + 85px from Mason at 640)
+        FX.interactiveProp(g, { kind: 'brickWallBuild', x: 725, y: 840, cutTime: 0.6, lt, gt });
+
+        // Additional stacked stone courses locking at lt = 0.3s, 0.8s, 1.3s + wooden hoist at x: 830
+        const courses = lt >= 1.3 ? 4 : lt >= 0.8 ? 3 : lt >= 0.3 ? 2 : 1;
+        g.save();
+        for (let c = 0; c < courses; c++) {
+          const cy = 790 - c * 42;
+          g.fillStyle = c % 2 === 0 ? '#94A3B8' : '#CBD5E1';
+          g.strokeStyle = '#334155';
+          g.lineWidth = 2.5;
+          g.fillRect(700, cy, 120, 40);
+          g.strokeRect(700, cy, 120, 40);
+        }
+        // Pulley hoist frame at x: 830
+        g.strokeStyle = '#78350F';
+        g.lineWidth = 6;
+        g.beginPath();
+        g.moveTo(830, 840);
+        g.lineTo(830, 560);
+        g.lineTo(760, 560);
+        g.stroke();
+        // Hoist rope to pulling worker
+        const workerX = DK.lerp(1180, 920, DK.clamp(lt / 2.6, 0, 1));
+        g.strokeStyle = '#D97706';
+        g.lineWidth = 3;
+        g.beginPath();
+        g.moveTo(830, 565);
+        g.lineTo(workerX - 55, 765);
+        g.stroke();
+        g.restore();
+
+        // Mason stacking stone courses upward
+        THEME.spawnChar(g, 'KEELADI_MASON', {
+          x: 640,
+          y: 840,
+          prop: 'hammer',
+          pose: { preset: 'build', speed: 1.3 },
+          t: gt
+        });
+
+        // Hoist Worker pulling rope hoist (moveX: 1180 -> 920, charX - 90px from hoist at 830)
+        THEME.spawnChar(g, 'TAMIL_FARMER', {
+          moveX: [1180, 920, lt, 2.6],
+          y: 840,
+          flipX: true,
+          pose: { preset: 'pull', speed: 1.25 },
+          t: gt
+        });
+
+        // Mid-Shot Micro-Beat (lt >= 1.30s): Upward cyan arrows BOTTOM -> TOP STACKING ↑
+        if (lt >= 1.30) {
+          g.save();
+          g.strokeStyle = '#5CE1FF';
+          g.fillStyle = '#5CE1FF';
+          g.lineWidth = 4.5;
+          g.beginPath();
+          g.moveTo(675, 810);
+          g.lineTo(675, 590);
+          g.stroke();
+          g.beginPath();
+          g.moveTo(661, 610);
+          g.lineTo(675, 585);
+          g.lineTo(689, 610);
+          g.closePath();
+          g.fill();
+          g.font = '800 16px "Space Mono", monospace';
+          g.fillText('BOTTOM → TOP ↑', 695, 600);
+          g.restore();
+        }
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'BOTTOM-TO-TOP STONE STACKING ↑',
+        x: 960,
+        y: 115,
+        accent: '#5CE1FF',
+        t0: 0.2
+      });
+      UI.citation(g, 'Additive Structural Masonry Principle', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('templeCourtyard', bt0 + 0.0, bt0 + 2.6, { gain: 0.22 });
+      k.play('anvilStrike', bt0 + 0.30, { gain: 0.50 });
+      k.play('anvilStrike', bt0 + 0.80, { gain: 0.50 });
+      k.play('anvilStrike', bt0 + 1.30, { gain: 0.52 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 045 · [02:33.3 - 02:36.3] (153.3s – 156.3s · dur: 3.0s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 45,
+    title: 'Selecting a Single Massive Granite Mountain',
+    start: 153.3,
+    end: 156.3,
+    duration: 3.0,
+    vo_line: 'ஆனா பல்லவர்கள் வந்து ஒரு பிரம்மாண்டமான மலையை தேர்ந்தெடுத்து',
+    env_id: 'ENV_MAMALLAPURAM_SHORE',
+    chars: 'PALLAVA_SCULPTOR (moveX: 320 -> 740) + NARASIMHAVARMAN (moveX: 200 -> 620)',
+    on_screen_text: 'SINGLE SOLID GRANITE MONOLITH SELECTED',
+    camera_sfx: 'Pan & Zoom 0.96->1.06 · whoosh + sonarPing',
+    transition_id: 'CAMERA_TILT_TO_PEAK',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 910], [1.5, 960], [3.0, 990]], DK.ease.inOutQuad),
+        y: DK.key(lt, [[0, 540], [3.0, 520]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 0.96], [3.0, 1.06]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_MAMALLAPURAM_SHORE', g, cam, gt, (g) => {
+        // Massive solid granite monolith cliff at x: 835..1240, y: 840
+        g.save();
+        const grad = g.createLinearGradient(835, 340, 1240, 840);
+        grad.addColorStop(0, '#B8A38A');
+        grad.addColorStop(1, '#7C6A56');
+        g.fillStyle = grad;
+        g.strokeStyle = '#4A3E31';
+        g.lineWidth = 4;
+        g.beginPath();
+        g.moveTo(825, 840);
+        g.lineTo(855, 420);
+        g.lineTo(985, 320);
+        g.lineTo(1165, 355);
+        g.lineTo(1260, 840);
+        g.closePath();
+        g.fill();
+        g.stroke();
+        g.restore();
+
+        // Interactive monolithic rock prop at x: 835 (charX + 95px contact at arrival x: 740)
+        FX.interactiveProp(g, { kind: 'crumblingPillar', x: 835, y: 840, cutTime: 99, lt, gt });
+
+        // Mid-Shot Micro-Beat (lt >= 1.50s): Glowing golden wireframe silhouette of the Ratha inside the solid cliff
+        if (lt >= 1.50) {
+          const wAlpha = DK.clamp((lt - 1.50) / 0.4, 0, 1) * (0.75 + 0.25 * Math.sin(gt * 6));
+          g.save();
+          g.strokeStyle = `rgba(255, 213, 79, ${wAlpha})`;
+          g.lineWidth = 3;
+          g.setLineDash([8, 5]);
+          // Multi-tiered Ratha wireframe inside rock
+          g.strokeRect(910, 700, 250, 135);
+          g.strokeRect(940, 585, 190, 115);
+          g.strokeRect(975, 485, 120, 100);
+          g.beginPath();
+          g.moveTo(965, 485);
+          g.lineTo(1035, 415);
+          g.lineTo(1105, 485);
+          g.closePath();
+          g.stroke();
+          g.setLineDash([]);
+          g.restore();
+        }
+
+        // Chief Sculptor walking up to the monolith (moveX: 320 -> 740)
+        THEME.spawnChar(g, 'PALLAVA_SCULPTOR', {
+          moveX: [320, 740, lt, 3.0],
+          y: 840,
+          prop: 'hammer',
+          eyeMode: lt > 1.5 ? 'happyArch' : 'warm',
+          mouth: lt > 1.5 ? 'smile' : 'neutral',
+          pose: { preset: 'walk', speed: 1.15 },
+          t: gt
+        });
+
+        // Narasimhavarman I walking beside him (moveX: 200 -> 620)
+        THEME.spawnChar(g, 'NARASIMHAVARMAN', {
+          moveX: [200, 620, lt, 3.0],
+          y: 840,
+          prop: 'vel',
+          pose: { preset: 'walk', speed: 1.15 },
+          t: gt
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'SINGLE SOLID GRANITE MONOLITH SELECTED',
+        x: 960,
+        y: 115,
+        accent: '#FF851B',
+        t0: 0.25
+      });
+      UI.citation(g, 'Pancha Rathas Monolithic Carvings, Mamallapuram (7th Cent. CE)', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('ancientHarbor', bt0 + 0.0, bt0 + 3.0, { gain: 0.22 });
+      k.play('whoosh', bt0 + 0.20, { gain: 0.45 });
+      k.play('footstep', bt0 + 0.70, { gain: 0.35 });
+      k.play('footstep', bt0 + 1.25, { gain: 0.35 });
+      k.play('submarineSonar', bt0 + 1.50, { gain: 0.52 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 046 · [02:36.3 - 02:39.3] (156.3s – 159.3s · dur: 3.0s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 46,
+    title: 'Top-to-Bottom Monolithic Excavation Teardown',
+    start: 156.3,
+    end: 159.3,
+    duration: 3.0,
+    vo_line: 'மேல இருந்து கீழ குடைய ஆரம்பிச்சிருக்காங்க, அதாவது top to bottom approach.',
+    env_id: 'ENV_MAMALLAPURAM_SHORE + TEARDOWN_MAMALLAPURAM_MONOLITH',
+    chars: 'PALLAVA_SCULPTOR (x: 680)',
+    on_screen_text: 'TOP-TO-BOTTOM EXCAVATION ↓',
+    camera_sfx: 'Vertical tilt 480->560 · 3x chiselHit',
+    transition_id: 'PULL_BACK_FULL_RATHA',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 960], [3.0, 960]], DK.ease.linear),
+        y: DK.key(lt, [[0, 480], [1.5, 530], [3.0, 560]], DK.ease.inOutCubic),
+        z: DK.key(lt, [[0, 1.02], [3.0, 1.10]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_MAMALLAPURAM_SHORE', g, cam, gt, (g) => {
+        // Carving block target prop at x: 765 (charX + 85px exact contact from x: 680)
+        FX.interactiveProp(g, { kind: 'forgeAnvil', x: 765, y: 840, cutTime: 1.50, lt, gt });
+
+        // Sculptor carving the upper tier
+        THEME.spawnChar(g, 'PALLAVA_SCULPTOR', {
+          x: 680,
+          y: 840,
+          prop: 'hammer',
+          pose: { preset: 'build', speed: 1.35 },
+          t: gt
+        });
+
+        // 2.5D Isometric Monolithic Ratha Teardown
+        THEME.drawInfo('TEARDOWN_MAMALLAPURAM_MONOLITH', g, lt, gt, {
+          explode: DK.key(lt, [[0, 0.15], [1.5, 0.80]], DK.ease.outCubic),
+          isolateIdx: lt > 1.5 ? 0 : null
+        });
+      });
+
+      UI.techCallout(g, lt, {
+        from: [1120, 390],
+        elbow: [1280, 310],
+        to: [1580, 310],
+        title: 'TOP-TO-BOTTOM EXCAVATION ↓',
+        spec: 'Roof Finial (Stupi) Carved First → Base Plinth Last',
+        accent: '#FF851B',
+        t0: 1.50
+      });
+      UI.citation(g, 'K.R. Srinivasan, Cave-Temples of the Pallavas (ASI, 1964)', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('ancientHarbor', bt0 + 0.0, bt0 + 3.0, { gain: 0.22 });
+      k.play('anvilStrike', bt0 + 0.25, { gain: 0.55 });
+      k.play('anvilStrike', bt0 + 0.85, { gain: 0.55 });
+      k.play('anvilStrike', bt0 + 1.50, { gain: 0.58 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 047 · [02:39.3 - 02:41.9] (159.3s – 161.9s · dur: 2.6s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 47,
+    title: 'An Entire Temple Carved from One Mountain',
+    start: 159.3,
+    end: 161.9,
+    duration: 2.6,
+    vo_line: 'இந்த மாதிரி ஒரு மலையவே குடைஞ்சு ஒரு கோயில் கட்டிருக்காங்க.',
+    env_id: 'ENV_MAMALLAPURAM_SHORE',
+    chars: 'PALLAVA_SCULPTOR (x: 680) + KEELADI_MASON (moveX: 1280 -> 940)',
+    on_screen_text: 'MONOLITHIC TEMPLE CARVED FROM ONE MOUNTAIN',
+    camera_sfx: 'Pull-back 1.06->0.98 · chiselHit + chimeSuccess',
+    transition_id: 'EXTREME_CLOSEUP_CHISEL',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 940], [2.6, 980]], DK.ease.outCubic),
+        y: DK.key(lt, [[0, 540], [2.6, 525]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.06], [2.6, 0.98]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_MAMALLAPURAM_SHORE', g, cam, gt, (g) => {
+        // Completed monolithic Ratha rising in the center at x: 765..910
+        FX.structure3D(g, 835, 840, 260, 320, { kind: 'gopuram', color: '#C8AE92', t: gt });
+        FX.interactiveProp(g, { kind: 'brickWallBuild', x: 765, y: 840, cutTime: 1.30, lt, gt });
+
+        // Mid-Shot Micro-Beat (lt >= 1.30s): Golden sunlight rays sweeping over the completed Ratha
+        if (lt >= 1.30) {
+          FX.godRays(g, 835, 520, { count: 6, a: 0.22 });
+        }
+
+        // Sculptor 1 carving the monolithic lion pillar at x: 680 (charX + 85px contact with x: 765)
+        THEME.spawnChar(g, 'PALLAVA_SCULPTOR', {
+          x: 680,
+          y: 840,
+          prop: 'hammer',
+          eyeMode: lt > 1.3 ? 'happyArch' : 'warm',
+          mouth: lt > 1.3 ? 'smile' : 'neutral',
+          pose: { preset: 'build', speed: 1.25 },
+          t: gt
+        });
+
+        // Sculptor 2 walking up from right (moveX: 1280 -> 940, charX - 90px from Ratha plinth at 850)
+        THEME.spawnChar(g, 'KEELADI_MASON', {
+          moveX: [1280, 940, lt, 2.6],
+          y: 840,
+          flipX: true,
+          prop: 'hammer',
+          eyeMode: lt > 1.3 ? 'happyArch' : 'warm',
+          mouth: lt > 1.3 ? 'smile' : 'neutral',
+          pose: { preset: 'walk', speed: 1.15 },
+          t: gt
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'MONOLITHIC TEMPLE CARVED FROM ONE MOUNTAIN',
+        x: 960,
+        y: 115,
+        accent: '#38C878',
+        t0: 0.2
+      });
+      UI.citation(g, 'Dharmaraja Ratha & Kailasanatha Monolithic Tradition', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('ancientHarbor', bt0 + 0.0, bt0 + 2.6, { gain: 0.22 });
+      k.play('anvilStrike', bt0 + 0.20, { gain: 0.48 });
+      k.play('footstep', bt0 + 0.75, { gain: 0.35 });
+      k.play('timerChime', bt0 + 1.30, { gain: 0.50 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 048 · [02:41.9 - 02:44.4] (161.9s – 164.4s · dur: 2.5s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 48,
+    title: 'Only Hammer (சுத்தி) and Chisel (உளி)',
+    start: 161.9,
+    end: 164.4,
+    duration: 2.5,
+    vo_line: 'சுத்தியும் உளியும் மட்டுமே வச்சு இந்த கோயில் செஞ்சிருக்காங்க.',
+    env_id: 'ENV_MAMALLAPURAM_SHORE',
+    chars: 'PALLAVA_SCULPTOR (x: 760)',
+    on_screen_text: 'ONLY HAMMER (சுத்தி) & CHISEL (உளி)',
+    camera_sfx: 'Close-up push 1.14->1.22 · 2x heavy chiselHit',
+    transition_id: 'CUT_TO_COMEDIC_OOPS',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 820], [2.5, 845]], DK.ease.outCubic),
+        y: DK.key(lt, [[0, 560], [2.5, 550]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.14], [1.25, 1.18], [2.5, 1.22]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_MAMALLAPURAM_SHORE', g, cam, gt, (g) => {
+        // Granite carving block & anvil prop at x: 845 (charX + 85px from Master Artisan at 760)
+        FX.interactiveProp(g, { kind: 'forgeAnvil', x: 845, y: 840, cutTime: 1.25, lt, gt });
+
+        // Master Artisan striking iron chisel against granite
+        THEME.spawnChar(g, 'PALLAVA_SCULPTOR', {
+          x: 760,
+          y: 840,
+          prop: 'hammer',
+          pose: { preset: 'build', speed: 1.4 },
+          t: gt
+        });
+
+        // Mid-Shot Micro-Beat (lt >= 1.25s): Bright sparks & chisel contact highlight
+        if (lt >= 1.25) {
+          const spk = DK.clamp(1 - (lt - 1.25) / 0.6, 0, 1);
+          g.save();
+          g.strokeStyle = `rgba(255, 213, 79, ${spk})`;
+          g.lineWidth = 3;
+          for (let i = 0; i < 8; i++) {
+            const ang = (i / 8) * Math.PI * 2 + lt * 3;
+            const r1 = 10 + (1 - spk) * 18;
+            const r2 = 26 + (1 - spk) * 38;
+            g.beginPath();
+            g.moveTo(845 + Math.cos(ang) * r1, 720 + Math.sin(ang) * r1);
+            g.lineTo(845 + Math.cos(ang) * r2, 720 + Math.sin(ang) * r2);
+            g.stroke();
+          }
+          g.restore();
+        }
+      });
+
+      UI.techCallout(g, lt, {
+        from: [845, 720],
+        elbow: [1060, 560],
+        to: [1420, 560],
+        title: 'ONLY HAMMER (சுத்தி) & CHISEL (உளி)',
+        spec: 'Zero Modern Machinery · Hard Granite (Mohs 6–7)',
+        accent: '#F7B928',
+        t0: 1.25
+      });
+      UI.citation(g, 'ASI Study on Pallava Stone-Carving Techniques', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('ancientHarbor', bt0 + 0.0, bt0 + 2.5, { gain: 0.22 });
+      k.play('anvilStrike', bt0 + 0.30, { gain: 0.62 });
+      k.play('anvilStrike', bt0 + 1.25, { gain: 0.65 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 049 · [02:44.4 - 02:47.0] (164.4s – 167.0s · dur: 2.6s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 49,
+    title: 'One Wrong Chisel Strike = Whole Temple Ruined (No Ctrl+Z)',
+    start: 164.4,
+    end: 167.0,
+    duration: 2.6,
+    vo_line: 'ஒரு சின்ன உளி தப்பா பட்டு கல் உடைஞ்சாலும் ஒட்டுமொத்த கோயிலும் waste.',
+    env_id: 'ENV_MAMALLAPURAM_SHORE + PHY_OOPS_MONOLITH',
+    chars: 'HOST_PROTAG (x: 740) + PALLAVA_SCULPTOR (moveX: 1320 -> 1040)',
+    on_screen_text: 'ZERO MARGIN FOR ERROR · NO "CTRL+Z" IN 650 CE!',
+    camera_sfx: 'Impact camera shake at 1.1s · wallShatter (0.75) + comedyBoing (0.45)',
+    transition_id: 'SNAP_BACK_TO_REALITY',
+    draw(g, lt, gt, u) {
+      const shk = (lt > 1.1 && lt < 1.55) ? DK.shake(lt - 1.1, 9, 22, 49) : { x: 0, y: 0 };
+      const cam = {
+        x: DK.key(lt, [[0, 920],, [2.6, 940]], DK.ease.outCubic) + shk.x,
+        y: DK.key(lt, [[0, 540], [2.6, 540]], DK.ease.linear) + shk.y,
+        z: DK.key(lt, [[0, 1.04], [1.3, 1.10], [2.6, 1.06]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_MAMALLAPURAM_SHORE', g, cam, gt, (g) => {
+        // 120Hz Pre-Baked Shatter Monolith at x: 850 (charX + 110px exact contact from Apprentice at 740)
+        THEME.drawInfo('PHY_OOPS_MONOLITH', g, lt, gt);
+
+        // Clumsy Apprentice striking wrong angle at impactTime: 1.10s
+        THEME.spawnChar(g, 'HOST_PROTAG', {
+          x: 740,
+          y: 840,
+          eyeMode: lt > 1.1 ? 'panic' : 'warm',
+          mouth: lt > 1.1 ? 'scream' : 'neutral',
+          brows: lt > 1.1 ? 'raised' : 'neutral',
+          prop: 'hammer',
+          pose: { preset: 'build', speed: 1.45 },
+          t: gt
+        });
+
+        // Chief Sculptor walking in and freezing in horror (moveX: 1320 -> 1040)
+        THEME.spawnChar(g, 'PALLAVA_SCULPTOR', {
+          moveX: [1320, 1040, lt, 2.6],
+          y: 840,
+          flipX: true,
+          eyeMode: 'wince',
+          brows: 'furrowed',
+          mouth: 'gasp',
+          pose: { preset: 'walk', speed: 1.2 },
+          t: gt
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'ZERO MARGIN FOR ERROR · NO "CTRL+Z" IN 650 CE!',
+        x: 960,
+        y: 115,
+        accent: '#FF4D6A',
+        t0: 1.15
+      });
+      UI.citation(g, 'Unfinished Pancha Rathas & Pidari Rathas Monoliths, Mamallapuram', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.28, grain: 0.025 });
+    },
+    sfx(k, bt0) {
+      k.bed('ancientHarbor', bt0 + 0.0, bt0 + 1.10, { gain: 0.20 });
+      k.play('stoneCollapse', bt0 + 1.10, { gain: 0.75 });
+      k.play('shatter', bt0 + 1.12, { gain: 0.68 });
+      k.play('comicBoing', bt0 + 1.35, { gain: 0.45 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 050 · [02:47.0 - 02:49.6] (167.0s – 169.6s · dur: 2.6s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 50,
+    title: 'Millimeter-Perfect Monolithic Precision (Arjuna’s Penance)',
+    start: 167.0,
+    end: 169.6,
+    duration: 2.6,
+    vo_line: 'அந்த அளவுக்கு ஒரு துல்லியத்தோட வேலை செஞ்சிருக்காங்க.',
+    env_id: 'ENV_MAMALLAPURAM_SHORE',
+    chars: 'PALLAVA_SCULPTOR (x: 680) + ROYAL_ELEPHANT (moveX: 980 -> 1120)',
+    on_screen_text: 'MILLIMETER-PERFECT MONOLITHIC PRECISION',
+    camera_sfx: 'Push-in 1.02->1.08 · chiselHit + chimeSuccess',
+    transition_id: 'CAMERA_PAN_TO_SEA_MAP',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 930], [2.6, 960]], DK.ease.outCubic),
+        y: DK.key(lt, [[0, 540], [2.6, 530]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.02], [2.6, 1.08]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_MAMALLAPURAM_SHORE', g, cam, gt, (g) => {
+        // Arjuna's Penance / Descent of the Ganges Great Bas-Relief Wall at x: 750..1220
+        g.save();
+        g.fillStyle = '#C5AC90';
+        g.strokeStyle = '#6E5A44';
+        g.lineWidth = 4;
+        g.beginPath();
+        g.roundRect(750, 470, 480, 370, 28);
+        g.fill();
+        g.stroke();
+        // Central cleft fissure & carved relief panels
+        g.strokeStyle = '#524130';
+        g.lineWidth = 5;
+        g.beginPath();
+        g.moveTo(965, 475);
+        g.lineTo(955, 838);
+        g.stroke();
+        g.restore();
+
+        // Target bas-relief prop at x: 765 (charX + 85px exact contact from Master Sculptor at 680)
+        FX.interactiveProp(g, { kind: 'brickWallBuild', x: 765, y: 840, cutTime: 1.30, lt, gt });
+
+        // Master Sculptor polishing the finished granite bas-relief
+        THEME.spawnChar(g, 'PALLAVA_SCULPTOR', {
+          x: 680,
+          y: 840,
+          eyeMode: 'happyArch',
+          mouth: 'smile',
+          prop: 'quill',
+          pose: { preset: 'build', speed: 1.15 },
+          t: gt
+        });
+
+        // Sculpted Royal Elephant walking forward in front of the relief (moveX: 980 -> 1120)
+        THEME.spawnAnimal(g, 'ROYAL_ELEPHANT', {
+          moveX: [980, 1120, lt, 2.6],
+          y: 840,
+          t: gt
+        });
+
+        // Mid-Shot Micro-Beat (lt >= 1.30s): Golden precision caliper gridlines lock over the relief
+        if (lt >= 1.30) {
+          const calA = DK.clamp((lt - 1.30) / 0.35, 0, 1);
+          g.save();
+          g.globalAlpha = calA;
+          g.strokeStyle = '#FFD54F';
+          g.lineWidth = 2;
+          g.setLineDash([6, 6]);
+          for (let gx = 780; gx <= 1200; gx += 70) {
+            g.beginPath();
+            g.moveTo(gx, 485);
+            g.lineTo(gx, 825);
+            g.stroke();
+          }
+          for (let gy = 520; gy <= 800; gy += 70) {
+            g.beginPath();
+            g.moveTo(765, gy);
+            g.lineTo(1215, gy);
+            g.stroke();
+          }
+          g.setLineDash([]);
+          g.fillStyle = 'rgba(15, 23, 42, 0.9)';
+          g.strokeStyle = '#38C878';
+          g.lineWidth = 2.5;
+          g.beginPath();
+          g.roundRect(830, 425, 320, 42, 8);
+          g.fill();
+          g.stroke();
+          g.fillStyle = '#38C878';
+          g.font = '800 15px "Space Mono", monospace';
+          g.textAlign = 'center';
+          g.fillText('29m × 13m RELIEF · ±0.5mm PRECISION', 990, 452);
+          g.restore();
+        }
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'MILLIMETER-PERFECT MONOLITHIC PRECISION',
+        x: 960,
+        y: 115,
+        accent: '#38C878',
+        t0: 0.25
+      });
+      UI.citation(g, 'Arjuna’s Penance / Descent of the Ganges Bas-Relief (29m × 13m)', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.02 });
+    },
+    sfx(k, bt0) {
+      k.bed('ancientHarbor', bt0 + 0.0, bt0 + 2.6, { gain: 0.22 });
+      k.play('anvilStrike', bt0 + 0.25, { gain: 0.48 });
+      k.play('timerChime', bt0 + 1.30, { gain: 0.55 });
+      k.play('elephantTrumpet', bt0 + 1.55, { gain: 0.36 });
+    }
+  }
+];
+
+if (window.DK && DK.linkShotTransitions) DK.linkShotTransitions(SHOTS, window.THEME);
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const BATCH_START = SHOTS[0].start;
+const BATCH_END = SHOTS[SHOTS.length - 1].end;
+const DURATION = BATCH_END - BATCH_START;
+
+// Auto-runs each shot's attached sfx(k, bt0) if scoreSound(k) is not defined separately
+if (typeof window.scoreSound !== 'function') {
+  window.scoreSound = function scoreSound(k) {
+    SHOTS.forEach((s) => {
+      if (typeof s.sfx === 'function') s.sfx(k, s.start - BATCH_START);
+    });
+  };
+}
+const scoreSound = window.scoreSound;
+
+window.BATCH_START = BATCH_START;
+window.BATCH_END = BATCH_END;
+window.DURATION = DURATION;
+window.SHOTS = SHOTS;
+window.scoreSound = scoreSound;
+
+let currentT = 0, playing = false, rafId = null, lastTs = 0, stopSound = null, activeShotFilter = 'all', voAudio = null;
+
+function findShotAtGlobal(gt) {
+  for (let i = 0; i < SHOTS.length; i++) {
+    if (gt >= SHOTS[i].start && gt <= SHOTS[i].end) return SHOTS[i];
+  }
+  return gt < SHOTS[0].start ? SHOTS[0] : SHOTS[SHOTS.length - 1];
+}
+
+function renderAtLocal(localT) {
+  currentT = DK.clamp(localT, 0, DURATION);
+  const gt = BATCH_START + currentT;
+  const s = findShotAtGlobal(gt);
+  const lt = DK.clamp(gt - s.start, 0, s.duration);
+  const u = s.duration > 0 ? lt / s.duration : 0;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, 1920, 1080);
+  ctx.save();
+  if (window.DK && DK.drawShot) DK.drawShot(ctx, s, lt, gt, u);
+  else s.draw(ctx, lt, gt, u);
+  ctx.restore();
+  document.getElementById('scrub').value = DURATION > 0 ? currentT / DURATION : 0;
+  document.getElementById('readout').textContent = gt.toFixed(2) + 's (' + currentT.toFixed(2) + 's) · Shot ' + s.shot_number;
+}
+
+window.seek = function (t, opts) {
+  if (playing) pause();
+  const localT = opts && opts.global ? t - BATCH_START : t;
+  renderAtLocal(localT);
+};
+
+function startAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  const mixMode = document.getElementById('mixSelect').value;
+  if (mixMode !== 'mute' && window.SOUND) stopSound = SOUND.live(scoreSound, currentT, { mixMode: 'sfxOnly' });
+  if (voAudio) { voAudio.currentTime = BATCH_START + currentT; voAudio.play().catch(() => {}); }
+}
+
+function stopAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  if (voAudio) voAudio.pause();
+}
+
+function play() {
+  if (playing) return;
+  playing = true;
+  document.getElementById('playBtn').textContent = 'Pause';
+  lastTs = performance.now();
+  startAudio();
+  const tick = (now) => {
+    if (!playing) return;
+    const dt = (now - lastTs) / 1000;
+    lastTs = now;
+    let nextT = currentT + dt;
+    if (activeShotFilter !== 'all') {
+      const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+      if (s) {
+        const sLocal0 = s.start - BATCH_START, sLocal1 = s.end - BATCH_START;
+        if (nextT >= sLocal1) { nextT = sLocal0; currentT = nextT; startAudio(); }
+      }
+    } else if (nextT >= DURATION) {
+      nextT = 0; currentT = 0; startAudio();
+    }
+    renderAtLocal(nextT);
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+}
+
+function pause() {
+  playing = false;
+  document.getElementById('playBtn').textContent = 'Play';
+  if (rafId) cancelAnimationFrame(rafId);
+  stopAudio();
+}
+
+const shotSelect = document.getElementById('shotSelect');
+SHOTS.forEach((s) => {
+  const opt = document.createElement('option');
+  opt.value = String(s.shot_number);
+  opt.textContent = 'Shot ' + s.shot_number + ': ' + s.title + ' (' + s.start.toFixed(1) + 's-' + s.end.toFixed(1) + 's)';
+  shotSelect.appendChild(opt);
+});
+
+shotSelect.addEventListener('change', () => {
+  activeShotFilter = shotSelect.value;
+  if (activeShotFilter !== 'all') {
+    const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+    if (s) { renderAtLocal(s.start - BATCH_START); if (playing) startAudio(); }
+  }
+});
+
+document.getElementById('playBtn').addEventListener('click', () => (playing ? pause() : play()));
+document.getElementById('scrub').addEventListener('input', (e) => {
+  renderAtLocal(parseFloat(e.target.value) * DURATION);
+  if (playing) startAudio();
+});
+document.getElementById('mixSelect').addEventListener('change', () => { if (playing) startAudio(); });
+document.getElementById('voInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  voAudio = new Audio(URL.createObjectURL(file));
+});
+document.getElementById('wavBtn').addEventListener('click', async () => {
+  const res = await SOUND.renderOffline(scoreSound, DURATION, 48000, { mixMode: 'sfxOnly' });
+  const blob = SOUND.encodeWAV(res.inter, res.sr);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'batch_sfx_' + SHOTS[0].shot_number + '_' + SHOTS[SHOTS.length - 1].shot_number + '.wav';
+  a.click();
+});
+window.addEventListener('DOMContentLoaded', async () => {
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  if (window.MAP && MAP.preloadAll) await MAP.preloadAll(SHOTS);
+  renderAtLocal(0);
+});
+</script>
+</body>
+</html>

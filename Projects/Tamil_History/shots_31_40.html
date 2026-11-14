@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Lumina 2.5D Storybook Studio (16:9) — Studio Player (Shots 31 to 40)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #05070d; color: #e2e8f0; font-family: 'Nunito', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+#stage-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; position: relative; overflow: hidden; }
+canvas { max-width: 100%; max-height: 100%; aspect-ratio: 16 / 9; box-shadow: 0 16px 48px rgba(0,0,0,0.75); background: #070b16; }
+#controls { height: 58px; background: #101522; border-top: 1px solid #222b42; display: flex; align-items: center; gap: 12px; padding: 0 18px; font-size: 13px; }
+button, select, label.btn { background: #1c2539; color: #f8fafc; border: 1px solid #334155; border-radius: 6px; padding: 6px 12px; font-family: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+button:hover, select:hover, label.btn:hover { background: #283552; border-color: #ff8a3d; }
+#scrub { flex: 1; accent-color: #ff8a3d; cursor: pointer; }
+#readout { font-family: 'Space Mono', monospace; font-size: 12px; color: #ffb074; min-width: 230px; }
+</style>
+</head>
+<body>
+<div id="stage-wrap"><canvas id="stage" width="1920" height="1080"></canvas></div>
+<div id="controls">
+  <button id="playBtn">Play</button>
+  <input id="scrub" type="range" min="0" max="1" step="0.001" value="0" />
+  <div id="readout">00.0s / 00.0s · Shot 31</div>
+  <select id="shotSelect"><option value="all">All Shots in Batch (31–40)</option></select>
+  <select id="mixSelect">
+    <option value="sfxOnly" selected>SFX + Ambient Only (No BGM)</option>
+    <option value="mute">Mute</option>
+  </select>
+  <label class="btn">Load vo.wav <input id="voInput" type="file" accept="audio/*" style="display:none" /></label>
+  <button id="wavBtn">Export Batch SFX (.wav)</button>
+</div>
+<script src="../../engine.js"></script>
+<script>
+// ============================================================================
+// MASTER CONSISTENCY BIBLE & GLOBAL THEME DICTIONARY (SHOTS 31 TO 40)
+// ============================================================================
+const THEME = {
+  CHARS: {
+    HOST_PROTAG: {
+      skin: '#C88C68',
+      hairStyle: 'curlyCloud',
+      hairColor: '#261C1A',
+      beard: false,
+      mustache: false,
+      wardrobe: 'jacket',
+      topColor: '#FF851B',
+      bottomColor: '#1E293B',
+      headwear: 'none',
+      foreheadMark: null,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'neutral',
+      s: 1.0,
+      seed: 101
+    },
+    HOST_SCIENTIST: {
+      skin: '#D69A72',
+      hairStyle: 'sidePart',
+      hairColor: '#261C1A',
+      beard: false,
+      mustache: false,
+      wardrobe: 'scientist',
+      topColor: '#F8FAFC',
+      bottomColor: '#334155',
+      headwear: 'none',
+      foreheadMark: null,
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'neutral',
+      s: 1.0,
+      seed: 102
+    },
+    KEELADI_MASON: {
+      skin: '#B87A56',
+      hairStyle: 'warriorKnot',
+      hairColor: '#1A1615',
+      beard: false,
+      mustache: false,
+      wardrobe: 'ancientTamil',
+      topColor: '#D97736',
+      bottomColor: '#F4EFE6',
+      headwear: 'turban',
+      foreheadMark: 'vibhuti',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'gasp',
+      s: 1.0,
+      seed: 201
+    },
+    KEELADI_WEAVER: {
+      skin: '#C88C68',
+      hairStyle: 'braidedCrown',
+      hairColor: '#1A1615',
+      beard: false,
+      mustache: false,
+      wardrobe: 'ancientTamil',
+      topColor: '#E15B64',
+      bottomColor: '#FDE68A',
+      headwear: 'none',
+      foreheadMark: 'bindi',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 0.96,
+      seed: 202
+    },
+    KALABHRA_GEN: {
+      skin: '#B87A56',
+      hairStyle: 'warriorKnot',
+      hairColor: '#1A1615',
+      beard: false,
+      mustache: false,
+      wardrobe: 'ancientTamil',
+      topColor: '#475569',
+      bottomColor: '#1E293B',
+      headwear: 'turban',
+      foreheadMark: 'tilak',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+      s: 1.05,
+      seed: 301
+    },
+    CHOLA_KING: {
+      skin: '#C88C68',
+      hairStyle: 'royalBun',
+      hairColor: '#1A1615',
+      beard: false,
+      mustache: false,
+      wardrobe: 'ancientTamil',
+      topColor: '#F7B928',
+      bottomColor: '#B91C1C',
+      headwear: 'crown',
+      foreheadMark: 'vibhuti',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'frown',
+      s: 1.04,
+      seed: 302
+    },
+    PANDYA_KING: {
+      skin: '#B87A56',
+      hairStyle: 'royalBun',
+      hairColor: '#1A1615',
+      beard: false,
+      mustache: false,
+      wardrobe: 'ancientTamil',
+      topColor: '#38BDF8',
+      bottomColor: '#F4EFE6',
+      headwear: 'crown',
+      foreheadMark: 'vibhuti',
+      eyeMode: 'warm',
+      brows: 'furrowed',
+      mouth: 'scream',
+      s: 1.04,
+      seed: 303
+    },
+    NARASIMHAVARMAN: {
+      skin: '#C88C68',
+      hairStyle: 'royalBun',
+      hairColor: '#1A1615',
+      beard: false,
+      mustache: false,
+      wardrobe: 'ancientTamil',
+      topColor: '#F59E0B',
+      bottomColor: '#FFFBEB',
+      headwear: 'crown',
+      foreheadMark: 'tilak',
+      eyeMode: 'warm',
+      brows: 'raised',
+      mouth: 'smile',
+      s: 1.04,
+      seed: 304
+    },
+    JAIN_SCHOLAR: {
+      skin: '#D69A72',
+      hairStyle: 'baldTufts',
+      hairColor: '#788092',
+      beard: false,
+      mustache: false,
+      wardrobe: 'ancientTamil',
+      topColor: '#F8FAFC',
+      bottomColor: '#E2E8F0',
+      headwear: 'none',
+      foreheadMark: 'tilak',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 1.0,
+      seed: 305
+    },
+    BUDDHIST_MONK: {
+      skin: '#C88C68',
+      hairStyle: 'shortCrop',
+      hairColor: '#261C1A',
+      beard: false,
+      mustache: false,
+      wardrobe: 'ancientTamil',
+      topColor: '#EA580C',
+      bottomColor: '#C2410C',
+      headwear: 'none',
+      foreheadMark: null,
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 1.0,
+      seed: 306
+    },
+    THIRUVALLUVAR: {
+      skin: '#C88C68',
+      hairStyle: 'scholarBun',
+      hairColor: '#788092',
+      beard: false,
+      mustache: false,
+      wardrobe: 'ancientTamil',
+      topColor: '#FDE68A',
+      bottomColor: '#FFFBEB',
+      headwear: 'none',
+      foreheadMark: 'vibhuti',
+      eyeMode: 'warm',
+      brows: 'neutral',
+      mouth: 'smile',
+      s: 1.02,
+      seed: 307
+    }
+  },
+
+  ANIMALS: {
+    WAR_HORSE: {
+      kind: 'horse',
+      s: 1.12,
+      royal: true,
+      expr: 'neutral'
+    }
+  },
+
+  INFO: {
+    PHY_KALABHRA_PALISADE: {
+      id: 'kalabhra_palisade_32',
+      x: 1080,
+      y: 840,
+      w: 240,
+      h: 260,
+      impactTime: 1.85,
+      impactPoint: [1040, 720],
+      force: 960,
+      cols: 6,
+      rows: 7,
+      material: 'stone',
+      floorY: 840,
+      seed: 32
+    },
+    MAP_KALABHRA_SWEEP: {
+      region: 'Tamil Nadu',
+      bbox: [76.2, 8.0, 80.6, 13.6],
+      style: 'terrainHistorical',
+      title: 'KALABHRA INTERREGNUM (களப்பிரர் காலம்)',
+      subTitle: 'c. 300 CE – 600 CE · 300-YEAR OCCUPATION',
+      reading: 'STRATEGIC SWEEP // NORTH TO SOUTH',
+      territories: [
+        {
+          place: 'Tamil Nadu',
+          color: 'rgba(51, 65, 85, 0.62)',
+          border: '#FF4D6A',
+          label: 'KALABHRA CONTROL (300–600 CE)',
+          t0: 0.25
+        }
+      ],
+      routes: [
+        { from: [79.13, 13.20], to: [79.70, 12.83], t0: 0.20, dur: 1.0, color: '#FF4D6A' },
+        { from: [79.70, 12.83], to: [78.69, 10.82], t0: 0.65, dur: 1.1, color: '#FF4D6A' },
+        { from: [78.69, 10.82], to: [78.12, 9.92],  t0: 1.15, dur: 1.1, color: '#FF4D6A' }
+      ],
+      pins: [
+        { lonLat: [79.70, 12.83], label: 'KANCHIPURAM', diorama: 'stoneFort', t0: 0.30 },
+        { lonLat: [78.69, 10.82], label: 'URAIYUR',     diorama: 'pin',       t0: 0.75 },
+        { lonLat: [78.12, 9.92],  label: 'MADURAI',     diorama: 'gopuram',   t0: 1.25 },
+        { lonLat: [78.55, 10.22], label: 'PULLANKURICHI', diorama: 'pin',     t0: 1.60 }
+      ]
+    },
+    PHY_MOOVENTHAR_DOMINO: {
+      id: 'mooventhar_domino_34',
+      mode: 'standard',
+      x0: 1050,
+      x1: 1480,
+      y: 840,
+      count: 3,
+      triggerTime: 0.45,
+      stepDelay: 0.42,
+      material: 'gold',
+      color: '#F7B928',
+      labels: ['CHERA (சேரர்)', 'CHOLA (சோழர்)', 'PANDYA (பாண்டியர்)'],
+      showBadge: true
+    },
+    MAP_PALLAVA_PANDYA_PINCER: {
+      region: 'Tamil Nadu',
+      bbox: [76.2, 8.0, 80.6, 13.6],
+      style: 'terrainHistorical',
+      title: 'PALLAVA & PANDYA PINCER OFFENSIVE',
+      subTitle: 'c. 575 CE · SIMHAVISHNU & KADUNGON',
+      reading: 'DUAL COUNTER-OFFENSIVE // VICTORY',
+      territories: [
+        {
+          place: 'Tamil Nadu',
+          color: 'rgba(56, 200, 120, 0.36)',
+          border: '#FFD54F',
+          label: 'TAMIL RENAISSANCE RESTORED',
+          t0: 0.30
+        }
+      ],
+      routes: [
+        { from: [79.70, 12.83], to: [78.69, 10.82], t0: 0.20, dur: 1.2, color: '#38BDF8' },
+        { from: [78.12, 9.92],  to: [78.69, 10.82], t0: 0.20, dur: 1.2, color: '#F7B928' }
+      ],
+      pins: [
+        { lonLat: [79.70, 12.83], label: 'PALLAVAS (KANCHI)', diorama: 'stoneFort', t0: 0.15 },
+        { lonLat: [78.12, 9.92],  label: 'PANDYAS (MADURAI)', diorama: 'gopuram',   t0: 0.15 },
+        { lonLat: [78.69, 10.82], label: 'KALABHRAS ROUTED',  diorama: 'pin',       t0: 1.35 }
+      ]
+    }
+  },
+
+  spawnChar(g, id, overrides = {}) {
+    const base = this.CHARS[id] || this.CHARS.HOST_PROTAG;
+    const cfg = Object.assign({}, base, overrides, {
+      beard: false,
+      mustache: false
+    });
+    DK.char(g, cfg);
+  },
+
+  spawnAnimal(g, id, overrides = {}) {
+    const base = this.ANIMALS[id] || { kind: 'horse', s: 1.0 };
+    const cfg = Object.assign({}, base, overrides);
+    DK.animal(g, cfg);
+  },
+
+  drawInfo(id, g, lt, gt, overrides = {}) {
+    if (id === 'PHY_KALABHRA_PALISADE') {
+      const cfg = Object.assign({}, this.INFO.PHY_KALABHRA_PALISADE, overrides);
+      PHY.shatterWall(g, lt, cfg);
+    } else if (id === 'MAP_KALABHRA_SWEEP') {
+      const cfg = Object.assign({}, this.INFO.MAP_KALABHRA_SWEEP, overrides);
+      UI.strategicMap(g, lt, cfg);
+    } else if (id === 'PHY_MOOVENTHAR_DOMINO') {
+      const cfg = Object.assign({}, this.INFO.PHY_MOOVENTHAR_DOMINO, overrides);
+      PHY.dominoChain(g, lt, cfg);
+    } else if (id === 'MAP_PALLAVA_PANDYA_PINCER') {
+      const cfg = Object.assign({}, this.INFO.MAP_PALLAVA_PANDYA_PINCER, overrides);
+      UI.strategicMap(g, lt, cfg);
+    }
+  },
+
+  drawEnv(id, g, cam, gt, heroFn) {
+    if (id === 'ENV_BATTLEFIELD_STORM') {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'storm');
+          FX.clouds(g, { seed: 31, count: 9, y: 140, h: 170, color: '#334155', a: 0.90, t: gt, speed: 28 });
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 1.5,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 31, y: 740, amp: 130, color: '#273449' });
+          FX.storybookHorizon(g, { style: 'fortress', y: 760, seed: 31 });
+        },
+        mgBackDepth: 0.72,
+        mgBack: (g) => {
+          FX.storybookScene(g, gt, { preset: 'battlefield', y: 840, seed: 31 });
+          FX.structure3D(g, 260, 840, 220, 210, { kind: 'stoneFort', color: '#475569', t: gt });
+          FX.structure3D(g, 1520, 840, 240, 220, { kind: 'stoneFort', color: '#3E4C5E', t: gt });
+        },
+        mgHero: (g) => {
+          FX.storybookGround(g, 840, { style: 'earthPath', baseCol: '#4B3D33', grassCol: '#365338' });
+          if (heroFn) heroFn(g);
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 8,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 14, color: 'rgba(255, 120, 80, 0.18)', seed: 31 });
+        }
+      });
+    } else if (id === 'ENV_TEMPLE_NIGHT') {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'nightSky');
+          FX.stars(g, gt, { count: 70, seed: 35 });
+          FX.moon(g, 1480, 200, 50);
+          FX.clouds(g, { seed: 35, count: 6, y: 160, h: 130, color: '#1E293B', a: 0.72, t: gt, speed: 10 });
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 2,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 35, y: 750, amp: 100, color: '#1E293B' });
+          FX.storybookHorizon(g, { style: 'ancientTamil', y: 760, seed: 35 });
+        },
+        mgBackDepth: 0.72,
+        mgBack: (g) => {
+          FX.storybookScene(g, gt, { preset: 'templeCourtyard', y: 840, seed: 35 });
+          FX.structure3D(g, 420, 840, 240, 320, { kind: 'gopuram', color: '#334155', t: gt });
+          FX.structure3D(g, 1360, 840, 260, 240, { kind: 'mandapam', color: '#293548', t: gt });
+        },
+        mgHero: (g) => {
+          FX.storybookGround(g, 840, { style: 'flagstone', baseCol: '#262F3F', grassCol: '#1E3A2F' });
+          if (heroFn) heroFn(g);
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 9,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 10, color: 'rgba(148, 163, 184, 0.14)', seed: 35 });
+        }
+      });
+    } else if (id === 'ENV_EXCAVATION_SITE') {
+      FX.infographicEnv(g, gt, {
+        preset: 'archaeologyDigSite',
+        cam: cam,
+        y: 840,
+        seed: 36,
+        hero: (g) => {
+          FX.prop3D(g, 360, 840, 1.0, { kind: 'trenchGrid', color: '#D97736', t: gt });
+          FX.prop3D(g, 1460, 840, 0.95, { kind: 'amphoraStack', color: '#B45309', t: gt });
+          if (heroFn) heroFn(g);
+        }
+      });
+    } else if (id === 'ENV_SANGAM_HALL') {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'ancientInterior');
+          FX.godRays(g, 960, 120, { count: 7, color: 'rgba(255, 200, 90, 0.18)' });
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 1.5,
+        bgFar: (g) => {
+          FX.storybookHorizon(g, { style: 'ancientTamil', y: 760, seed: 37 });
+        },
+        mgBackDepth: 0.72,
+        mgBack: (g) => {
+          FX.storybookScene(g, gt, { preset: 'sangamHall', y: 840, seed: 37 });
+          FX.structure3D(g, 320, 840, 260, 280, { kind: 'mandapam', color: '#9A5B32', t: gt });
+          FX.structure3D(g, 1520, 840, 260, 280, { kind: 'mandapam', color: '#9A5B32', t: gt });
+        },
+        mgHero: (g) => {
+          FX.storybookGround(g, 840, { style: 'flagstone', baseCol: '#785A40', grassCol: '#4A8C4A' });
+          if (heroFn) heroFn(g);
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 8,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 12, color: 'rgba(255, 210, 110, 0.20)', seed: 37 });
+        }
+      });
+    } else if (id === 'ENV_FARM_CLEARING') {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'goldenHour');
+          FX.sun(g, 1420, 210, 68);
+          FX.clouds(g, { seed: 38, count: 7, y: 150, h: 140, color: '#FFF7ED', a: 0.88, t: gt, speed: 14 });
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 1.5,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 38, y: 740, amp: 120, color: '#5A8F68' });
+          FX.storybookHorizon(g, { style: 'ancientTamil', y: 760, seed: 38 });
+        },
+        mgBackDepth: 0.72,
+        mgBack: (g) => {
+          FX.storybookScene(g, gt, { preset: 'farmClearing', y: 840, seed: 38 });
+          FX.tree(g, 280, 840, 1.15, '#3F7D4C', 'banyan');
+          FX.tree(g, 1580, 840, 1.10, '#4A8C4A', 'palm');
+        },
+        mgHero: (g) => {
+          FX.storybookGround(g, 840, { style: 'grassland', baseCol: '#6E523C', grassCol: '#4A8C4A' });
+          if (heroFn) heroFn(g);
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 8,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 12, color: 'rgba(255, 215, 115, 0.22)', seed: 38 });
+        }
+      });
+    } else if (id === 'ENV_TEMPLE_COURTYARD') {
+      DK.fivePlane(g, cam, {
+        bgSky: (g) => {
+          DK.mood(g, 'clearDay');
+          FX.sun(g, 1480, 200, 64);
+          FX.clouds(g, { seed: 40, count: 7, y: 150, h: 145, color: '#FFFFFF', a: 0.90, t: gt, speed: 12 });
+        },
+        bgFarDepth: 0.35,
+        bgFarBlur: 1.5,
+        bgFar: (g) => {
+          FX.hills(g, { seed: 40, y: 745, amp: 105, color: '#5A8F68' });
+          FX.storybookHorizon(g, { style: 'ancientTamil', y: 760, seed: 40 });
+        },
+        mgBackDepth: 0.72,
+        mgBack: (g) => {
+          FX.storybookScene(g, gt, { preset: 'templeCourtyard', y: 840, seed: 40 });
+          FX.structure3D(g, 420, 840, 260, 350, { kind: 'gopuram', color: '#C8643B', t: gt });
+          FX.structure3D(g, 1380, 840, 270, 260, { kind: 'mandapam', color: '#B4532A', t: gt });
+        },
+        mgHero: (g) => {
+          FX.storybookGround(g, 840, { style: 'flagstone', baseCol: '#7C624A', grassCol: '#4A8C4A' });
+          if (heroFn) heroFn(g);
+        },
+        fgBokehDepth: 1.45,
+        fgBokehBlur: 8,
+        fgBokeh: (g) => {
+          FX.bokehOrbs(g, gt, { count: 12, color: 'rgba(255, 220, 120, 0.20)', seed: 40 });
+        }
+      });
+    }
+  }
+};
+window.THEME = THEME;
+
+// ============================================================================
+// SHOTS 31 TO 40 (104.6s – 141.1s · ATTACHED draw + sfx PER SHOT)
+// ============================================================================
+const SHOTS = [
+  // --------------------------------------------------------------------------
+  // SHOT 031 · [01:44.6 - 01:47.6] (104.6s – 107.6s · dur: 3.0s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 31,
+    title: 'STORM FROM THE NORTH',
+    start: 104.6,
+    end: 107.6,
+    duration: 3.0,
+    vo_line: 'ஆனா இந்த பொற்காலம் ரொம்ப நாள் நீடிக்கல. திடீர்னு வடக்கே இருந்து...',
+    env_id: 'ENV_BATTLEFIELD_STORM',
+    chars: 'KEELADI_MASON (Border Sentry)',
+    on_screen_text: 'END OF THE SANGAM GOLDEN AGE · c. 300 CE',
+    camera_sfx: 'Pan Left + Zoom In · stormWind + thunder + warDrum',
+    transition_out: 'WHIP_PAN_NORTH',
+    draw(g, lt, gt, u) {
+      const shk = lt >= 1.5 ? DK.shake(lt - 1.5, 5, 16, 31) : { x: 0, y: 0 };
+      const cam = {
+        x: DK.key(lt, [[0, 990], [1.5, 950], [3.0, 910]], DK.ease.inOutQuad) + shk.x,
+        y: DK.key(lt, [[0, 540], [3.0, 535]], DK.ease.outCubic) + shk.y,
+        z: DK.key(lt, [[0, 1.00], [3.0, 1.06]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_BATTLEFIELD_STORM', g, cam, gt, (g) => {
+        // Mid-Shot Micro-Beat (lt = 1.50s): Northern lightning flash & alarm drum strike
+        if (lt >= 1.48 && lt <= 2.15) {
+          const flashA = DK.clamp(1 - (lt - 1.48) / 0.65, 0, 1);
+          g.save();
+          g.strokeStyle = `rgba(224, 242, 254, ${flashA * 0.95})`;
+          g.lineWidth = 6;
+          g.beginPath();
+          g.moveTo(1180, 80);
+          g.lineTo(1120, 240);
+          g.lineTo(1165, 260);
+          g.lineTo(1080, 460);
+          g.lineTo(1130, 480);
+          g.lineTo(1040, 720);
+          g.stroke();
+          g.restore();
+        }
+
+        // Target Interactive Prop at x: 530 (Sentry reaches x: 615 -> charX - 85px contact)
+        FX.interactiveProp(g, { kind: 'forgeAnvil', x: 530, y: 840, cutTime: 1.50, lt, gt });
+
+        // War-drum resonators when struck at lt = 1.50s
+        if (lt >= 1.50) {
+          const ringP = DK.prog(lt, 1.50, 2.60);
+          g.save();
+          g.strokeStyle = `rgba(255, 77, 106, ${(1 - ringP) * 0.85})`;
+          g.lineWidth = 4;
+          g.beginPath();
+          g.arc(530, 770, 28 + ringP * 140, 0, Math.PI * 2);
+          g.stroke();
+          g.restore();
+        }
+
+        // Border Sentry sprinting left (moveX: [980, 615, lt, 3.0])
+        THEME.spawnChar(g, 'KEELADI_MASON', {
+          moveX: [980, 615, lt, 3.0],
+          y: 840,
+          flipX: true,
+          eyeMode: 'panic',
+          prop: 'vel',
+          pose: { preset: 'run', speed: 1.35 },
+          t: gt
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'END OF THE SANGAM GOLDEN AGE · c. 300 CE',
+        x: 960,
+        y: 115,
+        accent: '#FF4D6A',
+        t0: 0.2
+      });
+      UI.citation(g, 'Velvikudi Copper Plates (Pandya Parantaka Nedunjadaiyan)', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.32, grain: 0.025 });
+    },
+    sfx(k, bt0) {
+      k.bed('stormWind', bt0 + 0.0, bt0 + 3.0, { gain: 0.26 });
+      k.play('pillBadge', bt0 + 0.20, { gain: 0.35 });
+      k.play('footstep', bt0 + 0.45, { gain: 0.40 });
+      k.play('footstep', bt0 + 0.95, { gain: 0.42 });
+      k.play('thunder', bt0 + 1.50, { gain: 0.68 });
+      k.play('warHorn', bt0 + 1.55, { gain: 0.58 });
+      k.play('anvilStrike', bt0 + 1.55, { gain: 0.54 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 032 · [01:47.6 - 01:51.3] (107.6s – 111.3s · dur: 3.7s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 32,
+    title: 'ENTER THE KALABHRAS',
+    start: 107.6,
+    end: 111.3,
+    duration: 3.7,
+    vo_line: '...ஒரு பெரும் படை வருது. அவங்க பேரு களப்பிரர்கள், Kalabhras-ன்னு கூட சொல்லுவாங்க.',
+    env_id: 'ENV_BATTLEFIELD_STORM',
+    chars: 'KALABHRA_GEN + WAR_HORSE + PHY_KALABHRA_PALISADE',
+    on_screen_text: 'THE KALABHRAS (களப்பிரர்கள்) · INVASION FROM THE NORTH',
+    camera_sfx: 'Tracking Advance + Shatter Shake · horseGallop + wallShatter',
+    transition_out: 'CUT_TO_STRATEGIC_MAP',
+    draw(g, lt, gt, u) {
+      const shk = lt >= 1.85 ? DK.shake(lt - 1.85, 7, 20, 32) : { x: 0, y: 0 };
+      const cam = {
+        x: DK.key(lt, [[0, 880], [1.85, 960], [3.7, 1020]], DK.ease.inOutQuad) + shk.x,
+        y: DK.key(lt, [[0, 540], [3.7, 540]], DK.ease.linear) + shk.y,
+        z: DK.key(lt, [[0, 1.00], [1.85, 1.05], [3.7, 1.08]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_BATTLEFIELD_STORM', g, cam, gt, (g) => {
+        // Vanguard soldier marching in background formation
+        THEME.spawnChar(g, 'KALABHRA_GEN', {
+          moveX: [140, 830, lt, 3.7],
+          y: 832,
+          s: 0.92,
+          hairStyle: 'shortCrop',
+          prop: 'vel',
+          pose: { preset: 'march', speed: 1.35 },
+          t: gt,
+          seed: 320
+        });
+
+        // Forward-galloping War Horse (moveX: [360, 1100, lt, 3.7])
+        THEME.spawnAnimal(g, 'WAR_HORSE', {
+          moveX: [360, 1100, lt, 3.7],
+          y: 840,
+          t: gt
+        });
+
+        // Kalabhra Commander (moveX: [240, 980, lt, 3.7], charX + 100px contact with palisade at x: 1080)
+        THEME.spawnChar(g, 'KALABHRA_GEN', {
+          moveX: [240, 980, lt, 3.7],
+          y: 840,
+          prop: 'sword',
+          pose: { preset: 'march', speed: 1.35 },
+          t: gt
+        });
+
+        // Border Palisade Wall shattered at impactTime: 1.85s (x: 1080, y: 840)
+        THEME.drawInfo('PHY_KALABHRA_PALISADE', g, lt, gt);
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'THE KALABHRAS (களப்பிரர்கள்) · INVASION FROM THE NORTH',
+        x: 960,
+        y: 115,
+        accent: '#FF4D6A',
+        t0: 0.3
+      });
+      UI.citation(g, 'Velvikudi Grant & Pullankurichi Inscription (c. 5th Century CE)', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.32, grain: 0.025 });
+    },
+    sfx(k, bt0) {
+      k.bed('stormWind', bt0 + 0.0, bt0 + 3.7, { gain: 0.26 });
+      k.play('horseGallop', bt0 + 0.20, { gain: 0.55 });
+      k.play('marchSteps', bt0 + 0.55, { gain: 0.45 });
+      k.play('shatter', bt0 + 1.85, { gain: 0.70 });
+      k.play('stoneCollapse', bt0 + 1.92, { gain: 0.65 });
+      if (window.PHY && PHY.scheduleImpacts) {
+        PHY.scheduleImpacts(k, 'shatter', THEME.INFO.PHY_KALABHRA_PALISADE, 107.6, window.BATCH_START || 104.6);
+      }
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 033 · [01:51.3 - 01:54.8] (111.3s – 114.8s · dur: 3.5s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 33,
+    title: '300 CE TO 600 CE MAP SWEEP',
+    start: 111.3,
+    end: 114.8,
+    duration: 3.5,
+    vo_line: 'சுமார் கி.பி மூணாம் நூற்றாண்டுல இருந்து ஆறாம் நூற்றாண்டு வரைக்கும்,',
+    env_id: 'ENV_BATTLEFIELD_STORM + MAP_KALABHRA_SWEEP',
+    chars: 'HOST_PROTAG',
+    on_screen_text: 'KALABHRA INTERREGNUM · 300 CE – 600 CE (300 YEARS)',
+    camera_sfx: 'Push In on Strategic Map · whoosh + clockTickFast',
+    transition_out: 'DIVE_TO_FORTRESS',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 960], [3.5, 960]], DK.ease.linear),
+        y: DK.key(lt, [[0, 540], [3.5, 532]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 0.98], [3.5, 1.05]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_BATTLEFIELD_STORM', g, cam, gt, (g) => {
+        // Strategic Map of the Kalabhra Sweep across Tamil Nadu
+        THEME.drawInfo('MAP_KALABHRA_SWEEP', g, lt, gt);
+
+        // Century Timer Stand at x: 810, y: 850 (Host walks [320 -> 720], charX + 90px contact)
+        FX.interactiveProp(g, { kind: 'scholarDesk', x: 810, y: 850, cutTime: 1.75, lt, gt });
+
+        // Host walking to timer stand
+        THEME.spawnChar(g, 'HOST_PROTAG', {
+          moveX: [320, 720, lt, 3.5],
+          y: 850,
+          pose: { preset: 'walk', speed: 1.1 },
+          t: gt
+        });
+
+        // Radial Century Timer above stand
+        UI.radialTimer(g, lt, { x: 810, y: 690, r: 58, dur: 3.5, label: '300–600 CE' });
+      });
+
+      // Mid-Shot Micro-Beat (lt = 1.75s): 300-Year span callout badge pops in
+      if (lt >= 1.75) {
+        UI.pillBadge(g, lt, {
+          text: '3 CENTURIES OF OCCUPATION (300–600 CE)',
+          x: 1380,
+          y: 780,
+          accent: '#FFB84D',
+          t0: 1.75
+        });
+      }
+
+      UI.eraChapterDial(g, lt, {
+        era: 'KALABHRA INTERREGNUM',
+        year: '300 CE – 600 CE (300 YEARS)',
+        x: 960,
+        y: 125
+      });
+      UI.citation(g, 'K.A. Nilakanta Sastri, The Kalabhra Interregnum', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.022 });
+    },
+    sfx(k, bt0) {
+      k.bed('stormWind', bt0 + 0.0, bt0 + 3.5, { gain: 0.22 });
+      k.play('whoosh', bt0 + 0.20, { gain: 0.45 });
+      k.play('footstep', bt0 + 0.65, { gain: 0.38 });
+      k.play('counterTick', bt0 + 1.75, { gain: 0.48 });
+      k.play('timerChime', bt0 + 1.80, { gain: 0.45 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 034 · [01:54.8 - 01:58.3] (114.8s – 118.3s · dur: 3.5s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 34,
+    title: 'FALL OF THE THREE CROWNED KINGS (MOOVENTHAR)',
+    start: 114.8,
+    end: 118.3,
+    duration: 3.5,
+    vo_line: 'இந்த களப்பிரர்கள் ஒட்டுமொத்த தமிழ்நாட்டையும் கைப்பற்றிடுறாங்க. மூவேந்தர்களும் தோற்கடிக்கப்பட்டாங்க.',
+    env_id: 'ENV_BATTLEFIELD_STORM + PHY_MOOVENTHAR_DOMINO',
+    chars: 'KALABHRA_GEN vs CHOLA_KING + Domino Slabs',
+    on_screen_text: 'CHERA · CHOLA · PANDYA DEFEATED',
+    camera_sfx: 'Pan Right to Falling Royal Slabs · swordClash + dominoFall',
+    transition_out: 'FADE_TO_TWILIGHT',
+    draw(g, lt, gt, u) {
+      const shk = lt >= 1.75 ? DK.shake(lt - 1.75, 5, 18, 34) : { x: 0, y: 0 };
+      const cam = {
+        x: DK.key(lt, [[0, 920], [1.75, 960], [3.5, 1000]], DK.ease.inOutQuad) + shk.x,
+        y: DK.key(lt, [[0, 540], [3.5, 535]], DK.ease.outCubic) + shk.y,
+        z: DK.key(lt, [[0, 1.00], [3.5, 1.06]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_BATTLEFIELD_STORM', g, cam, gt, (g) => {
+        // Combat Pair at exact 115px sword-clash contact (x: 680 & x: 795, y: 840)
+        THEME.spawnChar(g, 'KALABHRA_GEN', {
+          x: 680,
+          y: 840,
+          prop: 'sword',
+          pose: { preset: 'swordFight', speed: 1.35 },
+          t: gt
+        });
+        THEME.spawnChar(g, 'CHOLA_KING', {
+          x: 795,
+          y: 840,
+          flipX: true,
+          prop: 'sword',
+          pose: { preset: 'swordFight', speed: 1.35 },
+          t: gt
+        });
+
+        // Mooventhar Domino Chain (x0: 1050, x1: 1480, y: 840) toppling CHERA, CHOLA, PANDYA slabs
+        THEME.drawInfo('PHY_MOOVENTHAR_DOMINO', g, lt, gt);
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'CHERA · CHOLA · PANDYA DEFEATED',
+        x: 960,
+        y: 115,
+        accent: '#FF4D6A',
+        t0: 0.25
+      });
+      UI.citation(g, 'Velvikudi Plates: Displacement of the Three Crowned Kings', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.32, grain: 0.025 });
+    },
+    sfx(k, bt0) {
+      k.bed('battlefield', bt0 + 0.0, bt0 + 3.5, { gain: 0.25 });
+      k.play('swordClash', bt0 + 0.40, { gain: 0.58 });
+      k.play('dominoClick', bt0 + 0.85, { gain: 0.52 });
+      k.play('stoneCollapse', bt0 + 1.75, { gain: 0.62 });
+      if (window.PHY && PHY.scheduleImpacts) {
+        PHY.scheduleImpacts(k, 'domino', THEME.INFO.PHY_MOOVENTHAR_DOMINO, 114.8, window.BATCH_START || 104.6);
+      }
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 035 · [01:58.3 - 02:02.0] (118.3s – 122.0s · dur: 3.7s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 35,
+    title: 'THE SO-CALLED "DARK AGE" (இருண்ட காலம்)',
+    start: 118.3,
+    end: 122.0,
+    duration: 3.7,
+    vo_line: 'இந்த 300 வருஷ காலகட்டத்தை தமிழ்நாட்டுல ஒரு இருண்ட காலகட்டம்னு சொல்லுவாங்க.',
+    env_id: 'ENV_TEMPLE_NIGHT',
+    chars: 'HOST_PROTAG (with lantern)',
+    on_screen_text: '300-YEAR "DARK AGE" (இருண்ட காலம்?)',
+    camera_sfx: 'Twilight Push In · nightCrickets + lanternFlare',
+    transition_out: 'CAMERA_PUSH_IN',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 910], [1.85, 950], [3.7, 980]], DK.ease.inOutQuad),
+        y: DK.key(lt, [[0, 540], [3.7, 535]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.00], [3.7, 1.06]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_TEMPLE_NIGHT', g, cam, gt, (g) => {
+        // Uninscribed stone stele at x: 1010, y: 840 (Host arrives at x: 920 -> charX + 90px contact)
+        FX.interactiveProp(g, { kind: 'crumblingPillar', x: 1010, y: 840, cutTime: 99, lt, gt });
+
+        // Lantern Searcher walking across darkened courtyard
+        const hostX = DK.key(lt, [[0, 380], [3.7, 920]], DK.ease.linear);
+        THEME.spawnChar(g, 'HOST_PROTAG', {
+          moveX: [380, 920, lt, 3.7],
+          y: 840,
+          prop: 'lantern',
+          pose: { preset: 'walk', speed: 1.05 },
+          t: gt
+        });
+
+        // Mid-Shot Micro-Beat (lt = 1.85s): Warm volumetric lantern cone illuminates the stone stele
+        const flareP = lt >= 1.85 ? DK.pop(lt, 1.85, 0.45) : 0.25;
+        g.save();
+        const grad = g.createRadialGradient(hostX + 75, 720, 10, 1010, 700, 280);
+        grad.addColorStop(0, `rgba(255, 195, 85, ${0.42 * flareP})`);
+        grad.addColorStop(1, 'rgba(255, 195, 85, 0)');
+        g.fillStyle = grad;
+        g.beginPath();
+        g.arc(980, 710, 280, 0, Math.PI * 2);
+        g.fill();
+
+        if (lt >= 1.85) {
+          g.fillStyle = '#FDE68A';
+          g.font = '800 22px "Nunito", sans-serif';
+          g.textAlign = 'center';
+          g.fillText('இருண்ட காலம்?', 1010, 620);
+          g.fillStyle = '#CBD5E1';
+          g.font = '700 15px "Space Mono", monospace';
+          g.fillText('THE "DARK AGE" · 300 YEARS', 1010, 646);
+        }
+        g.restore();
+      });
+
+      UI.pillBadge(g, lt, {
+        text: '300-YEAR "DARK AGE" (இருண்ட காலம்?)',
+        x: 960,
+        y: 115,
+        accent: '#94A3B8',
+        t0: 0.3
+      });
+      UI.citation(g, 'Historiographical Debate: Colonial & Early 20th-Century Terminology', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.36, grain: 0.028 });
+    },
+    sfx(k, bt0) {
+      k.bed('nightCrickets', bt0 + 0.0, bt0 + 3.7, { gain: 0.22 });
+      k.play('footstep', bt0 + 0.55, { gain: 0.36 });
+      k.play('footstep', bt0 + 1.25, { gain: 0.38 });
+      k.play('fireIgnite', bt0 + 1.85, { gain: 0.42 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 036 · [02:02.0 - 02:06.6] (122.0s – 126.6s · dur: 4.6s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 36,
+    title: 'MISSING ROYAL INSCRIPTIONS (EPIGRAPHICAL GAP)',
+    start: 122.0,
+    end: 126.6,
+    duration: 4.6,
+    vo_line: 'ஏன்னா இந்த 300 வருஷத்துல தமிழ்நாட்டுல என்ன நடந்துச்சுன்னு சொல்றதுக்கு எந்த ஒரு கல்வெட்டோ, இலக்கியமோ எதுவுமே இல்ல.',
+    env_id: 'ENV_EXCAVATION_SITE',
+    chars: 'HOST_SCIENTIST + HOST_PROTAG',
+    on_screen_text: 'SCARCITY OF ROYAL RECORDS · Pullankurichi Exception',
+    camera_sfx: 'Push In on Epigraphy Desk · paperRustle + uiCancel',
+    transition_out: 'LIGHT_RAY_REVEAL',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 940], [2.3, 960], [4.6, 980]], DK.ease.inOutQuad),
+        y: DK.key(lt, [[0, 540], [4.6, 535]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.00], [2.3, 1.05], [4.6, 1.08]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_EXCAVATION_SITE', g, cam, gt, (g) => {
+        // Epigraphy Archive Desk at x: 730, y: 840
+        FX.interactiveProp(g, { kind: 'scholarDesk', x: 730, y: 840, cutTime: 2.30, lt, gt });
+
+        // Historian inspecting empty stone epigraphy slab (x: 640 -> charX + 90px contact with desk)
+        THEME.spawnChar(g, 'HOST_SCIENTIST', {
+          x: 640,
+          y: 840,
+          prop: 'telescope',
+          pose: { preset: 'experiment', speed: 1.1 },
+          t: gt
+        });
+
+        // Host walking up from right (moveX: [1340, 825, lt, 4.6] -> charX - 95px contact with desk)
+        THEME.spawnChar(g, 'HOST_PROTAG', {
+          moveX: [1340, 825, lt, 4.6],
+          y: 840,
+          flipX: true,
+          brows: 'asymmetric',
+          pose: { preset: 'walk', speed: 1.05 },
+          t: gt
+        });
+
+        // Mid-Shot Micro-Beat (lt = 2.30s): Comedic [404 ROYAL INSCRIPTION NOT FOUND] badge over desk
+        if (lt >= 2.30) {
+          const popS = DK.pop(lt, 2.30, 0.35);
+          g.save();
+          g.translate(730, 630);
+          g.scale(popS, popS);
+          g.fillStyle = 'rgba(15, 23, 42, 0.92)';
+          g.strokeStyle = '#FF4D6A';
+          g.lineWidth = 3;
+          g.beginPath();
+          g.roundRect(-185, -28, 370, 56, 10);
+          g.fill();
+          g.stroke();
+          g.fillStyle = '#FF4D6A';
+          g.font = '700 18px "Space Mono", monospace';
+          g.textAlign = 'center';
+          g.fillText('[404 ROYAL INSCRIPTION NOT FOUND]', 0, 6);
+          g.restore();
+        }
+      });
+
+      UI.techCallout(g, lt, {
+        from: [730, 720],
+        elbow: [980, 560],
+        to: [1420, 560],
+        title: 'SCARCITY OF ROYAL RECORDS',
+        spec: 'Exception: Pullankurichi Rock Inscription (c. 5th Cent. CE)',
+        accent: '#FFB84D',
+        t0: 2.30
+      });
+      UI.citation(g, 'Pullankurichi Inscription & Early Epigraphical Gap Analysis', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.26, grain: 0.022 });
+    },
+    sfx(k, bt0) {
+      k.bed('templeCourtyard', bt0 + 0.0, bt0 + 4.6, { gain: 0.20 });
+      k.play('paperTear', bt0 + 0.40, { gain: 0.40 });
+      k.play('awkwardPluck', bt0 + 2.30, { gain: 0.45 });
+      k.play('pillBadge', bt0 + 2.35, { gain: 0.38 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 037 · [02:06.6 - 02:11.1] (126.6s – 131.1s · dur: 4.5s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 37,
+    title: 'JAINISM & BUDDHISM FLOURISH (DRAVIDA SANGHA)',
+    start: 126.6,
+    end: 131.1,
+    duration: 4.5,
+    vo_line: 'ஆனா அதுக்கப்புறம் கிடைச்ச records-படி பார்த்தா சமணமும், பௌத்தமும் இந்த காலத்துலதான் தமிழ்நாட்டுல பெரிய அளவுல பரவியிருக்கு.',
+    env_id: 'ENV_SANGAM_HALL',
+    chars: 'JAIN_SCHOLAR + BUDDHIST_MONK',
+    on_screen_text: 'JAINISM & BUDDHISM FLOURISH · DRAVIDA SANGHA (470 CE)',
+    camera_sfx: 'Warm Monastic Pan · stylusScratch + templeBell',
+    transition_out: 'SUNRISE_HORIZON_WIPE',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 920], [2.25, 960], [4.5, 1000]], DK.ease.inOutQuad),
+        y: DK.key(lt, [[0, 540], [4.5, 530]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.00], [4.5, 1.06]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_SANGAM_HALL', g, cam, gt, (g) => {
+        // Left Monastic Desk (x: 625, y: 840) + Jain Monk Scholar (x: 540 -> charX + 85px contact)
+        FX.interactiveProp(g, { kind: 'scholarDesk', x: 625, y: 840, cutTime: 2.25, lt, gt });
+        THEME.spawnChar(g, 'JAIN_SCHOLAR', {
+          x: 540,
+          y: 840,
+          prop: 'palmLeaf',
+          pose: { preset: 'write', speed: 1.15 },
+          t: gt
+        });
+
+        // Right Monastic Desk (x: 930, y: 840) + Buddhist Monk Scholar (moveX: [1380, 1020] -> charX - 90px contact)
+        FX.interactiveProp(g, { kind: 'scholarDesk', x: 930, y: 840, cutTime: 2.25, lt, gt });
+        THEME.spawnChar(g, 'BUDDHIST_MONK', {
+          moveX: [1380, 1020, lt, 4.5],
+          y: 840,
+          flipX: true,
+          prop: 'scroll',
+          pose: { preset: 'walk', speed: 1.1 },
+          t: gt
+        });
+
+        // Mid-Shot Micro-Beat (lt = 2.25s): Golden lotus rays & DRAVIDA SANGHA callout bloom above desks
+        if (lt >= 2.25) {
+          FX.godRays(g, 780, 220, { count: 8, color: 'rgba(255, 215, 95, 0.24)' });
+          UI.techCallout(g, lt, {
+            from: [625, 730],
+            elbow: [740, 570],
+            to: [1180, 570],
+            title: 'DRAVIDA SANGHA (470 CE · MADURAI)',
+            spec: 'Vajranandi · Naladiyar & Ethical Treatises',
+            accent: '#FFB84D',
+            t0: 2.25
+          });
+        }
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'JAINISM & BUDDHISM FLOURISH · DRAVIDA SANGHA (470 CE)',
+        x: 960,
+        y: 115,
+        accent: '#FFB84D',
+        t0: 0.25
+      });
+      UI.citation(g, 'Vajranandi’s Dravida Sangha (470 CE) & Buddhadatta’s Vinayavinicchaya', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.25, grain: 0.022 });
+    },
+    sfx(k, bt0) {
+      k.bed('templeCourtyard', bt0 + 0.0, bt0 + 4.5, { gain: 0.22 });
+      k.play('penScratch', bt0 + 0.30, { gain: 0.42 });
+      k.play('templeBell', bt0 + 2.25, { gain: 0.50 });
+      k.play('starShimmer', bt0 + 2.30, { gain: 0.40 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 038 · [02:11.1 - 02:13.9] (131.1s – 133.9s · dur: 2.8s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 38,
+    title: 'DAWN OF THE 6TH CENTURY CE',
+    start: 131.1,
+    end: 133.9,
+    duration: 2.8,
+    vo_line: 'ஆனா எந்த இருட்டுமே நிரந்தரம் கிடையாது. ஆறாம் நூற்றாண்டுல...',
+    env_id: 'ENV_FARM_CLEARING',
+    chars: 'NARASIMHAVARMAN (Standard-Bearer)',
+    on_screen_text: 'THE TAMIL RENAISSANCE · late 6th CENTURY CE (c. 575 CE)',
+    camera_sfx: 'Heroic Dawn Crane Up · conch + flagSnap',
+    transition_out: 'CUT_TO_PINCER_MAP',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 910], [2.8, 970]], DK.ease.outCubic),
+        y: DK.key(lt, [[0, 550], [2.8, 525]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.00], [2.8, 1.06]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_FARM_CLEARING', g, cam, gt, (g) => {
+        // Mid-Shot Micro-Beat (lt = 1.40s): Golden god-rays burst across the dawn sky
+        if (lt >= 1.40) {
+          FX.godRays(g, 1420, 190, { count: 8, color: 'rgba(255, 215, 95, 0.28)' });
+        }
+
+        // Stone Cairn on ridge at x: 970, y: 840 (Standard-bearer reaches x: 880 -> charX + 90px contact)
+        FX.interactiveProp(g, { kind: 'crumblingPillar', x: 970, y: 840, cutTime: 99, lt, gt });
+
+        // Dawn Standard-Bearer running up ridge with rising-sun banner
+        THEME.spawnChar(g, 'NARASIMHAVARMAN', {
+          moveX: [380, 880, lt, 2.8],
+          y: 840,
+          prop: 'flag',
+          pose: { preset: 'run', speed: 1.3 },
+          t: gt
+        });
+      });
+
+      UI.eraChapterDial(g, lt, {
+        era: 'THE TAMIL RENAISSANCE',
+        year: 'late 6th CENTURY CE (c. 575 CE)',
+        x: 960,
+        y: 125
+      });
+      UI.citation(g, 'Rise of Simhavishnu (Pallava) & Kadungon (Pandya), c. 575 CE', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.24, grain: 0.022 });
+    },
+    sfx(k, bt0) {
+      k.bed('forestMorning', bt0 + 0.0, bt0 + 2.8, { gain: 0.22 });
+      k.play('conchShell', bt0 + 0.20, { gain: 0.55 });
+      k.play('whipCrack', bt0 + 1.40, { gain: 0.52 });
+      k.play('timerChime', bt0 + 1.45, { gain: 0.44 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 039 · [02:13.9 - 02:16.7] (133.9s – 136.7s · dur: 2.8s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 39,
+    title: 'PALLAVAS & PANDYAS PINCER VICTORY',
+    start: 133.9,
+    end: 136.7,
+    duration: 2.8,
+    vo_line: '...வடக்குல பல்லவர்களும், தெற்குல பாண்டியர்களும் களப்பிரர்களை அடிச்சு விரட்டுறாங்க.',
+    env_id: 'ENV_BATTLEFIELD_STORM + MAP_PALLAVA_PANDYA_PINCER',
+    chars: 'NARASIMHAVARMAN + KALABHRA_GEN + PANDYA_KING',
+    on_screen_text: 'PALLAVAS (NORTH) + PANDYAS (SOUTH) VICTORY',
+    camera_sfx: 'Tactical Pincer Zoom · swordClash + warDrum',
+    transition_out: 'CAMERA_PAN_TO_TEMPLE',
+    draw(g, lt, gt, u) {
+      const shk = lt >= 1.40 ? DK.shake(lt - 1.40, 6, 18, 39) : { x: 0, y: 0 };
+      const cam = {
+        x: DK.key(lt, [[0, 960], [2.8, 960]], DK.ease.linear) + shk.x,
+        y: DK.key(lt, [[0, 540], [2.8, 535]], DK.ease.outCubic) + shk.y,
+        z: DK.key(lt, [[0, 1.00], [1.4, 1.05], [2.8, 1.08]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_BATTLEFIELD_STORM', g, cam, gt, (g) => {
+        // Strategic Pincer Map in background
+        THEME.drawInfo('MAP_PALLAVA_PANDYA_PINCER', g, lt, gt);
+
+        // Mid-Shot Micro-Beat (lt = 1.40s): Pincer collision shockwave ring
+        if (lt >= 1.40) {
+          const pRing = DK.prog(lt, 1.40, 2.50);
+          g.save();
+          g.strokeStyle = `rgba(56, 200, 120, ${(1 - pRing) * 0.9})`;
+          g.lineWidth = 5;
+          g.beginPath();
+          g.arc(835, 740, 30 + pRing * 180, 0, Math.PI * 2);
+          g.stroke();
+          g.restore();
+        }
+
+        // Double Pincer Combat (x: 720, x: 835, x: 950, y: 840 — exact ±115px contact on both sides!)
+        THEME.spawnChar(g, 'NARASIMHAVARMAN', {
+          x: 720,
+          y: 840,
+          prop: 'sword',
+          pose: { preset: 'swordFight', speed: 1.4 },
+          t: gt
+        });
+        THEME.spawnChar(g, 'KALABHRA_GEN', {
+          x: 835,
+          y: 840,
+          prop: 'shield',
+          pose: { preset: 'fight', speed: 1.3 },
+          t: gt
+        });
+        THEME.spawnChar(g, 'PANDYA_KING', {
+          x: 950,
+          y: 840,
+          flipX: true,
+          prop: 'sword',
+          pose: { preset: 'swordFight', speed: 1.4 },
+          t: gt
+        });
+      });
+
+      UI.pillBadge(g, lt, {
+        text: 'PALLAVAS (NORTH) + PANDYAS (SOUTH) VICTORY',
+        x: 960,
+        y: 115,
+        accent: '#38C878',
+        t0: 0.2
+      });
+      UI.citation(g, 'Kasakudi Plates (Pallava) & Velvikudi Plates (Pandya)', { align: 'right' });
+      DK.finishFrame(g, gt, { vignette: 0.28, grain: 0.024 });
+    },
+    sfx(k, bt0) {
+      k.bed('battlefield', bt0 + 0.0, bt0 + 2.8, { gain: 0.24 });
+      k.play('swordClash', bt0 + 0.30, { gain: 0.58 });
+      k.play('swordClash', bt0 + 1.40, { gain: 0.65 });
+      k.play('warHorn', bt0 + 1.45, { gain: 0.58 });
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // SHOT 040 · [02:16.7 - 02:21.1] (136.7s – 141.1s · dur: 4.4s)
+  // --------------------------------------------------------------------------
+  {
+    shot_number: 40,
+    title: 'TAMIL CULTURAL & BHAKTI RENAISSANCE',
+    start: 136.7,
+    end: 141.1,
+    duration: 4.4,
+    vo_line: 'இந்த time-ல இருந்து தமிழும், தமிழ்நாடும், தமிழ் கலாச்சாரமும் செழிப்பா வளர ஆரம்பிக்குது.',
+    env_id: 'ENV_TEMPLE_COURTYARD',
+    chars: 'THIRUVALLUVAR (Bhakti Poet-Saint) + KEELADI_WEAVER (Devotee)',
+    on_screen_text: 'TAMIL CULTURAL & BHAKTI RENAISSANCE · 6th–9th CENT. CE',
+    camera_sfx: 'Grand Temple Procession Pan · templeBell + harpArpeggio',
+    transition_out: 'WHIP_PAN_TO_COAST',
+    draw(g, lt, gt, u) {
+      const cam = {
+        x: DK.key(lt, [[0, 910], [2.2, 960], [4.4, 1010]], DK.ease.inOutQuad),
+        y: DK.key(lt, [[0, 545], [4.4, 525]], DK.ease.outCubic),
+        z: DK.key(lt, [[0, 1.00], [4.4, 1.07]], DK.ease.outCubic)
+      };
+
+      THEME.drawEnv('ENV_TEMPLE_COURTYARD', g, cam, gt, (g) => {
+        // Mid-Shot Micro-Beat (lt = 2.20s): Golden god-rays illuminate temple courtyard
+        if (lt >= 2.20) {
+          FX.godRays(g, 960, 140, { count: 9, color: 'rgba(255, 215, 95, 0.30)' });
+        }
+
+        // Temple Sanctum Altar at x: 910, y: 840 (Poet reaches x: 820 -> charX + 90px contact)
+        FX.interactiveProp(g, { kind: 'scholarDesk', x: 910, y: 840, cutTime: 2.20, lt, gt });
+
+        // Devotee walking in procession behind poet (moveX: [180, 660, lt, 4.4])
+        THEME.spawnChar(g, 'KEELADI_WEAVER', {
+          moveX: [180, 660, lt, 4.4],
+          y: 840,
+          pose: { preset: 'walk', speed: 1.1 },
+          t: gt
+        });
+
+        // Bhakti Poet-Saint walking forward to sanctum altar (moveX: [340, 820, lt, 4.4])
+        THEME.spawnChar(g, 'THIRUVALLUVAR', {
+          moveX: [340, 820, lt, 4.4],
+          y: 840,
+          prop: 'palmLeaf',
+          pose: { preset: 'walk', speed: 1.1 },
+          t: gt
+        });
+      });
+
+      if (lt >= 2.20) {
+        UI.pillBadge(g, lt, {
+          text: 'BHAKTI & CULTURAL RENAISSANCE (தேவாரம் · திவ்வியப் பிரபந்தம்)',
+          x: 960,
+          y: 175,
+          accent: '#38C878',
+          t0: 2.20
+        });
+      }
+
+      UI.pillBadge(g, lt, {
+        text: 'TAMIL CULTURAL & BHAKTI RENAISSANCE · 6th–9th CENT. CE',
+        x: 960,
+        y: 115,
+        accent: '#F7B928',
+        t0: 0.3
+      });
+      UI.citation(g, 'Thevaram & Nalayira Divya Prabandham Literary Revival', { align: 'left' });
+      DK.finishFrame(g, gt, { vignette: 0.24, grain: 0.022 });
+    },
+    sfx(k, bt0) {
+      k.bed('templeCourtyard', bt0 + 0.0, bt0 + 4.4, { gain: 0.24 });
+      k.play('templeBell', bt0 + 0.20, { gain: 0.50 });
+      k.play('footstep', bt0 + 0.85, { gain: 0.38 });
+      k.play('starShimmer', bt0 + 2.20, { gain: 0.52 });
+      k.play('templeBell', bt0 + 2.25, { gain: 0.48 });
+    }
+  }
+];
+
+if (window.DK && DK.linkShotTransitions) DK.linkShotTransitions(SHOTS, window.THEME);
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const BATCH_START = SHOTS[0].start;
+const BATCH_END = SHOTS[SHOTS.length - 1].end;
+const DURATION = BATCH_END - BATCH_START;
+
+// Auto-runs each shot's attached sfx(k, bt0) if scoreSound(k) is not defined separately
+if (typeof window.scoreSound !== 'function') {
+  window.scoreSound = function scoreSound(k) {
+    SHOTS.forEach((s) => {
+      if (typeof s.sfx === 'function') s.sfx(k, s.start - BATCH_START);
+    });
+  };
+}
+const scoreSound = window.scoreSound;
+
+window.BATCH_START = BATCH_START;
+window.BATCH_END = BATCH_END;
+window.DURATION = DURATION;
+window.SHOTS = SHOTS;
+window.scoreSound = scoreSound;
+
+let currentT = 0, playing = false, rafId = null, lastTs = 0, stopSound = null, activeShotFilter = 'all', voAudio = null;
+
+function findShotAtGlobal(gt) {
+  for (let i = 0; i < SHOTS.length; i++) {
+    if (gt >= SHOTS[i].start && gt <= SHOTS[i].end) return SHOTS[i];
+  }
+  return gt < SHOTS[0].start ? SHOTS[0] : SHOTS[SHOTS.length - 1];
+}
+
+function renderAtLocal(localT) {
+  currentT = DK.clamp(localT, 0, DURATION);
+  const gt = BATCH_START + currentT;
+  const s = findShotAtGlobal(gt);
+  const lt = DK.clamp(gt - s.start, 0, s.duration);
+  const u = s.duration > 0 ? lt / s.duration : 0;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, 1920, 1080);
+  ctx.save();
+  if (window.DK && DK.drawShot) DK.drawShot(ctx, s, lt, gt, u);
+  else s.draw(ctx, lt, gt, u);
+  ctx.restore();
+  document.getElementById('scrub').value = DURATION > 0 ? currentT / DURATION : 0;
+  document.getElementById('readout').textContent = gt.toFixed(2) + 's (' + currentT.toFixed(2) + 's) · Shot ' + s.shot_number;
+}
+
+window.seek = function (t, opts) {
+  if (playing) pause();
+  const localT = opts && opts.global ? t - BATCH_START : t;
+  renderAtLocal(localT);
+};
+
+function startAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  const mixMode = document.getElementById('mixSelect').value;
+  if (mixMode !== 'mute' && window.SOUND) stopSound = SOUND.live(scoreSound, currentT, { mixMode: 'sfxOnly' });
+  if (voAudio) { voAudio.currentTime = BATCH_START + currentT; voAudio.play().catch(() => {}); }
+}
+
+function stopAudio() {
+  if (stopSound) { stopSound(); stopSound = null; }
+  if (voAudio) voAudio.pause();
+}
+
+function play() {
+  if (playing) return;
+  playing = true;
+  document.getElementById('playBtn').textContent = 'Pause';
+  lastTs = performance.now();
+  startAudio();
+  const tick = (now) => {
+    if (!playing) return;
+    const dt = (now - lastTs) / 1000;
+    lastTs = now;
+    let nextT = currentT + dt;
+    if (activeShotFilter !== 'all') {
+      const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+      if (s) {
+        const sLocal0 = s.start - BATCH_START, sLocal1 = s.end - BATCH_START;
+        if (nextT >= sLocal1) { nextT = sLocal0; currentT = nextT; startAudio(); }
+      }
+    } else if (nextT >= DURATION) {
+      nextT = 0; currentT = 0; startAudio();
+    }
+    renderAtLocal(nextT);
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+}
+
+function pause() {
+  playing = false;
+  document.getElementById('playBtn').textContent = 'Play';
+  if (rafId) cancelAnimationFrame(rafId);
+  stopAudio();
+}
+
+const shotSelect = document.getElementById('shotSelect');
+SHOTS.forEach((s) => {
+  const opt = document.createElement('option');
+  opt.value = String(s.shot_number);
+  opt.textContent = 'Shot ' + s.shot_number + ': ' + s.title + ' (' + s.start.toFixed(1) + 's-' + s.end.toFixed(1) + 's)';
+  shotSelect.appendChild(opt);
+});
+
+shotSelect.addEventListener('change', () => {
+  activeShotFilter = shotSelect.value;
+  if (activeShotFilter !== 'all') {
+    const s = SHOTS.find((sh) => String(sh.shot_number) === activeShotFilter);
+    if (s) { renderAtLocal(s.start - BATCH_START); if (playing) startAudio(); }
+  }
+});
+
+document.getElementById('playBtn').addEventListener('click', () => (playing ? pause() : play()));
+document.getElementById('scrub').addEventListener('input', (e) => {
+  renderAtLocal(parseFloat(e.target.value) * DURATION);
+  if (playing) startAudio();
+});
+document.getElementById('mixSelect').addEventListener('change', () => { if (playing) startAudio(); });
+document.getElementById('voInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  voAudio = new Audio(URL.createObjectURL(file));
+});
+document.getElementById('wavBtn').addEventListener('click', async () => {
+  const res = await SOUND.renderOffline(scoreSound, DURATION, 48000, { mixMode: 'sfxOnly' });
+  const blob = SOUND.encodeWAV(res.inter, res.sr);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'batch_sfx_' + SHOTS[0].shot_number + '_' + SHOTS[SHOTS.length - 1].shot_number + '.wav';
+  a.click();
+});
+window.addEventListener('DOMContentLoaded', async () => {
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  if (window.MAP && MAP.preloadAll) await MAP.preloadAll(SHOTS);
+  renderAtLocal(0);
+});
+</script>
+</body>
+</html>
